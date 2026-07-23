@@ -3,7 +3,8 @@ name: Release
 # Tag and publish a GitHub Release from the changelog, on demand. Exists because
 # tags cannot always be pushed from every environment; the runner holds the write
 # token, so a dispatch turns a merged release commit into a tag + Release without a
-# local tag push. Idempotent: a version already released is left untouched.
+# local tag push. Idempotent: a version already released keeps its tag untouched,
+# and its notes are refreshed from the current changelog section.
 
 on:
   workflow_dispatch:
@@ -53,7 +54,10 @@ jobs:
           version="${{ inputs.version }}"
           sha="${{ steps.target.outputs.sha }}"
           if gh release view "v$version" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release v$version already exists; nothing to do."
+            echo "Release v$version already exists; refreshing its notes from the changelog."
+            gh release edit "v$version" \
+              --repo "$GITHUB_REPOSITORY" \
+              --notes-file RELEASE_NOTES.md
             exit 0
           fi
           gh release create "v$version" \
