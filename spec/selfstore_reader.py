@@ -98,7 +98,7 @@ def _open_group(zf: zipfile.ZipFile, header: dict, identity: dict, authors: list
     if header.get("keying") != GROUP_KEYING:
         raise SelfstoreError(f"unsupported keying: {header.get('keying')!r}")
     if header.get("format") != 2:
-        raise SelfstoreError("group keying present but format is not 3")
+        raise SelfstoreError("group keying present but format is not 2")
     # A valid signature over an attacker-chosen author proves nothing (SPEC 12.6):
     # the trusted-author list is MANDATORY for group mode. Never open without it.
     if authors is None:
