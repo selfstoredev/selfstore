@@ -137,7 +137,10 @@ const importEncPub = (b64: string): Promise<CryptoKey> =>
 /** Generate a fresh member identity (two keypairs). */
 export async function generateIdentity(): Promise<GroupIdentity> {
 	await requireCurves();
-	const sig = (await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify'])) as CryptoKeyPair;
+	const sig = (await crypto.subtle.generateKey('Ed25519', true, [
+		'sign',
+		'verify'
+	])) as CryptoKeyPair;
 	const enc = (await crypto.subtle.generateKey('X25519', true, ['deriveBits'])) as CryptoKeyPair;
 	const raw = async (k: CryptoKey): Promise<string> =>
 		toBase64(new Uint8Array(await crypto.subtle.exportKey('raw', k)));
@@ -221,7 +224,12 @@ export async function sealDataKey(
 		const wrap = new Uint8Array(
 			await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, src(dataKey))
 		);
-		out.push({ kid: await keyId(r), epk: toBase64(ephPubRaw), iv: toBase64(iv), wrap: toBase64(wrap) });
+		out.push({
+			kid: await keyId(r),
+			epk: toBase64(ephPubRaw),
+			iv: toBase64(iv),
+			wrap: toBase64(wrap)
+		});
 	}
 	return out;
 }
@@ -247,9 +255,19 @@ export async function openDataKey(
 	const myPubRaw = fromBase64(identity.encPub);
 	for (const s of candidates) {
 		try {
-			const key = await stanzaWrapKey(priv, await importEncPub(s.epk), fromBase64(s.epk), myPubRaw, 'decrypt');
+			const key = await stanzaWrapKey(
+				priv,
+				await importEncPub(s.epk),
+				fromBase64(s.epk),
+				myPubRaw,
+				'decrypt'
+			);
 			const pt = new Uint8Array(
-				await crypto.subtle.decrypt({ name: 'AES-GCM', iv: src(fromBase64(s.iv)) }, key, src(fromBase64(s.wrap)))
+				await crypto.subtle.decrypt(
+					{ name: 'AES-GCM', iv: src(fromBase64(s.iv)) },
+					key,
+					src(fromBase64(s.wrap))
+				)
 			);
 			// Any other length is a key-downgrade attempt, not a valid envelope.
 			if (pt.length === DATA_KEY_BYTES) return pt;
@@ -354,7 +372,7 @@ export async function openManifest(
 		throw bad('Not a signed selfstore manifest.');
 	}
 	let payload: Uint8Array;
-	let ok = false;
+	let ok: boolean;
 	try {
 		payload = fromBase64(signed.payload);
 		const msg = concat(utf8.encode(DOMAIN_MANIFEST), payload);

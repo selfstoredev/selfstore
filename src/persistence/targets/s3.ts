@@ -210,7 +210,7 @@ export async function connect(opts: S3ConnectOptions): Promise<BackupTarget | nu
 	// isReady() throws on a 403 (a later rejection gates the store); at first
 	// connect a rejection just means "wrong credentials, try again", so a throw
 	// here reads the same as false - report null, persist nothing.
-	let ok = false;
+	let ok: boolean;
 	try {
 		ok = await target.isReady();
 	} catch {

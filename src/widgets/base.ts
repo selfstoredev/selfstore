@@ -408,7 +408,7 @@ export abstract class FlowWidget extends HTMLElement {
 	protected rerender(): void {
 		// happy-dom's ShadowRoot.activeElement throws once the focused node was
 		// replaced by an earlier rebuild; browsers just report null/body.
-		let active: HTMLInputElement | null = null;
+		let active: HTMLInputElement | null;
 		try {
 			active = this.root.activeElement as HTMLInputElement | null;
 		} catch {
