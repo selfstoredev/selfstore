@@ -254,7 +254,11 @@ describe('connectFlow: the default resolution', () => {
 		const { host, engine, app } = makeHost({ todos: [{ id: 'b', text: 'local' }] });
 		await engine.init();
 		await engine.flush();
-		const flow = connectFlow(host, { drive: async () => t.target }, { defaultResolution: 'resume' });
+		const flow = connectFlow(
+			host,
+			{ drive: async () => t.target },
+			{ defaultResolution: 'resume' }
+		);
 		flow.choose('drive');
 		const s = await until(flow, (x) => x.step === 'connected');
 		expect(s.outcome).toBe('resumed'); // no conflict step on the way
@@ -280,7 +284,11 @@ describe('connectFlow: the default resolution', () => {
 		const { host, engine } = makeHost({ todos: [{ id: 't1', text: 'ship it' }] });
 		await engine.init();
 		const t = fakeTarget();
-		const flow = connectFlow(host, { drive: async () => t.target }, { defaultResolution: 'resume' });
+		const flow = connectFlow(
+			host,
+			{ drive: async () => t.target },
+			{ defaultResolution: 'resume' }
+		);
 		flow.choose('drive');
 		const s = await until(flow, (x) => x.step === 'connected');
 		expect(s.outcome).toBe('started');
@@ -415,11 +423,7 @@ describe('connectFlow: the conflict step', () => {
 		const { host, engine } = makeHost({ todos: [{ id: 'b', text: 'local' }] });
 		await engine.init();
 		const t = fakeTarget(await remoteBackup());
-		const flow = connectFlow(
-			host,
-			{ drive: async () => t.target },
-			{ hasLocalData: () => true }
-		);
+		const flow = connectFlow(host, { drive: async () => t.target }, { hasLocalData: () => true });
 		flow.choose('drive');
 		const s = await until(flow, (x) => x.step === 'conflict');
 		expect(s.hasBackup).toBe(true);

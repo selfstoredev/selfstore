@@ -27,9 +27,10 @@ function decode(h: Hlc): Parts {
 
 /** A fresh random replica id (one per device). */
 export function createNode(): string {
-	return (typeof crypto !== 'undefined' && crypto.randomUUID
-		? crypto.randomUUID()
-		: Math.random().toString(36).slice(2)
+	return (
+		typeof crypto !== 'undefined' && crypto.randomUUID
+			? crypto.randomUUID()
+			: Math.random().toString(36).slice(2)
 	).replace(/\|/g, '');
 }
 

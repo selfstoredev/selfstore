@@ -7,7 +7,12 @@
  */
 
 import { describe, it, expect, afterEach } from 'vitest';
-import { createLocalStore, type LocalStore, type LocalStoreOptions, type StoreGroupConfig } from './store';
+import {
+	createLocalStore,
+	type LocalStore,
+	type LocalStoreOptions,
+	type StoreGroupConfig
+} from './store';
 import { memoryCache, type LocalCache } from './cache';
 import { identityVault } from './identity';
 import type { BackupTarget } from './target';
@@ -65,7 +70,10 @@ afterEach(() => {
 	for (const s of open.splice(0)) s.dispose();
 });
 
-function makeStore(initial: Record<string, unknown[]> = {}, extra: Partial<LocalStoreOptions> = {}) {
+function makeStore(
+	initial: Record<string, unknown[]> = {},
+	extra: Partial<LocalStoreOptions> = {}
+) {
 	const app = { collections: structuredClone(initial) };
 	const cache = memoryCache();
 	const store = createLocalStore({
@@ -327,7 +335,10 @@ describe('passwordless group', () => {
 		await bob.store.syncNow();
 
 		alice.t.seed(
-			await exportSnapshot({ collections: { accounts: [{ id: 'plain' }] }, files: [] }, { app: 'x' })
+			await exportSnapshot(
+				{ collections: { accounts: [{ id: 'plain' }] }, files: [] },
+				{ app: 'x' }
+			)
 		);
 		await bob.store.syncNow();
 		expect(bob.store.state.peers[0].lastError?.code).toBe('UNEXPECTEDLY_UNENCRYPTED');
@@ -361,7 +372,9 @@ describe('passwordless group', () => {
 			manifest: signed
 		};
 
-		expect(() => alice.store.attachTarget(t.target, { group: g, password: 'pw' })).toThrow(TypeError);
+		expect(() => alice.store.attachTarget(t.target, { group: g, password: 'pw' })).toThrow(
+			TypeError
+		);
 		// A valid manifest that does not LIST this identity: refused after the
 		// (async) verification, before anything about the store changes.
 		await expect(

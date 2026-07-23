@@ -1,81 +1,76 @@
 {
-  "password": "correct horse battery staple",
-  "app": "spec-demo",
-  "appVersion": "1.0.0",
-  "schemaVersion": 1,
-  "expected": {
-    "collections": {
-      "notes": [
-        {
-          "id": "n1",
-          "text": "hello world"
-        },
-        {
-          "id": "n2",
-          "text": "deuxieme note"
-        }
-      ]
-    },
-    "files": [
-      {
-        "id": "f1",
-        "name": "a.txt",
-        "mime": "text/plain",
-        "text": "file bytes 123"
-      }
-    ]
-  },
-  "files": {
-    "plain.zip": {
-      "encryption": "none",
-      "hasSyncJson": false
-    },
-    "store.zip": {
-      "encryption": "none",
-      "hasSyncJson": true
-    },
-    "group.zip": {
-      "encryption": "aes-256-gcm",
-      "keying": "x25519-hkdf-sha256",
-      "hasSyncJson": false
-    },
-    "envelope.zip": {
-      "encryption": "aes-256-gcm",
-      "format": 3,
-      "hasSyncJson": true,
-      "passwords": [
-        "correct horse battery staple",
-        "second key for the demo"
-      ]
-    },
-    "envelope-external.zip": {
-      "encryption": "aes-256-gcm",
-      "format": 3,
-      "hasSyncJson": true,
-      "passwords": [
-        "correct horse battery staple"
-      ],
-      "external": {
-        "secretB64": "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=",
-        "keyRef": "passkey-demo"
-      }
-    }
-  },
-  "group": {
-    "author": "alice",
-    "identities": {
-      "alice": {
-        "sigPub": "9PJWYWOuILBSNFHJqXCRxO9ejfeF36b/7X6ayHIL6/U=",
-        "sigPriv": "MC4CAQAwBQYDK2VwBCIEICtYwyBU19NU+4SbPctU9wF8KmIWZCDhW1FDNDldhcHT",
-        "encPub": "TzDDpoG21Hj+4WDLF5T2/k5c1lhotvNUTfnqNe1EW0k=",
-        "encPriv": "MC4CAQAwBQYDK2VuBCIEICjX8ubEEiOzx2gx2D1ZRC+W+FxBR7bppc9z2vIVmZ52"
-      },
-      "bob": {
-        "sigPub": "BNIahNESfZ9ol+SxupaL/pDkJ11P01U9pOUnjfgs0AY=",
-        "sigPriv": "MC4CAQAwBQYDK2VwBCIEIOubXCyhnaOxiW1CXn1UJnf81WovRNEZEuY1y0KVyL4z",
-        "encPub": "xnTNmPFHqM/l9HMTooPGfzAMSum8yXz3yTr+3QG3c3s=",
-        "encPriv": "MC4CAQAwBQYDK2VuBCIEIIDOL3juJjInwnLizwoLf8K+N469QSMoDX0anwaVLzx8"
-      }
-    }
-  }
+	"password": "correct horse battery staple",
+	"app": "spec-demo",
+	"appVersion": "1.0.0",
+	"schemaVersion": 1,
+	"expected": {
+		"collections": {
+			"notes": [
+				{
+					"id": "n1",
+					"text": "hello world"
+				},
+				{
+					"id": "n2",
+					"text": "deuxieme note"
+				}
+			]
+		},
+		"files": [
+			{
+				"id": "f1",
+				"name": "a.txt",
+				"mime": "text/plain",
+				"text": "file bytes 123"
+			}
+		]
+	},
+	"files": {
+		"plain.zip": {
+			"encryption": "none",
+			"hasSyncJson": false
+		},
+		"store.zip": {
+			"encryption": "none",
+			"hasSyncJson": true
+		},
+		"group.zip": {
+			"encryption": "aes-256-gcm",
+			"keying": "x25519-hkdf-sha256",
+			"hasSyncJson": false
+		},
+		"envelope.zip": {
+			"encryption": "aes-256-gcm",
+			"format": 3,
+			"hasSyncJson": true,
+			"passwords": ["correct horse battery staple", "second key for the demo"]
+		},
+		"envelope-external.zip": {
+			"encryption": "aes-256-gcm",
+			"format": 3,
+			"hasSyncJson": true,
+			"passwords": ["correct horse battery staple"],
+			"external": {
+				"secretB64": "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=",
+				"keyRef": "passkey-demo"
+			}
+		}
+	},
+	"group": {
+		"author": "alice",
+		"identities": {
+			"alice": {
+				"sigPub": "9PJWYWOuILBSNFHJqXCRxO9ejfeF36b/7X6ayHIL6/U=",
+				"sigPriv": "MC4CAQAwBQYDK2VwBCIEICtYwyBU19NU+4SbPctU9wF8KmIWZCDhW1FDNDldhcHT",
+				"encPub": "TzDDpoG21Hj+4WDLF5T2/k5c1lhotvNUTfnqNe1EW0k=",
+				"encPriv": "MC4CAQAwBQYDK2VuBCIEICjX8ubEEiOzx2gx2D1ZRC+W+FxBR7bppc9z2vIVmZ52"
+			},
+			"bob": {
+				"sigPub": "BNIahNESfZ9ol+SxupaL/pDkJ11P01U9pOUnjfgs0AY=",
+				"sigPriv": "MC4CAQAwBQYDK2VwBCIEIOubXCyhnaOxiW1CXn1UJnf81WovRNEZEuY1y0KVyL4z",
+				"encPub": "xnTNmPFHqM/l9HMTooPGfzAMSum8yXz3yTr+3QG3c3s=",
+				"encPriv": "MC4CAQAwBQYDK2VuBCIEIIDOL3juJjInwnLizwoLf8K+N469QSMoDX0anwaVLzx8"
+			}
+		}
+	}
 }

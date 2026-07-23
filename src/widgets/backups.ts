@@ -101,7 +101,15 @@ const EYE_SHUT =
 
 export class SelfstoreBackupsElement extends FlowWidget {
 	static get observedAttributes(): string[] {
-		return ['with-create', 'with-rename', 'with-delete', 'with-open', 'with-encrypt', 'with-share', 'with-shared'];
+		return [
+			'with-create',
+			'with-rename',
+			'with-delete',
+			'with-open',
+			'with-encrypt',
+			'with-share',
+			'with-shared'
+		];
 	}
 
 	#manager: BackupsManager | null = null;
@@ -122,7 +130,14 @@ export class SelfstoreBackupsElement extends FlowWidget {
 	#replicaFlow: ReplicaFlow | null = null;
 	#replicaSnap: ReplicaSnapshot | null = null;
 	#repWebdav: WebdavConfig = { url: '', username: '', password: '' };
-	#repS3: S3Config = { endpoint: '', region: '', bucket: '', key: '', accessKeyId: '', secretAccessKey: '' };
+	#repS3: S3Config = {
+		endpoint: '',
+		region: '',
+		bucket: '',
+		key: '',
+		accessKeyId: '',
+		secretAccessKey: ''
+	};
 	#activeEncrypted: boolean | null = null;
 	#activeShared: boolean | null = null;
 	#confirmAction: ((action: BackupsAction) => boolean | Promise<boolean>) | null = null;
@@ -157,7 +172,9 @@ export class SelfstoreBackupsElement extends FlowWidget {
 	get member(): { by: string; fileId?: string | null }[] | null {
 		return this.#members.length > 0 ? this.#members : null;
 	}
-	set member(v: { by: string; fileId?: string | null }[] | { by: string; fileId?: string | null } | null) {
+	set member(
+		v: { by: string; fileId?: string | null }[] | { by: string; fileId?: string | null } | null
+	) {
 		this.#members = v == null ? [] : Array.isArray(v) ? v : [v];
 		this.rerender();
 	}
@@ -408,11 +425,19 @@ export class SelfstoreBackupsElement extends FlowWidget {
 		const shared = h('ul', { part: 'list' });
 		if (badge) {
 			const activeRow = rows.find((r) => r.fileId === active) ?? null;
-			const leaveAction: BackupsAction = { type: 'leave', fileId: badge.fileId ?? null, who: badge.by };
+			const leaveAction: BackupsAction = {
+				type: 'leave',
+				fileId: badge.fileId ?? null,
+				who: badge.by
+			};
 			shared.append(
 				h(
 					'li',
-					{ part: 'card card-active', style: 'position:relative;border-color:var(--_ok)', 'data-member': '' },
+					{
+						part: 'card card-active',
+						style: 'position:relative;border-color:var(--_ok)',
+						'data-member': ''
+					},
 					h(
 						'div',
 						{ style: 'flex:1;min-width:0' },
@@ -454,9 +479,21 @@ export class SelfstoreBackupsElement extends FlowWidget {
 					this.#withOpen
 						? h(
 								'button',
-								{ part: 'link open-shared', style: 'flex:1;min-width:0;text-align:left;text-decoration:none', 'data-action': 'open-shared', disabled: this.#busy, onclick: () => this.open(s.fileId) },
+								{
+									part: 'link open-shared',
+									style: 'flex:1;min-width:0;text-align:left;text-decoration:none',
+									'data-action': 'open-shared',
+									disabled: this.#busy,
+									onclick: () => this.open(s.fileId)
+								},
 								h('div', { part: 'title' }, this.ts('backups.shared.by', { who: s.who })),
-								h('div', { part: 'sub' }, this.#openBusy === s.fileId ? this.t('backups.loading') : this.t('backups.replaceHint'))
+								h(
+									'div',
+									{ part: 'sub' },
+									this.#openBusy === s.fileId
+										? this.t('backups.loading')
+										: this.t('backups.replaceHint')
+								)
 							)
 						: h(
 								'div',
@@ -475,7 +512,10 @@ export class SelfstoreBackupsElement extends FlowWidget {
 												)
 											)
 										: this.menuItem('forget', this.t('backups.delete'), true, () =>
-												this.guarded({ type: 'forget', fileId: s.fileId, who: s.who }, () => void this.forget(s.fileId))
+												this.guarded(
+													{ type: 'forget', fileId: s.fileId, who: s.who },
+													() => void this.forget(s.fileId)
+												)
 											)
 									: null
 							)
@@ -494,16 +534,30 @@ export class SelfstoreBackupsElement extends FlowWidget {
 		const bits: (HTMLElement | string | null)[] = [];
 		if (enc !== null) {
 			bits.push(
-				h('span', { part: enc ? 'pill pill-encrypted sev-ok' : 'pill pill-plain', style: pillStyle }, this.t(enc ? 'backups.pill.encrypted' : 'backups.pill.plain'))
+				h(
+					'span',
+					{ part: enc ? 'pill pill-encrypted sev-ok' : 'pill pill-plain', style: pillStyle },
+					this.t(enc ? 'backups.pill.encrypted' : 'backups.pill.plain')
+				)
 			);
 		}
 		if (shr !== null) {
 			bits.push(
-				h('span', { part: shr ? 'pill pill-shared sev-warn' : 'pill pill-private', style: pillStyle }, this.t(shr ? 'backups.pill.shared' : 'backups.pill.private'))
+				h(
+					'span',
+					{ part: shr ? 'pill pill-shared sev-warn' : 'pill pill-private', style: pillStyle },
+					this.t(shr ? 'backups.pill.shared' : 'backups.pill.private')
+				)
 			);
 		}
 		if (r.modifiedAt) {
-			bits.push(h('span', { part: 'sub' }, this.ts('backups.modified', { when: new Date(r.modifiedAt).toLocaleDateString() })));
+			bits.push(
+				h(
+					'span',
+					{ part: 'sub' },
+					this.ts('backups.modified', { when: new Date(r.modifiedAt).toLocaleDateString() })
+				)
+			);
 		}
 		return bits;
 	}
@@ -512,7 +566,12 @@ export class SelfstoreBackupsElement extends FlowWidget {
 		const body = h(
 			'div',
 			{ style: 'flex:1;min-width:0' },
-			h('div', { part: 'title' }, this.label(r), active ? h('span', { part: 'tag' }, this.t('backups.active')) : null),
+			h(
+				'div',
+				{ part: 'title' },
+				this.label(r),
+				active ? h('span', { part: 'tag' }, this.t('backups.active')) : null
+			),
 			h('div', { part: 'row', style: 'margin-top:0.2rem' }, ...this.pills(r, active)),
 			footer
 		);
@@ -520,26 +579,51 @@ export class SelfstoreBackupsElement extends FlowWidget {
 		const face = opens
 			? h(
 					'button',
-					{ part: 'link open-row', style: 'flex:1;min-width:0;text-align:left;text-decoration:none', 'data-action': 'open', disabled: this.#busy, onclick: () => this.open(r.fileId) },
+					{
+						part: 'link open-row',
+						style: 'flex:1;min-width:0;text-align:left;text-decoration:none',
+						'data-action': 'open',
+						disabled: this.#busy,
+						onclick: () => this.open(r.fileId)
+					},
 					this.#openBusy === r.fileId ? h('div', { part: 'sub' }, this.t('backups.loading')) : body
 				)
 			: body;
 		return h(
 			'li',
-			{ part: active ? 'card card-active' : 'card', style: active ? 'position:relative;border-color:var(--_ok)' : 'position:relative', 'data-row': r.fileId },
+			{
+				part: active ? 'card card-active' : 'card',
+				style: active ? 'position:relative;border-color:var(--_ok)' : 'position:relative',
+				'data-row': r.fileId
+			},
 			face,
 			this.menuButton(r.fileId),
 			this.#menuFor === r.fileId
 				? this.menu(
-						opens ? this.menuItem('open', this.t('backups.open'), false, () => this.open(r.fileId)) : null,
+						opens
+							? this.menuItem('open', this.t('backups.open'), false, () => this.open(r.fileId))
+							: null,
 						this.#withEncrypt
-							? this.menuItem('encrypt', this.t('backups.encrypt'), false, () => this.emit('selfstore-backups-encrypt', { fileId: r.fileId, label: r.label, active }))
+							? this.menuItem('encrypt', this.t('backups.encrypt'), false, () =>
+									this.emit('selfstore-backups-encrypt', {
+										fileId: r.fileId,
+										label: r.label,
+										active
+									})
+								)
 							: null,
 						this.#withShare
-							? this.menuItem('share', this.t('backups.share'), false, () => this.emit('selfstore-backups-share', { fileId: r.fileId, label: r.label, active }))
+							? this.menuItem('share', this.t('backups.share'), false, () =>
+									this.emit('selfstore-backups-share', { fileId: r.fileId, label: r.label, active })
+								)
 							: null,
-						active && this.#replicaFlow && this.#replicaSnap?.step === 'idle' && !this.#replicaSnap.replica
-							? this.menuItem('replica-add', this.t('backups.replica.add'), false, () => this.#replicaFlow?.open())
+						active &&
+							this.#replicaFlow &&
+							this.#replicaSnap?.step === 'idle' &&
+							!this.#replicaSnap.replica
+							? this.menuItem('replica-add', this.t('backups.replica.add'), false, () =>
+									this.#replicaFlow?.open()
+								)
 							: null,
 						this.#withRename
 							? this.menuItem('rename', this.t('backups.rename'), false, () => {
@@ -550,7 +634,10 @@ export class SelfstoreBackupsElement extends FlowWidget {
 							: null,
 						this.#withDelete
 							? this.menuItem('delete', this.t('backups.delete'), true, () =>
-									this.guarded({ type: 'delete', fileId: r.fileId, name: r.name, active }, () => void this.deleteRow(r.fileId))
+									this.guarded(
+										{ type: 'delete', fileId: r.fileId, name: r.name, active },
+										() => void this.deleteRow(r.fileId)
+									)
 								)
 							: null
 					)
@@ -589,8 +676,26 @@ export class SelfstoreBackupsElement extends FlowWidget {
 						}),
 						this.eye()
 					),
-					h('button', { part: 'button button-primary', 'data-action': 'pw-open', disabled: this.#busy, onclick: submit }, this.t('backups.open')),
-					h('button', { part: 'button', 'data-action': 'pw-cancel', disabled: this.#busy, onclick: () => this.closePw() }, this.t('backups.cancel'))
+					h(
+						'button',
+						{
+							part: 'button button-primary',
+							'data-action': 'pw-open',
+							disabled: this.#busy,
+							onclick: submit
+						},
+						this.t('backups.open')
+					),
+					h(
+						'button',
+						{
+							part: 'button',
+							'data-action': 'pw-cancel',
+							disabled: this.#busy,
+							onclick: () => this.closePw()
+						},
+						this.t('backups.cancel')
+					)
 				)
 			)
 		);
@@ -621,18 +726,36 @@ export class SelfstoreBackupsElement extends FlowWidget {
 				taken
 					? h('div', { part: 'error-note' }, this.t('backups.taken'))
 					: clean
-						? h('div', { part: 'sub' }, this.ts('backups.willBe', { file: this.#manager?.fileNameFor(clean) ?? '' }))
+						? h(
+								'div',
+								{ part: 'sub' },
+								this.ts('backups.willBe', { file: this.#manager?.fileNameFor(clean) ?? '' })
+							)
 						: null,
 				h(
 					'div',
 					{ part: 'row', style: 'margin-top:0.45rem' },
-					h('button', { part: 'button button-primary', 'data-action': 'rename-save', disabled: this.#busy || !clean || taken, onclick: () => void this.rename(r) }, this.t('backups.rename')),
 					h(
 						'button',
-						{ part: 'button', 'data-action': 'rename-cancel', disabled: this.#busy, onclick: () => {
-							this.#renameFor = null;
-							this.rerender();
-						} },
+						{
+							part: 'button button-primary',
+							'data-action': 'rename-save',
+							disabled: this.#busy || !clean || taken,
+							onclick: () => void this.rename(r)
+						},
+						this.t('backups.rename')
+					),
+					h(
+						'button',
+						{
+							part: 'button',
+							'data-action': 'rename-cancel',
+							disabled: this.#busy,
+							onclick: () => {
+								this.#renameFor = null;
+								this.rerender();
+							}
+						},
 						this.t('backups.cancel')
 					)
 				)
@@ -666,18 +789,36 @@ export class SelfstoreBackupsElement extends FlowWidget {
 				taken
 					? h('div', { part: 'error-note' }, this.t('backups.taken'))
 					: clean
-						? h('div', { part: 'sub' }, this.ts('backups.willBe', { file: this.#manager?.fileNameFor(clean) ?? '' }))
+						? h(
+								'div',
+								{ part: 'sub' },
+								this.ts('backups.willBe', { file: this.#manager?.fileNameFor(clean) ?? '' })
+							)
 						: null,
 				h(
 					'div',
 					{ part: 'row', style: 'margin-top:0.45rem' },
-					h('button', { part: 'button button-primary', 'data-action': 'create', disabled: this.#busy || !clean || taken, onclick: () => void this.create() }, this.t('backups.create')),
 					h(
 						'button',
-						{ part: 'button', 'data-action': 'create-cancel', disabled: this.#busy, onclick: () => {
-							this.#createOpen = false;
-							this.rerender();
-						} },
+						{
+							part: 'button button-primary',
+							'data-action': 'create',
+							disabled: this.#busy || !clean || taken,
+							onclick: () => void this.create()
+						},
+						this.t('backups.create')
+					),
+					h(
+						'button',
+						{
+							part: 'button',
+							'data-action': 'create-cancel',
+							disabled: this.#busy,
+							onclick: () => {
+								this.#createOpen = false;
+								this.rerender();
+							}
+						},
 						this.t('backups.cancel')
 					)
 				)
@@ -716,7 +857,10 @@ export class SelfstoreBackupsElement extends FlowWidget {
 						'span',
 						{ part: 'sub replica-ok' },
 						this.ts('backups.replica.uptodate', {
-							when: new Date(rep.lastPublishAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+							when: new Date(rep.lastPublishAt).toLocaleTimeString([], {
+								hour: '2-digit',
+								minute: '2-digit'
+							})
 						})
 					)
 				: h('span', { part: 'sub' }, this.t('backups.replica.pending'));
@@ -725,7 +869,8 @@ export class SelfstoreBackupsElement extends FlowWidget {
 			{
 				part: 'sub replica-line',
 				'data-replica': '',
-				style: 'display:flex;flex-wrap:wrap;align-items:baseline;gap:0.1rem 0.5rem;margin-top:0.35rem'
+				style:
+					'display:flex;flex-wrap:wrap;align-items:baseline;gap:0.1rem 0.5rem;margin-top:0.35rem'
 			},
 			h('span', { part: 'replica-label' }, this.ts('backups.replica.card', { label })),
 			status,
@@ -765,14 +910,24 @@ export class SelfstoreBackupsElement extends FlowWidget {
 			snap.error ? h('div', { part: 'error-note' }, this.t('error.generic')) : null,
 			h(
 				'button',
-				{ part: 'button', 'data-action': 'replica-cancel', disabled: snap.busy, onclick: () => this.#replicaFlow?.cancel() },
+				{
+					part: 'button',
+					'data-action': 'replica-cancel',
+					disabled: snap.busy,
+					onclick: () => this.#replicaFlow?.cancel()
+				},
 				this.t('backups.cancel')
 			)
 		);
 	}
 
 	/** A config field: mutates state on input, no repaint (validated on submit). */
-	private replicaField(key: string, type: string, value: string, oninput: (v: string) => void): HTMLElement {
+	private replicaField(
+		key: string,
+		type: string,
+		value: string,
+		oninput: (v: string) => void
+	): HTMLElement {
 		return h('input', {
 			part: 'input',
 			style: 'display:block;width:100%;margin-bottom:0.4rem',
@@ -788,22 +943,48 @@ export class SelfstoreBackupsElement extends FlowWidget {
 		const c = this.#repWebdav;
 		const submit = (): void => {
 			if (!c.url.trim()) return;
-			this.#replicaFlow?.submitWebdav({ url: c.url.trim(), username: c.username.trim(), password: c.password });
+			this.#replicaFlow?.submitWebdav({
+				url: c.url.trim(),
+				username: c.username.trim(),
+				password: c.password
+			});
 		};
 		return h(
 			'li',
 			{ part: 'card replica-form', style: 'display:block' },
 			h('div', { part: 'title', style: 'margin-bottom:0.3rem' }, this.t('backups.replica.title')),
-			h('div', { part: 'sub', style: 'margin-bottom:0.6rem' }, this.t('backups.replica.webdav.help')),
+			h(
+				'div',
+				{ part: 'sub', style: 'margin-bottom:0.6rem' },
+				this.t('backups.replica.webdav.help')
+			),
 			this.replicaField('backups.replica.webdav.url', 'url', c.url, (v) => (c.url = v)),
 			this.replicaField('backups.replica.webdav.user', 'text', c.username, (v) => (c.username = v)),
-			this.replicaField('backups.replica.webdav.password', 'password', c.password, (v) => (c.password = v)),
+			this.replicaField(
+				'backups.replica.webdav.password',
+				'password',
+				c.password,
+				(v) => (c.password = v)
+			),
 			snap.error ? h('div', { part: 'error-note' }, this.t('error.generic')) : null,
 			h(
 				'div',
 				{ part: 'row', style: 'margin-top:0.45rem' },
-				h('button', { part: 'button button-primary', 'data-action': 'replica-webdav', disabled: snap.busy, onclick: submit }, this.t('backups.replica.save')),
-				h('button', { part: 'button', disabled: snap.busy, onclick: () => this.#replicaFlow?.cancel() }, this.t('backups.cancel'))
+				h(
+					'button',
+					{
+						part: 'button button-primary',
+						'data-action': 'replica-webdav',
+						disabled: snap.busy,
+						onclick: submit
+					},
+					this.t('backups.replica.save')
+				),
+				h(
+					'button',
+					{ part: 'button', disabled: snap.busy, onclick: () => this.#replicaFlow?.cancel() },
+					this.t('backups.cancel')
+				)
 			)
 		);
 	}
@@ -831,14 +1012,37 @@ export class SelfstoreBackupsElement extends FlowWidget {
 			this.replicaField('backups.replica.s3.region', 'text', c.region, (v) => (c.region = v)),
 			this.replicaField('backups.replica.s3.bucket', 'text', c.bucket, (v) => (c.bucket = v)),
 			this.replicaField('backups.replica.s3.key', 'text', c.key, (v) => (c.key = v)),
-			this.replicaField('backups.replica.s3.accessKeyId', 'text', c.accessKeyId, (v) => (c.accessKeyId = v)),
-			this.replicaField('backups.replica.s3.secret', 'password', c.secretAccessKey, (v) => (c.secretAccessKey = v)),
+			this.replicaField(
+				'backups.replica.s3.accessKeyId',
+				'text',
+				c.accessKeyId,
+				(v) => (c.accessKeyId = v)
+			),
+			this.replicaField(
+				'backups.replica.s3.secret',
+				'password',
+				c.secretAccessKey,
+				(v) => (c.secretAccessKey = v)
+			),
 			snap.error ? h('div', { part: 'error-note' }, this.t('error.generic')) : null,
 			h(
 				'div',
 				{ part: 'row', style: 'margin-top:0.45rem' },
-				h('button', { part: 'button button-primary', 'data-action': 'replica-s3', disabled: snap.busy, onclick: submit }, this.t('backups.replica.save')),
-				h('button', { part: 'button', disabled: snap.busy, onclick: () => this.#replicaFlow?.cancel() }, this.t('backups.cancel'))
+				h(
+					'button',
+					{
+						part: 'button button-primary',
+						'data-action': 'replica-s3',
+						disabled: snap.busy,
+						onclick: submit
+					},
+					this.t('backups.replica.save')
+				),
+				h(
+					'button',
+					{ part: 'button', disabled: snap.busy, onclick: () => this.#replicaFlow?.cancel() },
+					this.t('backups.cancel')
+				)
 			)
 		);
 	}

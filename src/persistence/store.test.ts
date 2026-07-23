@@ -198,7 +198,11 @@ describe('store.attachTarget backup switches (isolated backups)', () => {
 		await store.attachTarget(sharedT.target, { strategy: 'replace-remote' });
 
 		const fresh = fakeTarget('drive');
-		await store.attachTarget(fresh.target, { strategy: 'replace-remote', keepSession: true, wipe: true });
+		await store.attachTarget(fresh.target, {
+			strategy: 'replace-remote',
+			keepSession: true,
+			wipe: true
+		});
 
 		expect(app.collections).toEqual({}); // local starts blank with the new silo
 		const freshNow = await importSnapshot(fresh.remote!);
@@ -446,9 +450,8 @@ describe('freshness (stat-based converge)', () => {
 		// Privacy at rest: the kv-persisted journal is REDACTED - the kv space is
 		// not encrypted, so full user records must never land there. Values live
 		// in memory only, for the session's resolution UI.
-		const persisted = (await b.cache.kv.get<{ conflicts?: Record<string, unknown>[] }[]>(
-			'syncJournal'
-		))!;
+		const persisted =
+			(await b.cache.kv.get<{ conflicts?: Record<string, unknown>[] }[]>('syncJournal'))!;
 		const stored = persisted.find((e) => e.conflicts?.length)!;
 		expect(stored.conflicts![0]).not.toHaveProperty('local');
 		expect(stored.conflicts![0]).not.toHaveProperty('remote');
@@ -496,7 +499,12 @@ describe('freshness (stat-based converge)', () => {
 	it('journals nothing when only journal-silent collections changed', async () => {
 		const cfg: SyncConfig = { ids: { dailyHistory: 'date' } };
 		const silent = ['dailyHistory'];
-		const a = makeStore({ dailyHistory: [{ date: '2026-07-01', value: 100 }] }, cfg, undefined, silent);
+		const a = makeStore(
+			{ dailyHistory: [{ date: '2026-07-01', value: 100 }] },
+			cfg,
+			undefined,
+			silent
+		);
 		const b = makeStore({}, cfg, undefined, silent);
 		const shared = versionedTarget();
 		await a.store.attachTarget(shared.target, { strategy: 'replace-remote' });
@@ -656,9 +664,9 @@ describe('store key slots (password envelope)', () => {
 		await expect(importSnapshot(t.remote!, { password: 'guest-pw' })).rejects.toMatchObject({
 			code: 'DECRYPT_FAILED'
 		});
-		expect((await importSnapshot(t.remote!, { password: 'owner-pw' })).collections.accounts).toEqual([
-			{ id: 'a1' }
-		]);
+		expect(
+			(await importSnapshot(t.remote!, { password: 'owner-pw' })).collections.accounts
+		).toEqual([{ id: 'a1' }]);
 
 		// Unknown ids and the last slot are refused (decrypting is setEncryption(null)).
 		await expect(store.removeEncryptionKey('nope')).rejects.toThrow('no key slot');
@@ -748,7 +756,13 @@ describe('store external-key encryption (passkey-style, no typed password)', () 
 
 		// The remote is the authenticated envelope, opened by the secret alone.
 		expect((await inspect(t.remote!)).encryption).not.toBe('none');
-		const r = await readBoxWithSync(await bytesOf(t.remote!), undefined, undefined, undefined, async () => secret);
+		const r = await readBoxWithSync(
+			await bytesOf(t.remote!),
+			undefined,
+			undefined,
+			undefined,
+			async () => secret
+		);
 		expect((r.snapshot.collections.accounts ?? []).length).toBe(1);
 		expect(r.format).toBe(3);
 
@@ -774,7 +788,9 @@ describe('store external-key encryption (passkey-style, no typed password)', () 
 		expect(b.app.collections.accounts).toEqual([{ id: 'b-local' }]); // local kept
 
 		// A wrong secret keeps it locked.
-		expect(await b.store.unlockWithExternal(crypto.getRandomValues(new Uint8Array(32)))).toBe(false);
+		expect(await b.store.unlockWithExternal(crypto.getRandomValues(new Uint8Array(32)))).toBe(
+			false
+		);
 		expect(b.store.state.locked).toBe(true);
 
 		// The right secret opens it: the remote data is now readable and merges in.
@@ -791,7 +807,9 @@ describe('store external-key encryption (passkey-style, no typed password)', () 
 
 		// A backup must be encrypted before an external key can join it.
 		const secret = crypto.getRandomValues(new Uint8Array(32));
-		await expect(store.addExternalKey(secret, 'passkey:cred-1')).rejects.toThrow('not encrypted yet');
+		await expect(store.addExternalKey(secret, 'passkey:cred-1')).rejects.toThrow(
+			'not encrypted yet'
+		);
 
 		// Recovery password first, then the passkey secret as a second slot.
 		await store.setEncryption('recovery-pw');
@@ -803,10 +821,16 @@ describe('store external-key encryption (passkey-style, no typed password)', () 
 		]);
 
 		// The recovery password still opens it; the secret opens it too.
-		expect((await importSnapshot(t.remote!, { password: 'recovery-pw' })).collections.accounts).toEqual([
-			{ id: 'a1' }
-		]);
-		const r = await readBoxWithSync(await bytesOf(t.remote!), undefined, undefined, undefined, async () => secret);
+		expect(
+			(await importSnapshot(t.remote!, { password: 'recovery-pw' })).collections.accounts
+		).toEqual([{ id: 'a1' }]);
+		const r = await readBoxWithSync(
+			await bytesOf(t.remote!),
+			undefined,
+			undefined,
+			undefined,
+			async () => secret
+		);
 		expect(r.snapshot.collections.accounts).toEqual([{ id: 'a1' }]);
 	});
 
@@ -835,7 +859,10 @@ describe('non-string id warning (data-loss footgun)', () => {
 		const cache = memCache();
 		const app = {
 			collections: {
-				todos: [{ id: 1, text: 'a' }, { id: 2, text: 'b' }], // numeric ids: unsyncable
+				todos: [
+					{ id: 1, text: 'a' },
+					{ id: 2, text: 'b' }
+				], // numeric ids: unsyncable
 				notes: [{ id: 'n1' }] // fine
 			} as Record<string, unknown[]>
 		};
@@ -1295,7 +1322,10 @@ describe('write-verified key operations and format refusals', () => {
 		// slot table tamper-evident. Same content, unsupported format, fresh
 		// version marker.
 		const decoded = await readBoxWithSync(new Uint8Array(await remote!.arrayBuffer()), 'pw');
-		const enc = await gcmSealRaw(decoded.envelope!.dataKey, await pack(decoded.snapshot, decoded.sidecar));
+		const enc = await gcmSealRaw(
+			decoded.envelope!.dataKey,
+			await pack(decoded.snapshot, decoded.sidecar)
+		);
 		const downgraded = {
 			format: 4,
 			app: 'test',

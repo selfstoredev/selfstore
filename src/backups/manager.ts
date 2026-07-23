@@ -203,7 +203,9 @@ const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 /** The default naming scheme: "App.zip" -> personal; "App (label).zip" ->
  *  named. Derived from the canonical name's stem and extension. */
-function defaultNaming(naming: BackupsNaming): Required<Pick<BackupsNaming, 'namedFileFor' | 'parseLabel'>> {
+function defaultNaming(
+	naming: BackupsNaming
+): Required<Pick<BackupsNaming, 'namedFileFor' | 'parseLabel'>> {
 	const dot = naming.canonicalName.lastIndexOf('.');
 	const stem = dot > 0 ? naming.canonicalName.slice(0, dot) : naming.canonicalName;
 	const ext = dot > 0 ? naming.canonicalName.slice(dot) : '';
@@ -285,7 +287,10 @@ export function createBackupsManager(deps: {
 			personalFileId: reg.personalFileId && bad.has(reg.personalFileId) ? null : reg.personalFileId,
 			shared: reg.shared.filter((s) => !bad.has(s.fileId))
 		};
-		if (healed.personalFileId !== reg.personalFileId || healed.shared.length !== reg.shared.length) {
+		if (
+			healed.personalFileId !== reg.personalFileId ||
+			healed.shared.length !== reg.shared.length
+		) {
 			await kv.set(KEYS.registry, healed);
 		}
 		return healed;
@@ -329,7 +334,9 @@ export function createBackupsManager(deps: {
 		// own NAMED backup lists live and must not clobber it (the slot is the
 		// escape back to the personal file).
 		const canonical =
-			fileId === ownCanonicalId || reg.personalFileId === fileId || (ownIds === null && reg.personalFileId === null);
+			fileId === ownCanonicalId ||
+			reg.personalFileId === fileId ||
+			(ownIds === null && reg.personalFileId === null);
 		if (canonical) {
 			await saveRegistry({
 				personalFileId: fileId,

@@ -34,7 +34,9 @@ interface VaultLock {
 
 function isVaultLock(v: unknown): v is VaultLock {
 	return (
-		typeof v === 'object' && v !== null && (v as { selfstoreVaultLock?: unknown }).selfstoreVaultLock === 1
+		typeof v === 'object' &&
+		v !== null &&
+		(v as { selfstoreVaultLock?: unknown }).selfstoreVaultLock === 1
 	);
 }
 

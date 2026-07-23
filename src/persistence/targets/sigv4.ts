@@ -120,7 +120,10 @@ export async function signS3(input: SignS3Input): Promise<SignedS3Request> {
 		await sha256Hex(encoder.encode(canonicalRequest))
 	].join('\n');
 
-	const kDate = await hmac(encoder.encode('AWS4' + input.secretAccessKey), encoder.encode(dateStamp));
+	const kDate = await hmac(
+		encoder.encode('AWS4' + input.secretAccessKey),
+		encoder.encode(dateStamp)
+	);
 	const kRegion = await hmac(kDate, encoder.encode(input.region));
 	const kService = await hmac(kRegion, encoder.encode(service));
 	const kSigning = await hmac(kService, encoder.encode('aws4_request'));

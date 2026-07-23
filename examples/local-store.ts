@@ -29,7 +29,7 @@ export async function makeTodoStore() {
 		apply: (snap: Snapshot) => {
 			todos = (snap.collections.todos ?? []) as Todo[];
 		},
-		cache: memoryCache(),
+		cache: memoryCache()
 	});
 	await store.init(); // hydrate whatever a previous session persisted
 
@@ -41,6 +41,6 @@ export async function makeTodoStore() {
 		list: (): Todo[] => todos,
 		flush: (): Promise<void> => store.flush(),
 		status: (): StatusDescriptor => store.state.status,
-		dispose: (): void => store.dispose(), // on unmount / teardown
+		dispose: (): void => store.dispose() // on unmount / teardown
 	};
 }

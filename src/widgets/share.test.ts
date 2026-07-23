@@ -269,7 +269,8 @@ describe('selfstore-share: every knob optional, full panel by default', () => {
 
 	it('options reach the flow: a tiny deadline turns a hung listing stale', async () => {
 		const engine: ShareEngine = {
-			list: () => new Promise<{ links: ShareLinkInfo[]; members: ShareMemberInfo[] }>(() => undefined),
+			list: () =>
+				new Promise<{ links: ShareLinkInfo[]; members: ShareMemberInfo[] }>(() => undefined),
 			async createLink(opts) {
 				return { ...link('l1'), ...opts };
 			},
@@ -281,9 +282,7 @@ describe('selfstore-share: every knob optional, full panel by default', () => {
 		document.body.append(el);
 		el.options = { deadlineMs: 30 };
 		el.engine = engine;
-		await waitFor(() =>
-			qa(el, '[part="hint"]').some((n) => n.textContent?.includes('hiccup'))
-		);
+		await waitFor(() => qa(el, '[part="hint"]').some((n) => n.textContent?.includes('hiccup')));
 		el.remove();
 	});
 });

@@ -56,7 +56,10 @@ function memTarget(kind = 'drive') {
 	};
 }
 
-function makeStore(initial: Record<string, unknown[]> = {}, extra: Partial<LocalStoreOptions> = {}) {
+function makeStore(
+	initial: Record<string, unknown[]> = {},
+	extra: Partial<LocalStoreOptions> = {}
+) {
 	const app = { collections: structuredClone(initial) };
 	const cache = memoryCache();
 	const store = createLocalStore({

@@ -321,7 +321,7 @@ export async function listBackups(opts: {
 	auth: DriveAuth;
 	nameContains?: string;
 }): Promise<DriveBackupInfo[]> {
-	const clauses = ["trashed=false", "'me' in owners"];
+	const clauses = ['trashed=false', "'me' in owners"];
 	if (opts.nameContains) {
 		const safe = opts.nameContains.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 		clauses.push(`name contains '${safe}'`);

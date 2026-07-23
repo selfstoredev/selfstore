@@ -168,7 +168,10 @@ export async function gcmOpenAad(
 		const pt = await crypto.subtle.decrypt(params, key, src(ciphertext));
 		return new Uint8Array(pt);
 	} catch {
-		throw new SelfstoreError('DECRYPT_FAILED', 'Corrupted, wrong-key, or altered-header ciphertext.');
+		throw new SelfstoreError(
+			'DECRYPT_FAILED',
+			'Corrupted, wrong-key, or altered-header ciphertext.'
+		);
 	}
 }
 
@@ -206,7 +209,9 @@ export async function mintExternalSlot(
 	id?: string
 ): Promise<ExternalSlot> {
 	if (secret.length < MIN_EXTERNAL_SECRET) {
-		throw new TypeError(`mintExternalSlot(): external secret must be >= ${MIN_EXTERNAL_SECRET} bytes.`);
+		throw new TypeError(
+			`mintExternalSlot(): external secret must be >= ${MIN_EXTERNAL_SECRET} bytes.`
+		);
 	}
 	const key = await externalKek(secret);
 	const iv = randomBytes(IV_BYTES);

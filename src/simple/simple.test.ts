@@ -161,7 +161,10 @@ describe('selfstore() - the simple store', () => {
 		open.push(b);
 		await b.put('todos', { id: 'b1', text: 'from B' });
 		expect(await b.connectTarget(t.target)).toBe('merged');
-		const ids = b.all('todos').map((r) => r.id).sort();
+		const ids = b
+			.all('todos')
+			.map((r) => r.id)
+			.sort();
 		expect(ids).toEqual(['a1', 'b1']);
 	});
 
@@ -222,7 +225,14 @@ describe('selfstore() - the simple store', () => {
 		).exportSnapshot(
 			{
 				collections: { todos: [{ id: 't1', text: 'x' }] },
-				files: [{ id: 'f1', name: 'photo.bin', mime: 'application/octet-stream', bytes: new Uint8Array([1, 2, 3]) }]
+				files: [
+					{
+						id: 'f1',
+						name: 'photo.bin',
+						mime: 'application/octet-stream',
+						bytes: new Uint8Array([1, 2, 3])
+					}
+				]
 			},
 			{ app: 'simple-test' }
 		);

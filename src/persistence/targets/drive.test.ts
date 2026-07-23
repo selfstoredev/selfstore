@@ -100,7 +100,10 @@ describe('drive target - stale-token 401 handling', () => {
 
 	it('save does NOT force-refresh on a transient 5xx (that must stay a retryable blip, no gate)', async () => {
 		const auth = stalableAuth();
-		vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 503 })));
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response(null, { status: 503 }))
+		);
 
 		const target = await fromSession(opts(auth));
 		const err = await target!.save(new Blob(['data'])).catch((e: unknown) => e);
@@ -179,7 +182,10 @@ describe('drive target - file identity is captured, never re-read per call', () 
 describe('drive target - a failed read never passes for an empty file', () => {
 	it('404 means the file is genuinely gone: null', async () => {
 		const auth = stalableAuth();
-		vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 404 })));
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response(null, { status: 404 }))
+		);
 
 		const target = await fromSession(opts(auth));
 
@@ -188,7 +194,10 @@ describe('drive target - a failed read never passes for an empty file', () => {
 
 	it('a 5xx is a typed transient failure, not "no backup"', async () => {
 		const auth = stalableAuth();
-		vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 503 })));
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response(null, { status: 503 }))
+		);
 
 		const target = await fromSession(opts(auth));
 
@@ -197,7 +206,10 @@ describe('drive target - a failed read never passes for an empty file', () => {
 
 	it('a 401 that survives the forced refresh is a genuine loss of access', async () => {
 		const auth = stalableAuth();
-		vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 401 })));
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response(null, { status: 401 }))
+		);
 
 		const target = await fromSession(opts(auth));
 
@@ -252,7 +264,10 @@ describe('drive target - a hung request has a deadline (never spins forever)', (
 describe('drive target - a permanently unwritable file gates (not a silent retry loop)', () => {
 	it('a 404 on save means the bound file is gone: TARGET_GONE, not a transient write failure', async () => {
 		const auth = stalableAuth();
-		vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 404 })));
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response(null, { status: 404 }))
+		);
 
 		const target = await fromSession(opts(auth));
 		const err = await target!.save(new Blob(['data'])).catch((e: unknown) => e);
@@ -267,9 +282,12 @@ describe('drive target - a permanently unwritable file gates (not a silent retry
 			'fetch',
 			vi.fn(
 				async () =>
-					new Response(JSON.stringify({ error: { errors: [{ reason: 'storageQuotaExceeded' }] } }), {
-						status: 403
-					})
+					new Response(
+						JSON.stringify({ error: { errors: [{ reason: 'storageQuotaExceeded' }] } }),
+						{
+							status: 403
+						}
+					)
 			)
 		);
 
@@ -285,9 +303,12 @@ describe('drive target - a permanently unwritable file gates (not a silent retry
 			'fetch',
 			vi.fn(
 				async () =>
-					new Response(JSON.stringify({ error: { errors: [{ reason: 'userRateLimitExceeded' }] } }), {
-						status: 403
-					})
+					new Response(
+						JSON.stringify({ error: { errors: [{ reason: 'userRateLimitExceeded' }] } }),
+						{
+							status: 403
+						}
+					)
 			)
 		);
 
@@ -310,7 +331,12 @@ describe('drive target - backup management ops', () => {
 				return new Response(
 					JSON.stringify({
 						files: [
-							{ id: 'f2', name: 'Wallet (family).zip', modifiedTime: '2026-07-19T10:00:00Z', size: '2048' },
+							{
+								id: 'f2',
+								name: 'Wallet (family).zip',
+								modifiedTime: '2026-07-19T10:00:00Z',
+								size: '2048'
+							},
 							{ id: 'f1', name: 'Wallet.zip', modifiedTime: '2026-07-01T08:00:00Z' }
 						]
 					}),
@@ -333,7 +359,10 @@ describe('drive target - backup management ops', () => {
 
 	it('listBackups raises AuthExpired on a 401 that survives the forced refresh', async () => {
 		const auth = stalableAuth();
-		vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 401 })));
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response(null, { status: 401 }))
+		);
 		const err = await listBackups({ auth }).catch((e: unknown) => e);
 		expect(isAuthExpired(err)).toBe(true);
 		expect(auth.forceRefreshes).toBe(1);
@@ -359,7 +388,8 @@ describe('drive target - backup management ops', () => {
 		vi.stubGlobal(
 			'fetch',
 			vi.fn(async (url: string, init?: RequestInit) => {
-				if (url.includes('/files?q=')) return new Response(JSON.stringify({ files: [] }), { status: 200 });
+				if (url.includes('/files?q='))
+					return new Response(JSON.stringify({ files: [] }), { status: 200 });
 				posts.push(`${init?.method} ${url}`);
 				return new Response(JSON.stringify({ id: 'fresh-1' }), { status: 200 });
 			})
@@ -392,7 +422,8 @@ describe('drive target - backup management ops', () => {
 		vi.stubGlobal(
 			'fetch',
 			vi.fn(async (url: string, init?: RequestInit) => {
-				if (url.includes('/files?q=')) return new Response(JSON.stringify({ files: [] }), { status: 200 });
+				if (url.includes('/files?q='))
+					return new Response(JSON.stringify({ files: [] }), { status: 200 });
 				sent.push({ method: init?.method, url, body: String(init?.body ?? '') });
 				return new Response(JSON.stringify({ id: 'f1' }), { status: 200 });
 			})

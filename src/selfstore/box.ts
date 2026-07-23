@@ -255,7 +255,13 @@ export async function readBoxWithSync(
 	group?: GroupReadOptions,
 	dataKey?: Uint8Array,
 	externalResolver?: ExternalKeyResolver
-): Promise<{ snapshot: Snapshot; sidecar: unknown; author?: string; envelope?: BoxEnvelope; format: number }> {
+): Promise<{
+	snapshot: Snapshot;
+	sidecar: unknown;
+	author?: string;
+	envelope?: BoxEnvelope;
+	format: number;
+}> {
 	const entries = await unzip(bytes);
 	const meta = metaOf(entries);
 	const format = meta.format ?? BOX_FORMAT_PLAIN;
@@ -272,7 +278,10 @@ export async function readBoxWithSync(
 	// Bind security mode to format generation both ways, so neither `keying`
 	// nor `format` can be stripped to route a box down the wrong path.
 	if ((format === BOX_FORMAT_GROUP) !== !!meta.keying) {
-		throw new SelfstoreError('BAD_FORMAT', 'Group mode (format 2) and the keying field must agree.');
+		throw new SelfstoreError(
+			'BAD_FORMAT',
+			'Group mode (format 2) and the keying field must agree.'
+		);
 	}
 	if ((format === BOX_FORMAT_ENVELOPE_AUTH) !== Array.isArray(meta.keys)) {
 		throw new SelfstoreError(
@@ -282,7 +291,10 @@ export async function readBoxWithSync(
 	}
 	if (meta.keying) return { ...(await readGroupBox(entries, meta, group)), format };
 	if (format === BOX_FORMAT_ENVELOPE_AUTH) {
-		return { ...(await readEnvelopeBox(entries, meta, password, dataKey, externalResolver)), format };
+		return {
+			...(await readEnvelopeBox(entries, meta, password, dataKey, externalResolver)),
+			format
+		};
 	}
 	if (meta.encryption === 'none') {
 		return { snapshot: entriesToSnapshot(entries), sidecar: readSidecar(entries), format };
@@ -395,7 +407,10 @@ async function readGroupBox(
 		meta.recipients.length === 0 ||
 		typeof meta.iv !== 'string'
 	) {
-		throw new SelfstoreError('BAD_FORMAT', 'Missing or malformed group encryption entries or parameters.');
+		throw new SelfstoreError(
+			'BAD_FORMAT',
+			'Missing or malformed group encryption entries or parameters.'
+		);
 	}
 	// Membership before any crypto: a valid signature over an attacker-chosen
 	// author proves nothing.

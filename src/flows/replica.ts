@@ -14,13 +14,20 @@ import {
 	fromSession as driveFromSession,
 	type DriveAuth
 } from '../persistence/targets/drive';
-import { connect as fileConnect, fromSession as fileFromSession } from '../persistence/targets/file';
+import {
+	connect as fileConnect,
+	fromSession as fileFromSession
+} from '../persistence/targets/file';
 import {
 	connect as webdavConnect,
 	fromSession as webdavFromSession,
 	type WebdavConfig
 } from '../persistence/targets/webdav';
-import { connect as s3Connect, fromSession as s3FromSession, type S3Config } from '../persistence/targets/s3';
+import {
+	connect as s3Connect,
+	fromSession as s3FromSession,
+	type S3Config
+} from '../persistence/targets/s3';
 
 /** The one replica this flow manages, as its id on the engine. */
 export const REPLICA_ID = 'replica';

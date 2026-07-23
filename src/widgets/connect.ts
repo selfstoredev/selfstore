@@ -312,7 +312,11 @@ export class SelfstoreConnectElement extends FlowWidget {
 					into.append(
 						h(
 							'button',
-							{ part: 'link advanced-link', 'data-kind': kind, onclick: () => this.#flow?.choose(kind) },
+							{
+								part: 'link advanced-link',
+								'data-kind': kind,
+								onclick: () => this.#flow?.choose(kind)
+							},
 							this.t(`connect.${kind}`)
 						)
 					);
@@ -331,9 +335,7 @@ export class SelfstoreConnectElement extends FlowWidget {
 				h('div', { part: 'title' }, this.t(tabbed ? 'connect.server' : `connect.${kind}`))
 			];
 			if (tabbed) children.push(this.serverTabs(kind));
-			children.push(
-				...(kind === 's3' ? this.s3FormChildren(flow) : this.webdavFormChildren(flow))
-			);
+			children.push(...(kind === 's3' ? this.s3FormChildren(flow) : this.webdavFormChildren(flow)));
 			into.append(...children);
 			return;
 		}
@@ -348,7 +350,9 @@ export class SelfstoreConnectElement extends FlowWidget {
 						'div',
 						{},
 						h('div', { part: 'title' }, this.t('connect.connecting')),
-						s.kind === 'drive' ? h('div', { part: 'sub' }, this.t('connect.connecting.drive')) : null
+						s.kind === 'drive'
+							? h('div', { part: 'sub' }, this.t('connect.connecting.drive'))
+							: null
 					),
 					h('button', { part: 'button', onclick: () => this.cancel() }, this.t('connect.cancel'))
 				)
@@ -398,7 +402,9 @@ export class SelfstoreConnectElement extends FlowWidget {
 					{
 						part: 'eye',
 						type: 'button',
-						'aria-label': this.t(this.#pwVisible ? 'connect.password.hide' : 'connect.password.show'),
+						'aria-label': this.t(
+							this.#pwVisible ? 'connect.password.hide' : 'connect.password.show'
+						),
 						'aria-pressed': this.#pwVisible ? 'true' : 'false',
 						onclick: () => this.togglePassword()
 					},
@@ -416,7 +422,11 @@ export class SelfstoreConnectElement extends FlowWidget {
 					{ part: 'row' },
 					h(
 						'button',
-						{ part: 'button button-primary', disabled: s.busy, onclick: () => this.submitPassword() },
+						{
+							part: 'button button-primary',
+							disabled: s.busy,
+							onclick: () => this.submitPassword()
+						},
 						this.t('connect.password.submit')
 					),
 					// Cancel is never disabled, even mid-trial-read: a hung leg must
@@ -451,7 +461,9 @@ export class SelfstoreConnectElement extends FlowWidget {
 					)
 				);
 			}
-			into.append(h('button', { part: 'link', onclick: () => this.cancel() }, this.t('connect.cancel')));
+			into.append(
+				h('button', { part: 'link', onclick: () => this.cancel() }, this.t('connect.cancel'))
+			);
 			return;
 		}
 
@@ -460,7 +472,11 @@ export class SelfstoreConnectElement extends FlowWidget {
 				h(
 					'div',
 					{ part: 'status status-ok' },
-					h('div', { part: 'title' }, this.t(s.outcome === 'manual' ? 'connect.done.manual' : 'connect.done'))
+					h(
+						'div',
+						{ part: 'title' },
+						this.t(s.outcome === 'manual' ? 'connect.done.manual' : 'connect.done')
+					)
 				)
 			);
 			return;
@@ -470,11 +486,19 @@ export class SelfstoreConnectElement extends FlowWidget {
 		// a failing destination is never a dead end (the host hears
 		// selfstore-cancelled and can dismiss the widget entirely).
 		into.append(
-			h('div', { part: 'status status-error' }, h('div', { part: 'title' }, this.errorText(s.error?.labelKey))),
+			h(
+				'div',
+				{ part: 'status status-error' },
+				h('div', { part: 'title' }, this.errorText(s.error?.labelKey))
+			),
 			h(
 				'div',
 				{ part: 'row' },
-				h('button', { part: 'button button-primary', onclick: () => flow.retry() }, this.t('connect.retry')),
+				h(
+					'button',
+					{ part: 'button button-primary', onclick: () => flow.retry() },
+					this.t('connect.retry')
+				),
 				h('button', { part: 'button', onclick: () => this.cancel() }, this.t('connect.cancel'))
 			)
 		);
@@ -497,14 +521,17 @@ export class SelfstoreConnectElement extends FlowWidget {
 		// gesture needs the browser's open picker; without it only new remains.
 		const fileSpec = kind === 'file' ? this.#targets?.file : null;
 		if (fileSpec && typeof fileSpec === 'object') {
-			const openSupported =
-				typeof window !== 'undefined' && 'showOpenFilePicker' in window;
+			const openSupported = typeof window !== 'undefined' && 'showOpenFilePicker' in window;
 			const actions = h('div', { part: 'row' });
 			if (fileSpec.create != null) {
 				actions.append(
 					h(
 						'button',
-						{ part: 'button button-primary', 'data-action': 'create', onclick: () => this.#flow?.choose('file', 'create') },
+						{
+							part: 'button button-primary',
+							'data-action': 'create',
+							onclick: () => this.#flow?.choose('file', 'create')
+						},
 						this.t('connect.file.new')
 					)
 				);
@@ -513,7 +540,11 @@ export class SelfstoreConnectElement extends FlowWidget {
 				actions.append(
 					h(
 						'button',
-						{ part: 'button', 'data-action': 'open', onclick: () => this.#flow?.choose('file', 'open') },
+						{
+							part: 'button',
+							'data-action': 'open',
+							onclick: () => this.#flow?.choose('file', 'open')
+						},
 						this.t('connect.file.open')
 					)
 				);
@@ -637,7 +668,12 @@ export class SelfstoreConnectElement extends FlowWidget {
 					picked.helpUrl
 						? h(
 								'a',
-								{ part: 'link webdav-help', href: picked.helpUrl, target: '_blank', rel: 'noopener noreferrer' },
+								{
+									part: 'link webdav-help',
+									href: picked.helpUrl,
+									target: '_blank',
+									rel: 'noopener noreferrer'
+								},
 								` ${this.t('connect.webdav.help.more')}`
 							)
 						: null
@@ -648,7 +684,11 @@ export class SelfstoreConnectElement extends FlowWidget {
 			h(
 				'div',
 				{ part: 'row' },
-				h('button', { part: 'button button-primary', onclick: () => this.submitWebdav() }, this.t('connect.webdav.submit')),
+				h(
+					'button',
+					{ part: 'button button-primary', onclick: () => this.submitWebdav() },
+					this.t('connect.webdav.submit')
+				),
 				h('button', { part: 'button', onclick: () => flow.cancel() }, this.t('connect.cancel'))
 			)
 		);
@@ -656,7 +696,12 @@ export class SelfstoreConnectElement extends FlowWidget {
 			out.push(
 				h(
 					'a',
-					{ part: 'link webdav-signup', href: picked.signupUrl, target: '_blank', rel: 'noopener noreferrer' },
+					{
+						part: 'link webdav-signup',
+						href: picked.signupUrl,
+						target: '_blank',
+						rel: 'noopener noreferrer'
+					},
 					this.t('connect.webdav.signup')
 				)
 			);
@@ -681,16 +726,56 @@ export class SelfstoreConnectElement extends FlowWidget {
 				oninput: (e: Event) => set((e.target as HTMLInputElement).value)
 			});
 		return [
-			field('url', 'connect.s3.endpoint', 's3-endpoint', () => this.#s3Endpoint, (v) => (this.#s3Endpoint = v)),
-			field('text', 'connect.s3.region', 's3-region', () => this.#s3Region, (v) => (this.#s3Region = v)),
-			field('text', 'connect.s3.bucket', 's3-bucket', () => this.#s3Bucket, (v) => (this.#s3Bucket = v)),
-			field('text', 'connect.s3.key', 's3-key', () => this.#s3Key, (v) => (this.#s3Key = v)),
-			field('text', 'connect.s3.accessKeyId', 's3-akid', () => this.#s3AccessKeyId, (v) => (this.#s3AccessKeyId = v)),
-			field('password', 'connect.s3.secret', 's3-secret', () => this.#s3Secret, (v) => (this.#s3Secret = v)),
+			field(
+				'url',
+				'connect.s3.endpoint',
+				's3-endpoint',
+				() => this.#s3Endpoint,
+				(v) => (this.#s3Endpoint = v)
+			),
+			field(
+				'text',
+				'connect.s3.region',
+				's3-region',
+				() => this.#s3Region,
+				(v) => (this.#s3Region = v)
+			),
+			field(
+				'text',
+				'connect.s3.bucket',
+				's3-bucket',
+				() => this.#s3Bucket,
+				(v) => (this.#s3Bucket = v)
+			),
+			field(
+				'text',
+				'connect.s3.key',
+				's3-key',
+				() => this.#s3Key,
+				(v) => (this.#s3Key = v)
+			),
+			field(
+				'text',
+				'connect.s3.accessKeyId',
+				's3-akid',
+				() => this.#s3AccessKeyId,
+				(v) => (this.#s3AccessKeyId = v)
+			),
+			field(
+				'password',
+				'connect.s3.secret',
+				's3-secret',
+				() => this.#s3Secret,
+				(v) => (this.#s3Secret = v)
+			),
 			h(
 				'div',
 				{ part: 'row' },
-				h('button', { part: 'button button-primary', onclick: () => this.submitS3() }, this.t('connect.s3.submit')),
+				h(
+					'button',
+					{ part: 'button button-primary', onclick: () => this.submitS3() },
+					this.t('connect.s3.submit')
+				),
 				h('button', { part: 'button', onclick: () => flow.cancel() }, this.t('connect.cancel'))
 			)
 		];

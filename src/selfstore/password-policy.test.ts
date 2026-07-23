@@ -26,13 +26,15 @@ describe('checkPasswordPolicy', () => {
 	});
 
 	it('accepts a password that meets every class', () => {
-		expect(checkPasswordPolicy('Abcdef1!', {
-			minLength: 8,
-			requireLowercase: true,
-			requireUppercase: true,
-			requireDigit: true,
-			requireSymbol: true
-		})).toEqual({ ok: true, unmet: [] });
+		expect(
+			checkPasswordPolicy('Abcdef1!', {
+				minLength: 8,
+				requireLowercase: true,
+				requireUppercase: true,
+				requireDigit: true,
+				requireSymbol: true
+			})
+		).toEqual({ ok: true, unmet: [] });
 	});
 
 	it('is unicode-aware: accented letters count, a space is a symbol', () => {

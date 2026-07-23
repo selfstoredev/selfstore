@@ -155,7 +155,10 @@ describe('joinFlow: switching accounts', () => {
 		expect(s1.preview?.label).toBe('wallet of first');
 
 		flow.switchAccount();
-		const s2 = await until(flow, (x) => x.step === 'ready' && x.preview?.label === 'wallet of second');
+		const s2 = await until(
+			flow,
+			(x) => x.step === 'ready' && x.preview?.label === 'wallet of second'
+		);
 		expect(s2.error).toBeNull();
 	});
 

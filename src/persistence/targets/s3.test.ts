@@ -28,7 +28,7 @@ function stubFetch(script: (call: Call) => { status: number; body?: BodyInit; et
 		const r = script(call);
 		const headers = new Headers();
 		if (r.etag) headers.set('ETag', r.etag);
-		return new Response(r.status === 404 || r.status === 403 ? null : r.body ?? null, {
+		return new Response(r.status === 404 || r.status === 403 ? null : (r.body ?? null), {
 			status: r.status,
 			headers
 		});
@@ -53,7 +53,9 @@ afterEach(() => {
 
 describe('s3 target', () => {
 	it('connects (HEAD ok), then PUTs a signed object at endpoint/bucket/key', async () => {
-		const calls = stubFetch((c) => (c.method === 'PUT' ? { status: 200, etag: '"v1"' } : { status: 200 }));
+		const calls = stubFetch((c) =>
+			c.method === 'PUT' ? { status: 200, etag: '"v1"' } : { status: 200 }
+		);
 		const target = await connect({ kv: memoryCache().kv, config: baseConfig });
 		expect(target).not.toBeNull();
 		expect(target!.kind).toBe('s3');
@@ -62,7 +64,9 @@ describe('s3 target', () => {
 		const version = await target!.save(new Blob(['ciphertext']));
 		const put = calls.find((c) => c.method === 'PUT')!;
 		expect(put.url).toBe('https://s3.eu-west-3.amazonaws.com/my-bucket/backups/app.selfstore');
-		expect(put.headers.authorization).toMatch(/^AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE\//);
+		expect(put.headers.authorization).toMatch(
+			/^AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE\//
+		);
 		expect(put.headers['x-amz-content-sha256']).toMatch(/^[0-9a-f]{64}$/);
 		expect(put.headers.host).toBeUndefined(); // the browser owns Host
 		expect(version).toBe('"v1"');
@@ -99,7 +103,9 @@ describe('s3 target', () => {
 	});
 
 	it('virtual-hosted style folds the bucket into the host', async () => {
-		const calls = stubFetch((c) => (c.method === 'PUT' ? { status: 200, etag: '"v1"' } : { status: 200 }));
+		const calls = stubFetch((c) =>
+			c.method === 'PUT' ? { status: 200, etag: '"v1"' } : { status: 200 }
+		);
 		const target = (await connect({
 			kv: memoryCache().kv,
 			config: { ...baseConfig, forcePathStyle: false }
@@ -111,7 +117,10 @@ describe('s3 target', () => {
 
 	it('refuses a plain-http endpoint that is not loopback', async () => {
 		await expect(
-			connect({ kv: memoryCache().kv, config: { ...baseConfig, endpoint: 'http://s3.example.com' } })
+			connect({
+				kv: memoryCache().kv,
+				config: { ...baseConfig, endpoint: 'http://s3.example.com' }
+			})
 		).rejects.toThrow(/https/);
 	});
 });

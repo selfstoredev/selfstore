@@ -49,7 +49,8 @@ export async function withDeadline<T>(work: Promise<T>, ms: number, what: string
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	const gate = new Promise<never>((_resolve, reject) => {
 		timer = setTimeout(
-			() => reject(new SelfstoreError('TARGET_UNAVAILABLE', `${what} did not answer within ${ms}ms.`)),
+			() =>
+				reject(new SelfstoreError('TARGET_UNAVAILABLE', `${what} did not answer within ${ms}ms.`)),
 			ms
 		);
 	});

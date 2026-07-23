@@ -24,7 +24,8 @@ const EN: WidgetLabels = {
 	'join.accept': 'Join',
 	'join.joining': 'Joining...',
 	'join.joined': 'You are in. The shared data now syncs on this device.',
-	'join.mismatch': 'This device already follows another share. Leave it first, or use another profile.',
+	'join.mismatch':
+		'This device already follows another share. Leave it first, or use another profile.',
 	'join.noInvite': 'This invitation is spent, or meant for another account.',
 	'join.switchAccount': 'Use another account',
 	'join.retry': 'Try again',
@@ -135,7 +136,11 @@ export class SelfstoreJoinElement extends FlowWidget {
 					'div',
 					{ part: 'status' },
 					h('span', { part: 'spinner', 'aria-hidden': 'true' }),
-					h('div', { part: 'title' }, this.t(s.step === 'joining' ? 'join.joining' : 'join.previewing'))
+					h(
+						'div',
+						{ part: 'title' },
+						this.t(s.step === 'joining' ? 'join.joining' : 'join.previewing')
+					)
 				)
 			);
 			return;
@@ -149,10 +154,26 @@ export class SelfstoreJoinElement extends FlowWidget {
 					h(
 						'div',
 						{ part: 'row banner' },
-						h('div', { part: 'title', style: 'flex:1;min-width:0' }, p?.label || this.t('join.title')),
-						h('button', { part: 'button button-primary', 'data-action': 'accept', onclick: () => flow.accept() }, this.t('join.accept')),
+						h(
+							'div',
+							{ part: 'title', style: 'flex:1;min-width:0' },
+							p?.label || this.t('join.title')
+						),
+						h(
+							'button',
+							{
+								part: 'button button-primary',
+								'data-action': 'accept',
+								onclick: () => flow.accept()
+							},
+							this.t('join.accept')
+						),
 						s.canSwitchAccount
-							? h('button', { part: 'link', 'data-action': 'switch', onclick: () => flow.switchAccount() }, this.t('join.switchAccount'))
+							? h(
+									'button',
+									{ part: 'link', 'data-action': 'switch', onclick: () => flow.switchAccount() },
+									this.t('join.switchAccount')
+								)
 							: null
 					)
 				);
@@ -166,9 +187,21 @@ export class SelfstoreJoinElement extends FlowWidget {
 				h(
 					'div',
 					{ part: 'row' },
-					h('button', { part: 'button button-primary', 'data-action': 'accept', onclick: () => flow.accept() }, this.t('join.accept')),
+					h(
+						'button',
+						{
+							part: 'button button-primary',
+							'data-action': 'accept',
+							onclick: () => flow.accept()
+						},
+						this.t('join.accept')
+					),
 					s.canSwitchAccount
-						? h('button', { part: 'link', 'data-action': 'switch', onclick: () => flow.switchAccount() }, this.t('join.switchAccount'))
+						? h(
+								'button',
+								{ part: 'link', 'data-action': 'switch', onclick: () => flow.switchAccount() },
+								this.t('join.switchAccount')
+							)
 						: null
 				)
 			);
@@ -176,17 +209,35 @@ export class SelfstoreJoinElement extends FlowWidget {
 		}
 
 		if (s.step === 'joined') {
-			into.append(h('div', { part: 'status status-ok' }, h('div', { part: 'title' }, this.t('join.joined'))));
+			into.append(
+				h('div', { part: 'status status-ok' }, h('div', { part: 'title' }, this.t('join.joined')))
+			);
 			return;
 		}
 
 		if (s.step === 'mismatch' || s.step === 'no-invite') {
 			into.append(
-				h('div', { part: 'status' }, h('div', { part: 'title' }, this.t(s.step === 'mismatch' ? 'join.mismatch' : 'join.noInvite')))
+				h(
+					'div',
+					{ part: 'status' },
+					h(
+						'div',
+						{ part: 'title' },
+						this.t(s.step === 'mismatch' ? 'join.mismatch' : 'join.noInvite')
+					)
+				)
 			);
 			if (s.step === 'no-invite' && s.canSwitchAccount) {
 				into.append(
-					h('div', { part: 'row' }, h('button', { part: 'button', 'data-action': 'switch', onclick: () => flow.switchAccount() }, this.t('join.switchAccount')))
+					h(
+						'div',
+						{ part: 'row' },
+						h(
+							'button',
+							{ part: 'button', 'data-action': 'switch', onclick: () => flow.switchAccount() },
+							this.t('join.switchAccount')
+						)
+					)
 				);
 			}
 			return;
@@ -194,13 +245,21 @@ export class SelfstoreJoinElement extends FlowWidget {
 
 		// error
 		into.append(
-			h('div', { part: 'status status-error' }, h('div', { part: 'title' }, this.errorText(s.error?.labelKey))),
+			h(
+				'div',
+				{ part: 'status status-error' },
+				h('div', { part: 'title' }, this.errorText(s.error?.labelKey))
+			),
 			h(
 				'div',
 				{ part: 'row' },
 				h('button', { part: 'button', onclick: () => flow.retry() }, this.t('join.retry')),
 				s.canSwitchAccount
-					? h('button', { part: 'link', 'data-action': 'switch', onclick: () => flow.switchAccount() }, this.t('join.switchAccount'))
+					? h(
+							'button',
+							{ part: 'link', 'data-action': 'switch', onclick: () => flow.switchAccount() },
+							this.t('join.switchAccount')
+						)
 					: null
 			)
 		);

@@ -21,10 +21,7 @@ import type { BackupTarget } from '../persistence/target';
 import type { KV } from '../persistence/cache';
 import { restore } from '../selfstore/fluent';
 import { SelfstoreError, isSelfstoreError } from '../selfstore/errors';
-import {
-	connect as driveConnect,
-	type DriveAuth
-} from '../persistence/targets/drive';
+import { connect as driveConnect, type DriveAuth } from '../persistence/targets/drive';
 import {
 	connect as fileConnect,
 	isSupported as fileIsSupported,
@@ -100,13 +97,7 @@ export interface ConnectFlowOptions {
 }
 
 export type ConnectStep =
-	| 'choose'
-	| 'form'
-	| 'authorizing'
-	| 'password'
-	| 'conflict'
-	| 'connected'
-	| 'error';
+	'choose' | 'form' | 'authorizing' | 'password' | 'conflict' | 'connected' | 'error';
 
 /** How to reconcile with a destination that already holds a backup. */
 export type ConnectResolution = 'merge' | 'resume' | 'replace';
@@ -228,7 +219,10 @@ export function connectFlow(
 		m.set({ step: 'error', busy: false, error: toStoreError(e) });
 	};
 
-	function connectorFor(kind: ConnectKind, variant: 'create' | 'open' = 'create'): Connector | null {
+	function connectorFor(
+		kind: ConnectKind,
+		variant: 'create' | 'open' = 'create'
+	): Connector | null {
 		const spec = targets[kind];
 		if (spec == null) return null;
 		if (typeof spec === 'function') return spec;
@@ -337,7 +331,10 @@ export function connectFlow(
 			if (busy || (step !== 'choose' && step !== 'error')) return; // one popup per gesture
 			const connector = connectorFor(kind, variant);
 			if (!connector) return;
-			if ((kind === 'webdav' && targets.webdav === true) || (kind === 's3' && targets.s3 === true)) {
+			if (
+				(kind === 'webdav' && targets.webdav === true) ||
+				(kind === 's3' && targets.s3 === true)
+			) {
 				m.set({ step: 'form', kind, error: null });
 				return;
 			}

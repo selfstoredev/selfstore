@@ -27,7 +27,7 @@ export function bucketTarget(bucket: Map<string, Blob>, key: string): BackupTarg
 		},
 		async disconnect(): Promise<void> {
 			// Forget locally; never delete the remote object.
-		},
+		}
 	};
 }
 

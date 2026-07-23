@@ -67,7 +67,10 @@ afterEach(() => {
 	for (const s of open.splice(0)) s.dispose();
 });
 
-function makeStore(initial: Record<string, unknown[]> = {}, extra: Partial<LocalStoreOptions> = {}) {
+function makeStore(
+	initial: Record<string, unknown[]> = {},
+	extra: Partial<LocalStoreOptions> = {}
+) {
 	const app = { collections: structuredClone(initial) };
 	const store = createLocalStore({
 		app: `mirrors-${++seq}`,

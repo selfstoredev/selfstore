@@ -143,7 +143,10 @@ export function indexedDbCache(name: string, opts?: { lock?: boolean }): LocalCa
 			return sealKey
 				? Promise.resolve(sealKey)
 				: Promise.reject(
-						new SelfstoreError('PASSWORD_REQUIRED', 'The local cache is locked - unlock() it first.')
+						new SelfstoreError(
+							'PASSWORD_REQUIRED',
+							'The local cache is locked - unlock() it first.'
+						)
 					);
 		}
 		return (_key ??= loadOrCreateKey());
@@ -191,7 +194,10 @@ export function indexedDbCache(name: string, opts?: { lock?: boolean }): LocalCa
 			// A decrypt (or shape) failure throws, never returns null: init then
 			// leaves the store not-ready, so auto-save cannot overwrite the bytes.
 			if (!isEnvelope(rawCollections)) {
-				throw new SelfstoreError('BAD_FORMAT', 'Unrecognized cache record (not a sealed envelope).');
+				throw new SelfstoreError(
+					'BAD_FORMAT',
+					'Unrecognized cache record (not a sealed envelope).'
+				);
 			}
 			const collections = JSON.parse(
 				new TextDecoder().decode(await unseal(await key(), rawCollections))
