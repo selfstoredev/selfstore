@@ -1,0 +1,5 @@
+{
+	"$schema": "https://unpkg.com/knip@6/schema.json",
+	"ignoreExportsUsedInFile": true,
+	"entry": ["src/entries/*.ts", "examples/*.ts", "spec/generate-vectors.mjs"]
+}

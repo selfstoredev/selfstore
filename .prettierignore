@@ -1,0 +1,8 @@
+# Generated: not ours to format.
+dist/
+coverage/
+package-lock.json
+
+# Prose keeps its human wrapping; formatting churn adds no value there.
+*.md
+docs/

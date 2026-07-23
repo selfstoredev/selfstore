@@ -1,99 +1,131 @@
 {
-  "name": "selfstore",
-  "version": "1.0.0",
-  "description": "Local-first storage for browser apps: an IndexedDB working copy, portable encrypted ZIP backups (AES-256-GCM over Argon2id), durable homes (disk, Google Drive, WebDAV) and a serverless multi-device merge.",
-  "type": "module",
-  "license": "MIT",
-  "author": "Florian Mousseau <florian.mousseau@gmail.com>",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/selfstoredev/selfstore.git"
-  },
-  "homepage": "https://selfstore.dev",
-  "bugs": {
-    "url": "https://github.com/selfstoredev/selfstore/issues"
-  },
-  "keywords": [
-    "local-first",
-    "offline-first",
-    "indexeddb",
-    "encryption",
-    "backup",
-    "crdt",
-    "sync",
-    "typescript",
-    "browser-storage",
-    "e2e-encryption",
-    "zip",
-    "webdav",
-    "google-drive",
-    "argon2id",
-    "privacy"
-  ],
-  "sideEffects": [
-    "dist/kdf-worker.js"
-  ],
-  "engines": {
-    "node": ">=20"
-  },
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    },
-    "./advanced": {
-      "types": "./dist/advanced.d.ts",
-      "import": "./dist/advanced.js"
-    },
-    "./backups": {
-      "types": "./dist/backups.d.ts",
-      "import": "./dist/backups.js"
-    },
-    "./flows": {
-      "types": "./dist/flows.d.ts",
-      "import": "./dist/flows.js"
-    },
-    "./groups": {
-      "types": "./dist/groups.d.ts",
-      "import": "./dist/groups.js"
-    },
-    "./households": {
-      "types": "./dist/households.d.ts",
-      "import": "./dist/households.js"
-    },
-    "./sync": {
-      "types": "./dist/sync.d.ts",
-      "import": "./dist/sync.js"
-    },
-    "./widgets": {
-      "types": "./dist/widgets.d.ts",
-      "import": "./dist/widgets.js"
-    },
-    "./kdf-worker": "./dist/kdf-worker.js"
-  },
-  "files": [
-    "dist",
-    "llms.txt"
-  ],
-  "scripts": {
-    "build": "tsup",
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit && tsc -p examples/tsconfig.json",
-    "prepublishOnly": "npm run typecheck && npm test && npm run build"
-  },
-  "dependencies": {
-    "fflate": "^0.8.3",
-    "hash-wasm": "4.12.0",
-    "idb": "^8.0.3"
-  },
-  "devDependencies": {
-    "@types/node": "^26.1.1",
-    "happy-dom": "^20.10.6",
-    "tsup": "^8.3.5",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.9"
-  }
+	"name": "selfstore",
+	"version": "1.0.0",
+	"description": "Local-first storage for browser apps: an IndexedDB working copy, portable encrypted ZIP backups (AES-256-GCM over Argon2id), durable homes (disk, Google Drive, WebDAV) and a serverless multi-device merge.",
+	"type": "module",
+	"license": "MIT",
+	"author": "Florian Mousseau <florian.mousseau@gmail.com>",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/selfstoredev/selfstore.git"
+	},
+	"homepage": "https://selfstore.dev",
+	"bugs": {
+		"url": "https://github.com/selfstoredev/selfstore/issues"
+	},
+	"keywords": [
+		"local-first",
+		"offline-first",
+		"indexeddb",
+		"encryption",
+		"backup",
+		"crdt",
+		"sync",
+		"typescript",
+		"browser-storage",
+		"e2e-encryption",
+		"zip",
+		"webdav",
+		"google-drive",
+		"argon2id",
+		"privacy"
+	],
+	"sideEffects": [
+		"dist/kdf-worker.js"
+	],
+	"engines": {
+		"node": ">=20"
+	},
+	"main": "./dist/index.js",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		},
+		"./advanced": {
+			"types": "./dist/advanced.d.ts",
+			"import": "./dist/advanced.js"
+		},
+		"./backups": {
+			"types": "./dist/backups.d.ts",
+			"import": "./dist/backups.js"
+		},
+		"./flows": {
+			"types": "./dist/flows.d.ts",
+			"import": "./dist/flows.js"
+		},
+		"./groups": {
+			"types": "./dist/groups.d.ts",
+			"import": "./dist/groups.js"
+		},
+		"./households": {
+			"types": "./dist/households.d.ts",
+			"import": "./dist/households.js"
+		},
+		"./sync": {
+			"types": "./dist/sync.d.ts",
+			"import": "./dist/sync.js"
+		},
+		"./widgets": {
+			"types": "./dist/widgets.d.ts",
+			"import": "./dist/widgets.js"
+		},
+		"./kdf-worker": "./dist/kdf-worker.js"
+	},
+	"files": [
+		"dist",
+		"llms.txt"
+	],
+	"scripts": {
+		"build": "tsup",
+		"test": "vitest run",
+		"test:coverage": "vitest run --coverage",
+		"typecheck": "tsc --noEmit && tsc -p examples/tsconfig.json",
+		"lint": "eslint . --max-warnings 0",
+		"format": "prettier --write .",
+		"format:check": "prettier --check .",
+		"knip": "knip",
+		"dup": "jscpd src --format typescript,javascript --ignore \"**/*.test.ts\" --threshold 3",
+		"gate": "npm run format:check && npm run lint && npm run typecheck && npm run knip && npm run dup && npm run test:coverage",
+		"prepare": "simple-git-hooks",
+		"prepublishOnly": "npm run typecheck && npm test && npm run build"
+	},
+	"simple-git-hooks": {
+		"pre-commit": "npx lint-staged"
+	},
+	"lint-staged": {
+		"*.{ts,js,mjs}": [
+			"prettier --write",
+			"eslint --fix --max-warnings 0"
+		],
+		"*.{json,css}": [
+			"prettier --write"
+		]
+	},
+	"dependencies": {
+		"fflate": "^0.8.3",
+		"hash-wasm": "4.12.0",
+		"idb": "^8.0.3"
+	},
+	"devDependencies": {
+		"@eslint/js": "^10.0.1",
+		"@types/node": "^26.1.1",
+		"@vitest/coverage-v8": "^4.1.10",
+		"eslint": "^10.7.0",
+		"eslint-config-prettier": "^10.1.8",
+		"eslint-plugin-sonarjs": "^4.2.0",
+		"globals": "^17.7.0",
+		"happy-dom": "^20.10.6",
+		"jscpd": "^5.0.12",
+		"knip": "^6.29.0",
+		"lint-staged": "^16.4.0",
+		"prettier": "^3.9.6",
+		"simple-git-hooks": "^2.13.1",
+		"tsup": "^8.3.5",
+		"typescript": "^6.0.3",
+		"typescript-eslint": "^8.65.0",
+		"vitest": "^4.1.9"
+	}
 }
