@@ -45,13 +45,7 @@ export interface JoinEngine {
 }
 
 export type JoinStep =
-	| 'previewing'
-	| 'ready'
-	| 'joining'
-	| 'joined'
-	| 'mismatch'
-	| 'no-invite'
-	| 'error';
+	'previewing' | 'ready' | 'joining' | 'joined' | 'mismatch' | 'no-invite' | 'error';
 
 export interface JoinSnapshot {
 	/** The invitation this flow was opened with - held here so the UI can

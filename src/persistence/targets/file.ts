@@ -46,9 +46,7 @@ export function isSupported(): boolean {
 /** A revoked/denied file permission is a genuine loss of access: the store must
  *  raise the reconnect gate (one click re-grants). Everything else is transient. */
 function isPermissionLoss(e: unknown): boolean {
-	return (
-		e instanceof DOMException && (e.name === 'NotAllowedError' || e.name === 'SecurityError')
-	);
+	return e instanceof DOMException && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
 }
 
 function fromHandle(handle: FileHandle, kv: KV): BackupTarget {
@@ -111,11 +109,6 @@ export async function connect(opts: FileConnectOptions): Promise<BackupTarget | 
 		if (e instanceof DOMException && e.name === 'AbortError') return null; // user cancelled
 		throw e;
 	}
-}
-
-/** True when the browser can pick an EXISTING file for adoption. */
-export function isOpenSupported(): boolean {
-	return typeof window !== 'undefined' && 'showOpenFilePicker' in window;
 }
 
 /** Prompt the user to pick an EXISTING backup file and adopt it as the

@@ -41,7 +41,9 @@ describe('webdav target', () => {
 		const kv = memKV();
 		vi.stubGlobal(
 			'fetch',
-			fakeFetch({ HEAD: () => new Response(null, { status: 200, headers: { 'Last-Modified': 'T0' } }) })
+			fakeFetch({
+				HEAD: () => new Response(null, { status: 200, headers: { 'Last-Modified': 'T0' } })
+			})
 		);
 
 		const target = await connect({ kv, config: CFG });
@@ -155,7 +157,9 @@ describe('webdav target', () => {
 			let ok = true;
 			vi.stubGlobal(
 				'fetch',
-				vi.fn(async () => (ok ? new Response(null, { status: 200 }) : new Response(null, { status })))
+				vi.fn(async () =>
+					ok ? new Response(null, { status: 200 }) : new Response(null, { status })
+				)
 			);
 			const target = (await connect({ kv, config: CFG }))!;
 			ok = false;
@@ -182,7 +186,8 @@ describe('webdav target', () => {
 			vi.stubGlobal(
 				'fetch',
 				vi.fn(async (_url: string, init?: RequestInit) => {
-					if ((init?.method ?? 'GET').toUpperCase() === 'HEAD') return new Response(null, { status: head });
+					if ((init?.method ?? 'GET').toUpperCase() === 'HEAD')
+						return new Response(null, { status: head });
 					return new Response(null, { status }); // GET rejected
 				})
 			);
@@ -209,7 +214,10 @@ describe('webdav target', () => {
 	it('allows plain http only for loopback (local dev)', async () => {
 		const kv = memKV();
 		vi.stubGlobal('fetch', fakeFetch({ HEAD: () => new Response(null, { status: 200 }) }));
-		const target = await connect({ kv, config: { ...CFG, url: 'http://localhost:8080/backup.zip' } });
+		const target = await connect({
+			kv,
+			config: { ...CFG, url: 'http://localhost:8080/backup.zip' }
+		});
 		expect(target).not.toBeNull();
 	});
 });
@@ -250,7 +258,9 @@ describe('webdav peer (read-only)', () => {
 
 	it('maps any other error to transient (retried, never gates)', async () => {
 		vi.stubGlobal('fetch', fakeFetch({ GET: () => new Response(null, { status: 503 }) }));
-		await expect(peer({ url: URL_RO }).load()).rejects.toMatchObject({ code: 'TARGET_UNAVAILABLE' });
+		await expect(peer({ url: URL_RO }).load()).rejects.toMatchObject({
+			code: 'TARGET_UNAVAILABLE'
+		});
 	});
 
 	it('a failing HEAD reads as "cannot tell" (null), so a fold falls through to a full load', async () => {
@@ -280,11 +290,15 @@ describe('webdav peer (read-only)', () => {
 				return new Response('x', { status: 200 });
 			})
 		);
-		await peer({ url: 'https://cloud.example/dav/copy.zip', username: 'bob', password: 'pw' }).load();
+		await peer({
+			url: 'https://cloud.example/dav/copy.zip',
+			username: 'bob',
+			password: 'pw'
+		}).load();
 		expect(sentAuth).toBe('Basic ' + btoa('bob:pw'));
 
-		expect(() => peer({ url: 'http://cloud.example/dav/copy.zip', username: 'bob', password: 'pw' })).toThrow(
-			/https/
-		);
+		expect(() =>
+			peer({ url: 'http://cloud.example/dav/copy.zip', username: 'bob', password: 'pw' })
+		).toThrow(/https/);
 	});
 });

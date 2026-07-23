@@ -1,0 +1,58 @@
+name: claude-review
+
+# Automatic AI review of every PR, focused on the failure modes AI-generated
+# code drifts into and that linters cannot see. Skips cleanly when no
+# CLAUDE_CODE_OAUTH_TOKEN secret is configured. NOTE: on the PR that first
+# ADDS this file, the action skips with a "workflow validation" warning
+# (anti-injection guard); it starts working once merged to the default branch.
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  config:
+    name: Config
+    runs-on: ubuntu-latest
+    outputs:
+      can_review: ${{ steps.flags.outputs.can_review }}
+    steps:
+      - id: flags
+        run: echo "can_review=${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
+
+  review:
+    name: review
+    needs: [config]
+    if: needs.config.outputs.can_review == 'true' && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write # the action exchanges a GitHub OIDC token for its app token
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Claude review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          use_sticky_comment: true
+          prompt: |
+            Review this pull request as a strict quality gate for AI-generated
+            code. The linters already ran; do not repeat them. Hunt only for:
+            - dead or unreachable code, features nothing uses
+            - duplication of intent: reimplementing something that already
+              exists elsewhere in the repo
+            - speculative abstraction, layers or options nothing needs
+            - drift from the existing architecture and naming conventions
+            - tests that assert nothing or mirror the implementation
+            - silently swallowed errors
+            - new dependencies without a stated justification
+            Report only real findings with file:line references, most severe
+            first. Be terse. If the change is clean, say so in one line.

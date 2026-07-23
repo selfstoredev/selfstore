@@ -32,7 +32,10 @@ interface FileMeta {
  * compressed, and re-deflating them was the biggest chunk of per-save
  * main-thread time for near-zero size gain. Still a plain readable ZIP.
  */
-export async function zip(entries: Record<string, Uint8Array>, level: 0 | 6 = 6): Promise<Uint8Array> {
+export async function zip(
+	entries: Record<string, Uint8Array>,
+	level: 0 | 6 = 6
+): Promise<Uint8Array> {
 	const { zipSync } = await import('fflate');
 	const input: Record<string, Uint8Array | [Uint8Array, { level: 0 }]> = {};
 	for (const [name, bytes] of Object.entries(entries)) {
@@ -114,11 +117,6 @@ export function entriesToSnapshot(entries: Record<string, Uint8Array>): Snapshot
 /** Pack a snapshot (plus an optional opaque sidecar) into ZIP bytes. */
 export async function pack(snap: Snapshot, sidecar?: unknown): Promise<Uint8Array> {
 	return zip(buildEntries(snap, sidecar), 6);
-}
-
-/** Unpack ZIP bytes back into a snapshot. */
-export async function unpack(zipBytes: Uint8Array): Promise<Snapshot> {
-	return entriesToSnapshot(await unzip(zipBytes));
 }
 
 /** Unpack ZIP bytes into a snapshot plus its sidecar (null when absent). */

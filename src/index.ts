@@ -1,6 +1,6 @@
 // selfstore - local-first storage for browser apps.
 //
-//   const store = await selfstore('todo-app');
+//   const store = await selfstore('notes-app');
 //   await store.put('todos', { id: 't1', text: 'ship it' });
 //   store.onChange(render);   // local writes and multi-device merges
 //
@@ -60,12 +60,7 @@ export type { WebdavConfig } from './persistence/targets/webdav';
 export type { S3Config } from './persistence/targets/s3';
 
 // --- Types the simple store surfaces (status for your UI, the escape hatch) ---
-export type {
-	StatusDescriptor,
-	Severity,
-	StorageState,
-	StatusAction
-} from './persistence/status';
+export type { StatusDescriptor, Severity, StorageState, StatusAction } from './persistence/status';
 export type {
 	StoreError,
 	LocalStore,

@@ -193,7 +193,12 @@ describe('selfstore-connect: choosing', () => {
 		el.targets = { drive: async () => null, webdav: true };
 		el.advanced = ['webdav'];
 		el.webdavPresets = [
-			{ id: 'kdrive', label: 'kDrive', url: 'https://connect.example.test/dav', help: 'Provider help' },
+			{
+				id: 'kdrive',
+				label: 'kDrive',
+				url: 'https://connect.example.test/dav',
+				help: 'Provider help'
+			},
 			{ id: 'cozy', label: 'Cozy', url: 'https://cozy.example.test/dav' }
 		];
 
@@ -203,7 +208,9 @@ describe('selfstore-connect: choosing', () => {
 		await waitFor(() => q(el, 'input[data-keep="wd-url"]'));
 
 		// The presets render as buttons in order.
-		const presets = [...el.shadowRoot!.querySelectorAll<HTMLButtonElement>('button[part~="preset"]')];
+		const presets = [
+			...el.shadowRoot!.querySelectorAll<HTMLButtonElement>('button[part~="preset"]')
+		];
 		expect(presets.length).toBe(2);
 		expect(presets[0].getAttribute('data-preset')).toBe('kdrive');
 		expect(presets[0].textContent).toBe('kDrive');
@@ -265,10 +272,14 @@ describe('selfstore-connect: choosing', () => {
 		const url = (await waitFor(() => q(el, 'input[data-keep="wd-url"]'))) as HTMLInputElement;
 		expect(url.value).toBe('https://dav.example.test');
 		expect(q(el, '[part~="preset-on"]')).not.toBeNull();
-		expect((q(el, 'button[part~="preset"]') as HTMLButtonElement).getAttribute('aria-pressed')).toBe('true');
+		expect(
+			(q(el, 'button[part~="preset"]') as HTMLButtonElement).getAttribute('aria-pressed')
+		).toBe('true');
 
 		expect(q(el, '[part~="webdav-note"]')!.textContent).toContain('app password lives');
-		expect((q(el, 'a[part~="webdav-help"]') as HTMLAnchorElement).getAttribute('href')).toBe('https://example.test/help');
+		expect((q(el, 'a[part~="webdav-help"]') as HTMLAnchorElement).getAttribute('href')).toBe(
+			'https://example.test/help'
+		);
 		const signup = q(el, 'a[part~="webdav-signup"]') as HTMLAnchorElement;
 		expect(signup.getAttribute('href')).toBe('https://example.test/signup');
 		expect(signup.textContent).toBe('Create an account');
@@ -372,9 +383,7 @@ describe('selfstore-connect: the password step', () => {
 		el.targets = { drive: async () => t.target };
 
 		(await waitFor(() => q(el, 'button[part="card"]'))).click();
-		const input = (await waitFor(() =>
-			q(el, 'input[data-keep="password"]')
-		)) as HTMLInputElement;
+		const input = (await waitFor(() => q(el, 'input[data-keep="password"]'))) as HTMLInputElement;
 		expect(engine.state.targetKind).toBe('device'); // nothing attached yet
 
 		input.value = 'wrong';
@@ -443,9 +452,9 @@ describe('selfstore-connect: the password step', () => {
 		expect(q(el, '[part~="warn-note"]')).not.toBeNull();
 
 		// Back bails out of the confirmation, attaching nothing.
-		const back = [...el.shadowRoot!.querySelectorAll<HTMLButtonElement>('[part~="row"] button')].find(
-			(b) => b.textContent === 'Back'
-		)!;
+		const back = [
+			...el.shadowRoot!.querySelectorAll<HTMLButtonElement>('[part~="row"] button')
+		].find((b) => b.textContent === 'Back')!;
 		back.click();
 		await waitFor(() => q(el, 'input[data-keep="password"]'));
 		expect(engine.state.targetKind).toBe('device');

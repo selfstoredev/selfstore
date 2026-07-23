@@ -19,7 +19,10 @@ const ACTIVE_KEY = 'test:activeFileId';
 /** In-memory destination: files by id, list order = newest first (insertion
  *  reversed), plus switches to fake session refusal and owner lookups. */
 class World {
-	files = new Map<string, { name: string; blob: Blob | null; modifiedTime: string | null; foreign?: boolean }>();
+	files = new Map<
+		string,
+		{ name: string; blob: Blob | null; modifiedTime: string | null; foreign?: boolean }
+	>();
 	nextId = 1;
 	refuseSession = false;
 	disconnects = 0;
@@ -63,7 +66,9 @@ class World {
 						return world.files.get(fileId)?.blob ?? null;
 					},
 					async stat() {
-						return world.files.has(fileId) ? String(world.files.get(fileId)!.blob?.size ?? 0) : null;
+						return world.files.has(fileId)
+							? String(world.files.get(fileId)!.blob?.size ?? 0)
+							: null;
 					},
 					async isReady() {
 						return world.files.has(fileId);
@@ -132,7 +137,9 @@ async function manager(
 	world: World,
 	opts: { hostOverrides?: Partial<BackupsHost>; name?: string } = {}
 ): Promise<{ m: BackupsManager; store: LocalStore; kv: KV; appState: AppState }> {
-	const { store, kv, appState } = makeStore(opts.name ?? `backups-${Math.floor(Math.random() * 1e9)}`);
+	const { store, kv, appState } = makeStore(
+		opts.name ?? `backups-${Math.floor(Math.random() * 1e9)}`
+	);
 	await store.init();
 	const m = createBackupsManager({
 		store,
@@ -152,7 +159,9 @@ async function encryptedBlob(password: string): Promise<Blob> {
 }
 
 async function plainBlob(): Promise<Blob> {
-	return backup({ collections: { notes: [{ id: 'n1' }] }, files: [] }).as('backups-test').toBlob();
+	return backup({ collections: { notes: [{ id: 'n1' }] }, files: [] })
+		.as('backups-test')
+		.toBlob();
 }
 
 describe('naming', () => {
@@ -164,11 +173,13 @@ describe('naming', () => {
 		world.add('App (family).zip');
 		world.add('app-share-123.bin'); // internal file: not a backup name
 		const rows = await m.list();
-		expect(rows.map((r) => [r.name, r.label])).toEqual([
-			['app-share-123.bin', undefined],
-			['App (family).zip', 'family'],
-			['App.zip', null]
-		].filter(([, label]) => label !== undefined));
+		expect(rows.map((r) => [r.name, r.label])).toEqual(
+			[
+				['app-share-123.bin', undefined],
+				['App (family).zip', 'family'],
+				['App.zip', null]
+			].filter(([, label]) => label !== undefined)
+		);
 	});
 });
 
@@ -413,7 +424,7 @@ describe('registry and memories', () => {
 });
 
 describe('joined shared wallet', () => {
-	it('registerShared labels a file as the sharer\'s; markActive then reads it as joined', async () => {
+	it("registerShared labels a file as the sharer's; markActive then reads it as joined", async () => {
 		const world = new World();
 		// A file on MY OWN account, named OUTSIDE the own convention (a joined
 		// portfolio's dedicated wallet): registered shared, it presents as the
@@ -422,7 +433,9 @@ describe('joined shared wallet', () => {
 		const { m } = await manager(world);
 		await m.registerShared(id, { email: 'ana@x.fr', name: null });
 		await m.hydrate();
-		expect(m.snapshot.registry.shared).toEqual([{ fileId: id, ownerEmail: 'ana@x.fr', ownerName: null }]);
+		expect(m.snapshot.registry.shared).toEqual([
+			{ fileId: id, ownerEmail: 'ana@x.fr', ownerName: null }
+		]);
 		await m.openBackup(id);
 		expect(m.snapshot.joined).toBe(true);
 		expect(m.snapshot.owner?.email).toBe('ana@x.fr');
@@ -433,7 +446,9 @@ describe('joined shared wallet', () => {
 		const world = new World();
 		const { m, store, appState } = await manager(world);
 		appState.notes.push({ id: 'mine-1' }); // whatever silo was loaded before
-		expect(await m.createShared('Recu de ana - App.zip', { email: 'ana@x.fr', name: null })).toBe('ok');
+		expect(await m.createShared('Recu de ana - App.zip', { email: 'ana@x.fr', name: null })).toBe(
+			'ok'
+		);
 		// Blank start: the previous silo's data never crosses into the joined wallet.
 		expect(appState.notes).toEqual([]);
 		const snap = m.snapshot;

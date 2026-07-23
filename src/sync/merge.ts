@@ -74,7 +74,14 @@ function stableStringify(v: unknown): string {
 	if (v === null || typeof v !== 'object') return JSON.stringify(v) ?? 'null';
 	if (Array.isArray(v)) return '[' + v.map(stableStringify).join(',') + ']';
 	const o = v as Record<string, unknown>;
-	return '{' + Object.keys(o).sort().map((k) => JSON.stringify(k) + ':' + stableStringify(o[k])).join(',') + '}';
+	return (
+		'{' +
+		Object.keys(o)
+			.sort()
+			.map((k) => JSON.stringify(k) + ':' + stableStringify(o[k]))
+			.join(',') +
+		'}'
+	);
 }
 
 /** FNV-1a 32-bit hash, enough to detect that a record changed. */
@@ -94,7 +101,11 @@ function emptyCol(): ColMeta {
 
 function cloneCol(c: ColMeta | undefined): ColMeta {
 	if (!c) return emptyCol();
-	const out: ColMeta = { clocks: { ...c.clocks }, deleted: { ...c.deleted }, hashes: { ...c.hashes } };
+	const out: ColMeta = {
+		clocks: { ...c.clocks },
+		deleted: { ...c.deleted },
+		hashes: { ...c.hashes }
+	};
 	if (c.fields) {
 		out.fields = {};
 		for (const [id, f] of Object.entries(c.fields)) out.fields[id] = { ...f };
@@ -293,7 +304,12 @@ export function merge(a: State, b: State, config: SyncConfig, base?: SyncMeta): 
  * the one merge dropped). Empty without a base, since two-way state alone cannot
  * tell a concurrent edit from a one-sided change.
  */
-export function detectConflicts(a: State, b: State, config: SyncConfig, base?: SyncMeta): Conflict[] {
+export function detectConflicts(
+	a: State,
+	b: State,
+	config: SyncConfig,
+	base?: SyncMeta
+): Conflict[] {
 	if (!base) return [];
 	const out: Conflict[] = [];
 	const names = new Set([...Object.keys(a.collections), ...Object.keys(b.collections)]);
@@ -312,7 +328,16 @@ export function detectConflicts(a: State, b: State, config: SyncConfig, base?: S
 			// changed on both sides is a real (auto-resolved) conflict.
 			const conflict =
 				strategy === 'lww-map'
-					? fieldConflict(name, id, aDocs, bDocs, aMeta.fields?.[id], bMeta.fields?.[id], baseMeta?.fields?.[id], winnerSide)
+					? fieldConflict(
+							name,
+							id,
+							aDocs,
+							bDocs,
+							aMeta.fields?.[id],
+							bMeta.fields?.[id],
+							baseMeta?.fields?.[id],
+							winnerSide
+						)
 					: manualConflict(name, id, aDocs, bDocs, aClk, bClk, baseMeta, winnerSide);
 			if (conflict) out.push(conflict);
 		}
@@ -341,7 +366,13 @@ function fieldConflict(
 		const aChanged = !baseClk || compare(a[0], baseClk) > 0;
 		const bChanged = !baseClk || compare(b[0], baseClk) > 0;
 		if (aChanged && bChanged)
-			return { collection: name, id, local: aDocs.get(id), remote: bDocs.get(id), kept: winnerSide };
+			return {
+				collection: name,
+				id,
+				local: aDocs.get(id),
+				remote: bDocs.get(id),
+				kept: winnerSide
+			};
 	}
 	return null;
 }
@@ -500,7 +531,11 @@ function pickWinner(aClk: Hlc | null, bClk: Hlc | null, aHas: boolean): 'local' 
 	return aHas ? 'local' : 'remote';
 }
 
-function byId(config: SyncConfig, collection: string, docs: unknown[] | undefined): Map<Id, unknown> {
+function byId(
+	config: SyncConfig,
+	collection: string,
+	docs: unknown[] | undefined
+): Map<Id, unknown> {
 	const m = new Map<Id, unknown>();
 	for (const d of docs ?? []) {
 		const id = idOf(config, collection, d);

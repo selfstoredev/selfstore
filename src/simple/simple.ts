@@ -1,6 +1,6 @@
 // The simple store: one call, sensible defaults, and the store owns the data.
 //
-//   const store = await selfstore('todo-app');
+//   const store = await selfstore('notes-app');
 //   await store.put('todos', { id: 't1', text: 'hello' });
 //   store.onChange(render);
 //
@@ -104,7 +104,9 @@ export interface SimpleOptions {
  *  downloadBackup() instead. 'cancelled': the user closed the picker/consent. */
 export type ConnectOutcome = 'merged' | 'started' | 'manual' | 'cancelled';
 
-export interface SimpleStore<S extends Record<string, SimpleRecord> = Record<string, SimpleRecord>> {
+export interface SimpleStore<
+	S extends Record<string, SimpleRecord> = Record<string, SimpleRecord>
+> {
 	// --- Your data ---------------------------------------------------------
 	/** Every record of a collection (treat as read-only; write via put/remove). */
 	all<K extends keyof S & string>(collection: K): readonly S[K][];
@@ -225,10 +227,9 @@ function hasIndexedDb(): boolean {
  * returned store is ready: data readable, destination restored, first converge
  * done. See SimpleOptions for the defaults.
  */
-export async function selfstore<S extends Record<string, SimpleRecord> = Record<string, SimpleRecord>>(
-	app: string,
-	options: SimpleOptions = {}
-): Promise<SimpleStore<S>> {
+export async function selfstore<
+	S extends Record<string, SimpleRecord> = Record<string, SimpleRecord>
+>(app: string, options: SimpleOptions = {}): Promise<SimpleStore<S>> {
 	if (typeof app !== 'string' || app.length === 0) {
 		throw new TypeError('selfstore: pass your app name, e.g. selfstore("my-app").');
 	}
@@ -294,7 +295,11 @@ export async function selfstore<S extends Record<string, SimpleRecord> = Record<
 	// network return, a slow interval, and save-on-hide. Opt out with
 	// { autoSync: false } to drive these yourself.
 	const teardown: (() => void)[] = [];
-	if (options.autoSync !== false && typeof document !== 'undefined' && typeof window !== 'undefined') {
+	if (
+		options.autoSync !== false &&
+		typeof document !== 'undefined' &&
+		typeof window !== 'undefined'
+	) {
 		const onVisibility = (): void => {
 			if (document.visibilityState === 'hidden') void store.flush();
 			else void store.syncIfStale('focus');
@@ -339,7 +344,10 @@ export async function selfstore<S extends Record<string, SimpleRecord> = Record<
 			await store.attachTarget(target, { password: opts.password ?? null, strategy: 'merge' });
 			return 'merged';
 		}
-		await store.attachTarget(target, { password: opts.password ?? null, strategy: 'replace-remote' });
+		await store.attachTarget(target, {
+			password: opts.password ?? null,
+			strategy: 'replace-remote'
+		});
 		return 'started';
 	}
 
@@ -408,7 +416,10 @@ export async function selfstore<S extends Record<string, SimpleRecord> = Record<
 			if (!target) return 'cancelled';
 			return connectTarget(target, opts);
 		},
-		async connectWebdav(config: WebdavConfig, opts?: { password?: string }): Promise<ConnectOutcome> {
+		async connectWebdav(
+			config: WebdavConfig,
+			opts?: { password?: string }
+		): Promise<ConnectOutcome> {
 			const target = await webdavConnect({ kv: cache.kv, config });
 			if (!target) {
 				throw new SelfstoreError(

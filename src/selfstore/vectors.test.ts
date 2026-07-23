@@ -18,7 +18,10 @@ const vectors = join(dirname(fileURLToPath(import.meta.url)), '../../spec/vector
 const manifest = JSON.parse(readFileSync(join(vectors, 'manifest.json'), 'utf8')) as {
 	password: string;
 	app: string;
-	expected: { collections: Record<string, unknown[]>; files: { id: string; name: string; text: string }[] };
+	expected: {
+		collections: Record<string, unknown[]>;
+		files: { id: string; name: string; text: string }[];
+	};
 	files: Record<
 		string,
 		{

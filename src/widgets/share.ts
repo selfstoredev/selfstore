@@ -221,12 +221,21 @@ export class SelfstoreShareElement extends FlowWidget {
 						),
 						h(
 							'button',
-							{ part: 'button', 'data-action': 'copy', onclick: () => this.copy(link.id, link.url) },
+							{
+								part: 'button',
+								'data-action': 'copy',
+								onclick: () => this.copy(link.id, link.url)
+							},
 							this.t(this.#copiedId === link.id ? 'share.copied' : 'share.copy')
 						),
 						h(
 							'button',
-							{ part: 'button button-danger', 'data-action': 'revoke', disabled: s.busy !== null, onclick: () => this.revoke(link.id) },
+							{
+								part: 'button button-danger',
+								'data-action': 'revoke',
+								disabled: s.busy !== null,
+								onclick: () => this.revoke(link.id)
+							},
 							this.t('share.revoke')
 						)
 					)
@@ -258,7 +267,12 @@ export class SelfstoreShareElement extends FlowWidget {
 							s.canRemoveMembers && !m.self
 								? h(
 										'button',
-										{ part: 'button button-danger', 'data-action': 'remove', disabled: s.busy !== null, onclick: () => this.removeRow(m.id) },
+										{
+											part: 'button button-danger',
+											'data-action': 'remove',
+											disabled: s.busy !== null,
+											onclick: () => this.removeRow(m.id)
+										},
 										this.t('share.remove')
 									)
 								: null
@@ -280,7 +294,12 @@ export class SelfstoreShareElement extends FlowWidget {
 					{ part: 'footer', style: 'text-align:right' },
 					h(
 						'button',
-						{ part: 'link link-danger', 'data-action': 'stop', disabled: s.busy !== null, onclick: () => this.stop() },
+						{
+							part: 'link link-danger',
+							'data-action': 'stop',
+							disabled: s.busy !== null,
+							onclick: () => this.stop()
+						},
 						this.t('share.stop')
 					)
 				)

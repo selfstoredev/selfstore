@@ -148,7 +148,8 @@ function fromConfig(c: WebdavConfig, kv: KV): BackupTarget {
 			if (res.status === 401 || res.status === 403) {
 				throw new AuthExpiredError(`WebDAV rejected the credentials (${res.status}).`);
 			}
-			if (!res.ok) throw new SelfstoreError('TARGET_WRITE_FAILED', `WebDAV PUT failed: ${res.status}`);
+			if (!res.ok)
+				throw new SelfstoreError('TARGET_WRITE_FAILED', `WebDAV PUT failed: ${res.status}`);
 			return versionOf(res) ?? (await stat());
 		},
 		async load(): Promise<Blob | null> {
@@ -161,7 +162,8 @@ function fromConfig(c: WebdavConfig, kv: KV): BackupTarget {
 			if (res.status === 401 || res.status === 403) {
 				throw new AuthExpiredError(`WebDAV rejected the credentials (${res.status}).`);
 			}
-			if (!res.ok) throw new SelfstoreError('TARGET_UNAVAILABLE', `WebDAV GET failed: ${res.status}`);
+			if (!res.ok)
+				throw new SelfstoreError('TARGET_UNAVAILABLE', `WebDAV GET failed: ${res.status}`);
 			return res.blob();
 		},
 		stat,
@@ -244,7 +246,7 @@ export async function connect(opts: WebdavConnectOptions): Promise<BackupTarget 
 	// isReady() now THROWS on a 401/403 (so a later rejection gates the store); at
 	// first connect a rejection just means "wrong credentials, try again", so a
 	// throw here reads the same as false - report null, persist nothing.
-	let ok = false;
+	let ok: boolean;
 	try {
 		ok = await target.isReady();
 	} catch {

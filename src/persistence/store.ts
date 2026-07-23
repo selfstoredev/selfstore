@@ -417,8 +417,16 @@ const JOURNAL_MAX = 20;
 const STALE_CHECK_MS = 20_000;
 
 export function createLocalStore(opts: LocalStoreOptions): LocalStore {
-	const { app, schemaVersion: version, appVersion, gather, apply, cache, readme, debounceMs = 800 } =
-		opts;
+	const {
+		app,
+		schemaVersion: version,
+		appVersion,
+		gather,
+		apply,
+		cache,
+		readme,
+		debounceMs = 800
+	} = opts;
 	const logger = opts.logger ?? console;
 	// Hard no-plaintext policy: a store told to require encryption refuses every
 	// path that could emit a cleartext travelling copy (see requireEncryption).
@@ -432,7 +440,10 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 		if (!passwordPolicy) return;
 		const { ok, unmet } = checkPasswordPolicy(pw, passwordPolicy);
 		if (!ok) {
-			throw new SelfstoreError('WEAK_PASSWORD', `Password does not meet the policy: ${unmet.join(', ')}.`);
+			throw new SelfstoreError(
+				'WEAK_PASSWORD',
+				`Password does not meet the policy: ${unmet.join(', ')}.`
+			);
 		}
 	}
 	// Derived collections whose merges are routine noise, not user edits - they
@@ -623,7 +634,9 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 
 	/** The group read options for PEERS: any current manifest member may sign. */
 	const peerGroupRead = (): GroupReadOptions | undefined =>
-		group ? { identity: group.identity, authors: group.manifest.members.map((m) => m.sig) } : undefined;
+		group
+			? { identity: group.identity, authors: group.manifest.members.map((m) => m.sig) }
+			: undefined;
 
 	/** Manifest seq high-water mark key (rollback protection across sessions). */
 	const groupSeqKey = (id: string): string => `groupSeq:${id}`;
@@ -1076,7 +1089,7 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 	 *  "saved", then rethrow so the caller knows the op did not run. Throws
 	 *  TARGET_WRITE_FAILED for a transient not-ready. */
 	async function requireReady(where: string): Promise<void> {
-		let ok = false;
+		let ok: boolean;
 		try {
 			ok = await durable!.isReady();
 		} catch (e) {
@@ -1106,7 +1119,10 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 	function redactForStorage(entries: SyncJournalEntry[]): SyncJournalEntry[] {
 		return entries.map((e) =>
 			e.conflicts
-				? { ...e, conflicts: e.conflicts.map(({ collection, id, kept }) => ({ collection, id, kept })) }
+				? {
+						...e,
+						conflicts: e.conflicts.map(({ collection, id, kept }) => ({ collection, id, kept }))
+					}
 				: e
 		);
 	}
@@ -1327,7 +1343,9 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 			}
 			if (
 				isSelfstoreError(e) &&
-				(e.code === 'IDENTITY_REQUIRED' || e.code === 'SIGNATURE_INVALID' || e.code === 'NOT_A_RECIPIENT')
+				(e.code === 'IDENTITY_REQUIRED' ||
+					e.code === 'SIGNATURE_INVALID' ||
+					e.code === 'NOT_A_RECIPIENT')
 			) {
 				// Group trust failed on our own copy (foreign signature, missing
 				// identity, no envelope): gate, never clobber either side.
@@ -1505,7 +1523,12 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 					);
 					continue;
 				}
-				const { snapshot, sidecar, author, envelope: peerEnv } = await readBoxWithSync(
+				const {
+					snapshot,
+					sidecar,
+					author,
+					envelope: peerEnv
+				} = await readBoxWithSync(
 					await asBytes(remote),
 					p.password ?? pass ?? undefined,
 					peerGroupRead(),
@@ -1653,7 +1676,9 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 
 	/** keepSession: drop the target object but leave its credentials/session
 	 *  intact (a same-account backup switch must not kill the shared auth). */
-	async function dropDurable({ keepSession = false }: { keepSession?: boolean } = {}): Promise<void> {
+	async function dropDurable({
+		keepSession = false
+	}: { keepSession?: boolean } = {}): Promise<void> {
 		if (durable && !keepSession) await durable.disconnect();
 		durable = null;
 		label = null;
@@ -2058,7 +2083,7 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 			// Remember this download (with the remote's current marker) so the attach
 			// that typically follows reuses it instead of fetching the same file again.
 			// A Blob is re-readable, so inspecting it here does not spend it.
-			let marker: string | null = null;
+			let marker: string | null;
 			try {
 				marker = target.stat ? await target.stat() : null;
 			} catch {
@@ -2230,7 +2255,13 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 			if (replicaList.some((r) => r.id === id)) {
 				throw new TypeError(`attachReplica(): a replica with id "${id}" is already attached`);
 			}
-			replicaList.push({ id, target, label: target.label ?? id, lastPublishAt: null, lastError: null });
+			replicaList.push({
+				id,
+				target,
+				label: target.label ?? id,
+				lastPublishAt: null,
+				lastError: null
+			});
 			notify();
 			// Publish promptly so the copy exists as soon as the replica is wired
 			// (serialized with saves and pulls). Before init() this just registers.
@@ -2367,7 +2398,10 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 			}
 			assertPasswordPolicy(password);
 			if (!durable) {
-				throw new SelfstoreError('NOT_CONNECTED', 'addEncryptionKey(): no destination is connected.');
+				throw new SelfstoreError(
+					'NOT_CONNECTED',
+					'addEncryptionKey(): no destination is connected.'
+				);
 			}
 			if (locked() || needsAttention) {
 				throw new SelfstoreError(
@@ -2400,7 +2434,9 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 					envelope = { dataKey, slots: [await mintSlot(pass!, dataKey)] };
 				}
 				if (envelope.slots.length >= MAX_KEY_SLOTS) {
-					throw new TypeError(`addEncryptionKey(): this backup already has ${MAX_KEY_SLOTS} key slots.`);
+					throw new TypeError(
+						`addEncryptionKey(): this backup already has ${MAX_KEY_SLOTS} key slots.`
+					);
 				}
 				if (id && envelope.slots.some((s) => s.id === id)) {
 					throw new TypeError(`addEncryptionKey(): a key slot named "${id}" already exists.`);
@@ -2436,7 +2472,10 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 				);
 			}
 			if (!durable) {
-				throw new SelfstoreError('NOT_CONNECTED', 'removeEncryptionKey(): no destination is connected.');
+				throw new SelfstoreError(
+					'NOT_CONNECTED',
+					'removeEncryptionKey(): no destination is connected.'
+				);
 			}
 			if (locked() || needsAttention) {
 				throw new SelfstoreError(
@@ -2519,7 +2558,10 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 				);
 			}
 			if (!durable) {
-				throw new SelfstoreError('NOT_CONNECTED', 'setExternalEncryption(): no destination is connected.');
+				throw new SelfstoreError(
+					'NOT_CONNECTED',
+					'setExternalEncryption(): no destination is connected.'
+				);
 			}
 			if (locked() || needsAttention) {
 				throw new SelfstoreError(
@@ -2555,7 +2597,13 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 					pendingEdit = false;
 					const blob = await buildBlob();
 					// Write-verified: the secret must open the very bytes about to land.
-					await readBoxWithSync(await asBytes(blob), undefined, undefined, undefined, async () => secret);
+					await readBoxWithSync(
+						await asBytes(blob),
+						undefined,
+						undefined,
+						undefined,
+						async () => secret
+					);
 					const written = await durable!.save(blob);
 					await setRemoteVersion(typeof written === 'string' ? written : await statRemote());
 					lastError = null;
@@ -2619,7 +2667,9 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 					throw new TypeError('addExternalKey(): no data key in hand - unlock the backup first.');
 				}
 				if (envelope.slots.length >= MAX_KEY_SLOTS) {
-					throw new TypeError(`addExternalKey(): this backup already has ${MAX_KEY_SLOTS} key slots.`);
+					throw new TypeError(
+						`addExternalKey(): this backup already has ${MAX_KEY_SLOTS} key slots.`
+					);
 				}
 				if (id && envelope.slots.some((s) => s.id === id)) {
 					throw new TypeError(`addExternalKey(): a key slot named "${id}" already exists.`);
@@ -2630,7 +2680,13 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 				try {
 					const blob = await buildBlob();
 					// Write-verified: the new secret must open the bytes about to land.
-					await readBoxWithSync(await asBytes(blob), undefined, undefined, undefined, async () => secret);
+					await readBoxWithSync(
+						await asBytes(blob),
+						undefined,
+						undefined,
+						undefined,
+						async () => secret
+					);
 					const written = await durable!.save(blob);
 					await setRemoteVersion(typeof written === 'string' ? written : await statRemote());
 					lastError = null;
@@ -2665,7 +2721,8 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 		listEncryptionKeys() {
 			return (envelope?.slots ?? []).map((s) => ({
 				id: s.id,
-				kind: (s as ExternalSlot).kind === 'external' ? ('external' as const) : ('password' as const)
+				kind:
+					(s as ExternalSlot).kind === 'external' ? ('external' as const) : ('password' as const)
 			}));
 		},
 

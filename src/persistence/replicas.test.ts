@@ -53,7 +53,10 @@ afterEach(() => {
 	for (const s of open.splice(0)) s.dispose();
 });
 
-async function makeStore(initial: Record<string, unknown[]>, extra: Partial<LocalStoreOptions> = {}) {
+async function makeStore(
+	initial: Record<string, unknown[]>,
+	extra: Partial<LocalStoreOptions> = {}
+) {
 	const state = { collections: structuredClone(initial) };
 	const store = createLocalStore({
 		app: `replicas-${++seq}`,

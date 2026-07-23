@@ -36,8 +36,28 @@ function asSet(docs: unknown[]): Record<string, unknown> {
 
 describe('merge:lww-set', () => {
 	it('unions edits made to different records on two devices', () => {
-		const A = replica('a', [{ rows: [{ id: '1', v: 1 }] }, { rows: [{ id: '1', v: 1 }, { id: '2', v: 2 }] }]);
-		const B = replica('b', [{ rows: [{ id: '1', v: 1 }] }, { rows: [{ id: '1', v: 1 }, { id: '3', v: 3 }] }], 2000);
+		const A = replica('a', [
+			{ rows: [{ id: '1', v: 1 }] },
+			{
+				rows: [
+					{ id: '1', v: 1 },
+					{ id: '2', v: 2 }
+				]
+			}
+		]);
+		const B = replica(
+			'b',
+			[
+				{ rows: [{ id: '1', v: 1 }] },
+				{
+					rows: [
+						{ id: '1', v: 1 },
+						{ id: '3', v: 3 }
+					]
+				}
+			],
+			2000
+		);
 		const m = merge(A, B, cfg);
 		expect(asSet(m.collections.rows)).toEqual({
 			'1': { id: '1', v: 1 },
@@ -55,8 +75,31 @@ describe('merge:lww-set', () => {
 	});
 
 	it('a delete on one device propagates (tombstone)', () => {
-		const A = replica('a', [{ rows: [{ id: '1', v: 1 }, { id: '2', v: 2 }] }, { rows: [{ id: '1', v: 1 }] }], 5000);
-		const B = replica('b', [{ rows: [{ id: '1', v: 1 }, { id: '2', v: 2 }] }], 1000);
+		const A = replica(
+			'a',
+			[
+				{
+					rows: [
+						{ id: '1', v: 1 },
+						{ id: '2', v: 2 }
+					]
+				},
+				{ rows: [{ id: '1', v: 1 }] }
+			],
+			5000
+		);
+		const B = replica(
+			'b',
+			[
+				{
+					rows: [
+						{ id: '1', v: 1 },
+						{ id: '2', v: 2 }
+					]
+				}
+			],
+			1000
+		);
 		const m = merge(A, B, cfg);
 		expect(asSet(m.collections.rows)).toEqual({ '1': { id: '1', v: 1 } });
 	});
@@ -70,7 +113,12 @@ describe('merge:lww-set', () => {
 });
 
 describe('detectConflicts', () => {
-	const seed = { rows: [{ id: '1', v: 1 }, { id: '2', v: 2 }] };
+	const seed = {
+		rows: [
+			{ id: '1', v: 1 },
+			{ id: '2', v: 2 }
+		]
+	};
 	const base = replica('base', [seed], 1000).meta;
 	// A replica that shares the base lineage, then applies its own edit once. An
 	// unchanged record keeps its base clock (so it reads as one-sided, not concurrent).
@@ -80,15 +128,35 @@ describe('detectConflicts', () => {
 	});
 
 	it('flags only the record both replicas changed since the base', () => {
-		const A = from('a', { rows: [{ id: '1', v: 10 }, { id: '2', v: 2 }] }, 3000); // changed id 1
-		const B = from('b', { rows: [{ id: '1', v: 20 }, { id: '2', v: 99 }] }, 5000); // changed id 1 and id 2
+		const A = from(
+			'a',
+			{
+				rows: [
+					{ id: '1', v: 10 },
+					{ id: '2', v: 2 }
+				]
+			},
+			3000
+		); // changed id 1
+		const B = from(
+			'b',
+			{
+				rows: [
+					{ id: '1', v: 20 },
+					{ id: '2', v: 99 }
+				]
+			},
+			5000
+		); // changed id 1 and id 2
 		const conflicts = detectConflicts(A, B, cfg, base);
 		// id 1: concurrent -> conflict; id 2: only B changed -> not a conflict.
 		expect(conflicts.map((c) => c.id)).toEqual(['1']);
 		expect(conflicts[0].collection).toBe('rows');
 		// The kept side is the later clock, i.e. what merge() keeps too.
 		expect(conflicts[0].kept).toBe('remote');
-		expect((merge(A, B, cfg).collections.rows.find((r) => (r as Row).id === '1') as Row).v).toBe(20);
+		expect((merge(A, B, cfg).collections.rows.find((r) => (r as Row).id === '1') as Row).v).toBe(
+			20
+		);
 	});
 
 	it('returns nothing without a base (cannot tell concurrent from one-sided)', () => {
@@ -156,8 +224,32 @@ describe('merge:lww-map (field-level)', () => {
 });
 
 describe('merge:convergence laws (CvRDT)', () => {
-	const A = replica('a', [{ rows: [{ id: '1', v: 1 }] }, { rows: [{ id: '1', v: 10 }, { id: '2', v: 2 }] }], 3000);
-	const B = replica('b', [{ rows: [{ id: '1', v: 1 }] }, { rows: [{ id: '1', v: 20 }, { id: '3', v: 3 }] }], 1000);
+	const A = replica(
+		'a',
+		[
+			{ rows: [{ id: '1', v: 1 }] },
+			{
+				rows: [
+					{ id: '1', v: 10 },
+					{ id: '2', v: 2 }
+				]
+			}
+		],
+		3000
+	);
+	const B = replica(
+		'b',
+		[
+			{ rows: [{ id: '1', v: 1 }] },
+			{
+				rows: [
+					{ id: '1', v: 20 },
+					{ id: '3', v: 3 }
+				]
+			}
+		],
+		1000
+	);
 	const C = replica('c', [{ rows: [{ id: '4', v: 4 }] }], 2000);
 
 	it('is commutative (order of peers does not matter)', () => {
@@ -206,14 +298,18 @@ describe('merge:grow-set', () => {
 		mB = stamp(mB, { log: [] }, grow, 3000); // "removal" ignored for grow-set
 		const B = { collections: { log: [{ id: 'e2', v: 2 }] }, meta: mB };
 		const m = merge(A, B, grow);
-		expect(asSet(m.collections.log)).toEqual({ 'e1': { id: 'e1', v: 1 }, 'e2': { id: 'e2', v: 2 } });
+		expect(asSet(m.collections.log)).toEqual({ e1: { id: 'e1', v: 1 }, e2: { id: 'e2', v: 2 } });
 	});
 });
 
 describe('merge:lww-register', () => {
 	const reg: SyncConfig = { strategies: { settings: 'lww-register' } };
 	it('keeps the most recently written singleton', () => {
-		const A = replica('a', [{ settings: [{ id: '_', v: 1 }] }, { settings: [{ id: '_', v: 2 }] }], 5000);
+		const A = replica(
+			'a',
+			[{ settings: [{ id: '_', v: 1 }] }, { settings: [{ id: '_', v: 2 }] }],
+			5000
+		);
 		const B = replica('b', [{ settings: [{ id: '_', v: 9 }] }], 1000);
 		const m = merge(A, B, reg);
 		expect((m.collections.settings[0] as Row).v).toBe(2);
@@ -242,7 +338,10 @@ describe('merge:manual', () => {
 
 	it('does not flag a one-sided change as a conflict', () => {
 		const base = replica('a', [{ docs: [{ id: '1', v: 0 }] }], 1000);
-		const A = { collections: { docs: [{ id: '1', v: 5 }] }, meta: stamp(base.meta, { docs: [{ id: '1', v: 5 }] }, man, 4000) };
+		const A = {
+			collections: { docs: [{ id: '1', v: 5 }] },
+			meta: stamp(base.meta, { docs: [{ id: '1', v: 5 }] }, man, 4000)
+		};
 		const B = base; // unchanged
 		const m = merge(A, B, man, base.meta);
 		expect(m.conflicts).toHaveLength(0);
@@ -300,7 +399,11 @@ describe('gcTombstones (bounded metadata)', () => {
 		// the worst-case offline window.
 		const local = gcTombstones(withTombstone(), 3000); // no tombstone for id 1
 		const stale = stamp(createMeta('b'), { rows: [{ id: '1' }, { id: '2' }] }, cfg2, 500);
-		const m = merge({ collections: { rows: [{ id: '2' }] }, meta: local }, { collections: { rows: [{ id: '1' }, { id: '2' }] }, meta: stale }, cfg2);
+		const m = merge(
+			{ collections: { rows: [{ id: '2' }] }, meta: local },
+			{ collections: { rows: [{ id: '1' }, { id: '2' }] }, meta: stale },
+			cfg2
+		);
 		expect(asSet(m.collections.rows)).toHaveProperty('1'); // resurrected
 	});
 });

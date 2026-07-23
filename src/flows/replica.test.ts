@@ -73,7 +73,12 @@ async function makeHost(initial: Record<string, unknown[]>) {
 	});
 	open.push(store);
 	await store.init();
-	return { store, state, kv: cache.kv, host: { engine: store, kv: cache.kv, backupName: 'App.zip' } };
+	return {
+		store,
+		state,
+		kv: cache.kv,
+		host: { engine: store, kv: cache.kv, backupName: 'App.zip' }
+	};
 }
 
 async function until(pred: () => boolean, ms = 4000): Promise<void> {
@@ -178,7 +183,11 @@ describe('replicaFlow', () => {
 		blind.dispose();
 
 		const t = memTarget();
-		const flow = replicaFlow(host, { file: async () => null }, { restoreTarget: async () => t.target });
+		const flow = replicaFlow(
+			host,
+			{ file: async () => null },
+			{ restoreTarget: async () => t.target }
+		);
 		await flow.restore();
 		expect(store.state.replicas.map((r) => r.id)).toEqual([REPLICA_ID]);
 		expect(flow.snapshot.replica?.id).toBe(REPLICA_ID);

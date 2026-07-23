@@ -86,7 +86,10 @@ describe('signed membership manifest', () => {
 		const doctored = {
 			...signed,
 			payload: Buffer.from(
-				JSON.stringify({ ...manifest, members: [{ id: 'evil', sig: impostor.sigPub, enc: impostor.encPub }] })
+				JSON.stringify({
+					...manifest,
+					members: [{ id: 'evil', sig: impostor.sigPub, enc: impostor.encPub }]
+				})
 			).toString('base64')
 		};
 		await expect(openManifest(doctored, admin.sigPub)).rejects.toMatchObject({
@@ -103,7 +106,10 @@ describe('group box (format generation 2)', () => {
 			snapshot,
 			{
 				...meta,
-				group: { recipients: [alice.encPub, bob.encPub], sign: { pub: alice.sigPub, priv: alice.sigPriv } }
+				group: {
+					recipients: [alice.encPub, bob.encPub],
+					sign: { pub: alice.sigPub, priv: alice.sigPriv }
+				}
 			},
 			{ schemaVersion: 1, meta: { marker: 'sidecar' } }
 		);
@@ -224,7 +230,9 @@ describe('group box (format generation 2)', () => {
 describe('audit hardening', () => {
 	async function groupBox(recipients: string[], signer = { s: '', e: '' }) {
 		const alice = await generateIdentity();
-		const sign = signer.s ? { pub: signer.s, priv: signer.e } : { pub: alice.sigPub, priv: alice.sigPriv };
+		const sign = signer.s
+			? { pub: signer.s, priv: signer.e }
+			: { pub: alice.sigPub, priv: alice.sigPriv };
 		return {
 			alice,
 			bytes: await writeBox(snapshot, { ...meta, group: { recipients, sign } })
@@ -278,7 +286,9 @@ describe('audit hardening', () => {
 				{ id: 'x', sig: b.sigPub, enc: b.encPub }
 			]
 		};
-		await expect(openManifest(await signManifest(dup, admin.sigPriv), admin.sigPub)).rejects.toMatchObject({
+		await expect(
+			openManifest(await signManifest(dup, admin.sigPriv), admin.sigPub)
+		).rejects.toMatchObject({
 			code: 'SIGNATURE_INVALID'
 		});
 		const badKey: GroupManifest = {

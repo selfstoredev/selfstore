@@ -128,7 +128,10 @@ function makeBackend(world: World, email: string): ShareBackend {
 			return world.bulletins.get(fileId) ?? null;
 		},
 		async announce(mailboxId, copy) {
-			world.mailbox.set(mailboxId, [...(world.mailbox.get(mailboxId) ?? []), encodeAnnounce({ v: 1, copy })]);
+			world.mailbox.set(mailboxId, [
+				...(world.mailbox.get(mailboxId) ?? []),
+				encodeAnnounce({ v: 1, copy })
+			]);
 		},
 		async takeAnnounces(mailboxId) {
 			const parked = world.mailbox.get(mailboxId) ?? [];
@@ -183,7 +186,13 @@ function makeStore(app: string) {
 
 /** A member: their own store, connected to their own wallet file in the world
  *  (plaintext unless a password is given), plus the group engine over it. */
-async function makeMember(world: World, email: string, app: string, walletId: string, password?: string) {
+async function makeMember(
+	world: World,
+	email: string,
+	app: string,
+	walletId: string,
+	password?: string
+) {
 	const { state, store } = makeStore(app);
 	await store.init();
 	await store.attachTarget(world.target(walletId), { strategy: 'replace-remote', password });
@@ -439,7 +448,9 @@ describe('capability-link household share (mirror model)', () => {
 		await bob.group.syncGroup();
 		// ...so the admin's next fold brings him back without any user action.
 		await admin.group.syncGroup();
-		expect(admin.group.state.members.some((m) => m.fileId === bob.group.state.selfFileId)).toBe(true);
+		expect(admin.group.state.members.some((m) => m.fileId === bob.group.state.selfFileId)).toBe(
+			true
+		);
 	});
 
 	it('a member drops a peer only after TWO consecutive roster reads without it (stale-read tolerance)', async () => {
@@ -566,7 +577,10 @@ describe('capability-link household share (mirror model)', () => {
 
 		// Back on the bound wallet: the share re-arms and converges again.
 		attached.id = 'scope-wallet';
-		await store.attachTarget(world.target('scope-wallet'), { strategy: 'replace-local', wipe: true });
+		await store.attachTarget(world.target('scope-wallet'), {
+			strategy: 'replace-local',
+			wipe: true
+		});
 		await group.syncGroup();
 		expect(store.state.mirrors.some((m) => m.id.startsWith('household-copy'))).toBe(true);
 		state.records.push({ id: 'a2' });
@@ -587,7 +601,12 @@ describe('capability-link household share (mirror model)', () => {
 		const attached = { id: 'scope-r-bob' as string | null };
 		const kv = memKV();
 		const backend = makeBackend(world, 'bob@x.fr');
-		const g1 = createHouseholdGroup({ store: first.store, kv, backend, wallet: async () => attached.id });
+		const g1 = createHouseholdGroup({
+			store: first.store,
+			kv,
+			backend,
+			wallet: async () => attached.id
+		});
 		await g1.openIncoming(link.fileId, link.key);
 		expect(await g1.join()).toBe('joined');
 		first.store.dispose();
@@ -596,7 +615,12 @@ describe('capability-link household share (mirror model)', () => {
 		await re.store.init();
 		attached.id = 'scope-r-other';
 		await re.store.attachTarget(world.target('scope-r-other'), { strategy: 'replace-remote' });
-		const g2 = createHouseholdGroup({ store: re.store, kv, backend, wallet: async () => attached.id });
+		const g2 = createHouseholdGroup({
+			store: re.store,
+			kv,
+			backend,
+			wallet: async () => attached.id
+		});
 		await g2.restore();
 		expect(g2.state.walletFileId).toBe('scope-r-bob');
 		expect(re.store.state.mirrors).toEqual([]);
@@ -639,7 +663,10 @@ describe('capability-link household share (mirror model)', () => {
 
 		// A SECOND share on a SECOND silo: a second membership, never a mismatch.
 		attached.id = 'mm-bob-silo-marc';
-		await store.attachTarget(world.target('mm-bob-silo-marc'), { strategy: 'replace-remote', wipe: true });
+		await store.attachTarget(world.target('mm-bob-silo-marc'), {
+			strategy: 'replace-remote',
+			wipe: true
+		});
 		await group.syncGroup(); // the silo switch puts the first share to sleep
 		await group.openIncoming(linkM.fileId, linkM.key);
 		expect(await group.join()).toBe('joined');
@@ -650,7 +677,10 @@ describe('capability-link household share (mirror model)', () => {
 
 		// Back on the first silo: its membership re-arms and still converges.
 		attached.id = 'mm-bob-silo-anne';
-		await store.attachTarget(world.target('mm-bob-silo-anne'), { strategy: 'replace-local', wipe: true });
+		await store.attachTarget(world.target('mm-bob-silo-anne'), {
+			strategy: 'replace-local',
+			wipe: true
+		});
 		await group.syncGroup();
 		anne.state.records.push({ id: 'anne-2' });
 		await anne.store.flush();

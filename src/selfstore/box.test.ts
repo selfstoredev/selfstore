@@ -12,7 +12,9 @@ function sample(): Snapshot {
 			accounts: [{ id: 'a1', name: 'Livret', value: 4200 }],
 			persons: [{ id: 'p1', name: 'Flo' }]
 		},
-		files: [{ id: 'f1', name: 'rib.pdf', mime: 'application/pdf', bytes: new Uint8Array([1, 2, 3, 4, 5]) }]
+		files: [
+			{ id: 'f1', name: 'rib.pdf', mime: 'application/pdf', bytes: new Uint8Array([1, 2, 3, 4, 5]) }
+		]
 	};
 }
 
@@ -25,7 +27,9 @@ describe('box: an unencrypted backup is a browsable ZIP', () => {
 		const entries = unzipSync(bytes);
 		expect(Object.keys(entries).sort()).toEqual(['files/f1', 'meta.json', 'selfstore.json']);
 		expect(JSON.parse(strFromU8(entries['meta.json'])).encryption).toBe('none');
-		expect(JSON.parse(strFromU8(entries['selfstore.json'])).collections.accounts[0].name).toBe('Livret');
+		expect(JSON.parse(strFromU8(entries['selfstore.json'])).collections.accounts[0].name).toBe(
+			'Livret'
+		);
 	});
 
 	it('round-trips collections and binary files', async () => {
@@ -109,20 +113,32 @@ describe('box: the password envelope (format 3, authenticated header)', () => {
 		const bytes = await writeBox(sample(), { app: 'test-app', password: 'pw' });
 		const entries = unzipSync(bytes);
 		const meta = JSON.parse(strFromU8(entries['meta.json']));
-		const craft = (m: unknown) =>
-			zipSync({ ...entries, 'meta.json': strToU8(JSON.stringify(m)) });
+		const craft = (m: unknown) => zipSync({ ...entries, 'meta.json': strToU8(JSON.stringify(m)) });
 
 		// More slots than the reader will try (each is one memory-hard trial).
-		const flood = { ...meta, keys: Array.from({ length: 9 }, (_, i) => ({ ...meta.keys[0], id: `s${i}` })) };
-		await expect(readBox(craft(flood), 'pw')).rejects.toMatchObject({ code: 'UNSUPPORTED_VERSION' });
+		const flood = {
+			...meta,
+			keys: Array.from({ length: 9 }, (_, i) => ({ ...meta.keys[0], id: `s${i}` }))
+		};
+		await expect(readBox(craft(flood), 'pw')).rejects.toMatchObject({
+			code: 'UNSUPPORTED_VERSION'
+		});
 
 		// A per-slot memory-hard bomb refuses loudly before any derivation.
-		const bomb = { ...meta, keys: [{ ...meta.keys[0], kdf: { ...meta.keys[0].kdf, m: 8_000_000 } }] };
+		const bomb = {
+			...meta,
+			keys: [{ ...meta.keys[0], kdf: { ...meta.keys[0].kdf, m: 8_000_000 } }]
+		};
 		await expect(readBox(craft(bomb), 'pw')).rejects.toMatchObject({ code: 'UNSUPPORTED_VERSION' });
 
 		// A slot declaring a foreign KDF means a newer writer, not a wrong password.
-		const foreign = { ...meta, keys: [{ ...meta.keys[0], kdf: { ...meta.keys[0].kdf, algo: 'scrypt' } }] };
-		await expect(readBox(craft(foreign), 'pw')).rejects.toMatchObject({ code: 'UNSUPPORTED_VERSION' });
+		const foreign = {
+			...meta,
+			keys: [{ ...meta.keys[0], kdf: { ...meta.keys[0].kdf, algo: 'scrypt' } }]
+		};
+		await expect(readBox(craft(foreign), 'pw')).rejects.toMatchObject({
+			code: 'UNSUPPORTED_VERSION'
+		});
 
 		// format and keys[] must agree both ways: stripping either is a forgery.
 		await expect(readBox(craft({ ...meta, keys: undefined }), 'pw')).rejects.toMatchObject({
@@ -219,7 +235,10 @@ describe('box: external-key slots (a caller-supplied secret, no password)', () =
 		const dataKey = crypto.getRandomValues(new Uint8Array(32));
 		const secret = crypto.getRandomValues(new Uint8Array(32));
 		const slot = await mintExternalSlot(secret, 'passkey:cred-1', dataKey);
-		const bytes = await writeBox(sample(), { app: 'test-app', envelope: { dataKey, slots: [slot] } });
+		const bytes = await writeBox(sample(), {
+			app: 'test-app',
+			envelope: { dataKey, slots: [slot] }
+		});
 
 		// The authenticated envelope like any other encrypted write - no password.
 		expect(await readBoxMeta(bytes)).toMatchObject({ format: 3, encryption: 'aes-256-gcm' });
@@ -255,7 +274,10 @@ describe('box: external-key slots (a caller-supplied secret, no password)', () =
 		const dataKey = crypto.getRandomValues(new Uint8Array(32));
 		const secret = crypto.getRandomValues(new Uint8Array(32));
 		const slot = await mintExternalSlot(secret, 'passkey:cred-1', dataKey);
-		const bytes = await writeBox(sample(), { app: 'test-app', envelope: { dataKey, slots: [slot] } });
+		const bytes = await writeBox(sample(), {
+			app: 'test-app',
+			envelope: { dataKey, slots: [slot] }
+		});
 
 		const wrong = crypto.getRandomValues(new Uint8Array(32));
 		await expect(
@@ -267,7 +289,10 @@ describe('box: external-key slots (a caller-supplied secret, no password)', () =
 		const dataKey = crypto.getRandomValues(new Uint8Array(32));
 		const secret = crypto.getRandomValues(new Uint8Array(32));
 		const slot = await mintExternalSlot(secret, 'passkey:cred-1', dataKey);
-		const bytes = await writeBox(sample(), { app: 'test-app', envelope: { dataKey, slots: [slot] } });
+		const bytes = await writeBox(sample(), {
+			app: 'test-app',
+			envelope: { dataKey, slots: [slot] }
+		});
 
 		await expect(readBoxWithSync(bytes)).rejects.toMatchObject({ code: 'PASSWORD_REQUIRED' });
 	});
@@ -300,7 +325,10 @@ describe('box: external-key slots (a caller-supplied secret, no password)', () =
 		const dataKey = crypto.getRandomValues(new Uint8Array(32));
 		const secret = crypto.getRandomValues(new Uint8Array(32));
 		const slot = await mintExternalSlot(secret, 'passkey:cred-1', dataKey);
-		const bytes = await writeBox(sample(), { app: 'test-app', envelope: { dataKey, slots: [slot] } });
+		const bytes = await writeBox(sample(), {
+			app: 'test-app',
+			envelope: { dataKey, slots: [slot] }
+		});
 
 		const r = await readBoxWithSync(bytes, undefined, undefined, dataKey);
 		expect(r.snapshot.collections).toEqual(sample().collections);

@@ -6,7 +6,9 @@ import { unzip } from './archive';
 function sample(): Snapshot {
 	return {
 		collections: { notes: [{ id: 'n1', body: 'hello' }] },
-		files: [{ id: 'f1', name: 'doc.pdf', mime: 'application/pdf', bytes: new Uint8Array([1, 2, 3]) }]
+		files: [
+			{ id: 'f1', name: 'doc.pdf', mime: 'application/pdf', bytes: new Uint8Array([1, 2, 3]) }
+		]
 	};
 }
 

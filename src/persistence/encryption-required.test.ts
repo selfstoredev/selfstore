@@ -123,7 +123,9 @@ describe('passwordPolicy', () => {
 		const weak = await makeStore({ passwordPolicy: policy });
 		const t1 = memTarget();
 		expect(
-			await codeOf(() => weak.attachTarget(t1.target, { strategy: 'replace-remote', password: 'short' }))
+			await codeOf(() =>
+				weak.attachTarget(t1.target, { strategy: 'replace-remote', password: 'short' })
+			)
 		).toBe('WEAK_PASSWORD');
 		expect(t1.remote).toBeNull();
 

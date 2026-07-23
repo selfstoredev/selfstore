@@ -205,7 +205,10 @@ const manifest = {
 			format: 3,
 			hasSyncJson: true,
 			passwords: [PASSWORD],
-			external: { secretB64: Buffer.from(EXTERNAL_SECRET).toString('base64'), keyRef: EXTERNAL_KEYREF }
+			external: {
+				secretB64: Buffer.from(EXTERNAL_SECRET).toString('base64'),
+				keyRef: EXTERNAL_KEYREF
+			}
 		}
 	},
 	group: {

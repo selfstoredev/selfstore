@@ -10,7 +10,14 @@ function sample(): Snapshot {
 			],
 			notes: [{ id: 'l1', body: 'hello' }]
 		},
-		files: [{ id: 'f1', name: 'doc.pdf', mime: 'application/pdf', bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46, 1, 2, 3, 4, 5]) }]
+		files: [
+			{
+				id: 'f1',
+				name: 'doc.pdf',
+				mime: 'application/pdf',
+				bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46, 1, 2, 3, 4, 5])
+			}
+		]
 	};
 }
 

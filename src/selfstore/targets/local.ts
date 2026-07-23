@@ -10,7 +10,10 @@ export async function saveToDisk(blob: Blob, filename: string): Promise<void> {
 	const picker = (
 		window as unknown as {
 			showSaveFilePicker?: (o: unknown) => Promise<{
-				createWritable: () => Promise<{ write: (d: Blob) => Promise<void>; close: () => Promise<void> }>;
+				createWritable: () => Promise<{
+					write: (d: Blob) => Promise<void>;
+					close: () => Promise<void>;
+				}>;
 			}>;
 		}
 	).showSaveFilePicker;

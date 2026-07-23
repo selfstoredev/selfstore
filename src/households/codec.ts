@@ -26,7 +26,8 @@ export class HouseholdCodeError extends Error {
 	}
 }
 
-const malformed = (message: string): HouseholdCodeError => new HouseholdCodeError('malformed', message);
+const malformed = (message: string): HouseholdCodeError =>
+	new HouseholdCodeError('malformed', message);
 
 // --- Types ------------------------------------------------------------------
 
@@ -124,14 +125,18 @@ function isString(v: unknown): v is string {
 function requireV1(v: unknown): void {
 	if (v === 1) return;
 	if (typeof v === 'number') {
-		throw new HouseholdCodeError('unsupported-version', `payload version ${v} is not supported (expected 1)`);
+		throw new HouseholdCodeError(
+			'unsupported-version',
+			`payload version ${v} is not supported (expected 1)`
+		);
 	}
 	throw malformed('missing or non-numeric version field');
 }
 
 /** Decode base64url -> JSON, mapping any failure to a single 'malformed'. */
 function decodeJson(code: string): unknown {
-	if (typeof code !== 'string' || code.length === 0) throw malformed('code must be a non-empty string');
+	if (typeof code !== 'string' || code.length === 0)
+		throw malformed('code must be a non-empty string');
 	let json: string;
 	try {
 		json = base64urlDecode(code);
@@ -151,8 +156,10 @@ export function toCopyLink(v: unknown): CopyLink {
 	if (!isRecord(v)) throw malformed('copy link is not an object');
 	if (v.provider === 'drive') {
 		if (!isString(v.fileId)) throw malformed('drive copy link needs a string fileId');
-		if (v.ownerEmail !== undefined && !isString(v.ownerEmail)) throw malformed('copy link ownerEmail must be a string');
-		if (v.ownerName !== undefined && !isString(v.ownerName)) throw malformed('copy link ownerName must be a string');
+		if (v.ownerEmail !== undefined && !isString(v.ownerEmail))
+			throw malformed('copy link ownerEmail must be a string');
+		if (v.ownerName !== undefined && !isString(v.ownerName))
+			throw malformed('copy link ownerName must be a string');
 		const link: DriveCopyLink = { provider: 'drive', fileId: v.fileId };
 		if (isString(v.ownerEmail)) link.ownerEmail = v.ownerEmail;
 		if (isString(v.ownerName)) link.ownerName = v.ownerName;

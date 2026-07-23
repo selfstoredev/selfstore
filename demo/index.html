@@ -55,60 +55,145 @@
 					--card: #1e1e24;
 				}
 			}
-			* { box-sizing: border-box; }
+			* {
+				box-sizing: border-box;
+			}
 			body {
 				margin: 0;
-				font: 15px/1.5 system-ui, sans-serif;
+				font:
+					15px/1.5 system-ui,
+					sans-serif;
 				background: var(--bg);
 				color: var(--fg);
 			}
-			main { max-width: 640px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
-			h1 { font-size: 1.5rem; margin: 0 0 0.25rem; }
-			.lede { color: var(--muted); margin: 0 0 1.5rem; }
+			main {
+				max-width: 640px;
+				margin: 0 auto;
+				padding: 2rem 1.25rem 4rem;
+			}
+			h1 {
+				font-size: 1.5rem;
+				margin: 0 0 0.25rem;
+			}
+			.lede {
+				color: var(--muted);
+				margin: 0 0 1.5rem;
+			}
 			.status {
-				display: flex; align-items: center; gap: 0.5rem;
-				font-size: 0.85rem; color: var(--muted);
-				border: 1px solid var(--line); border-radius: 0.6rem;
-				padding: 0.5rem 0.75rem; margin-bottom: 1.25rem; background: var(--card);
+				display: flex;
+				align-items: center;
+				gap: 0.5rem;
+				font-size: 0.85rem;
+				color: var(--muted);
+				border: 1px solid var(--line);
+				border-radius: 0.6rem;
+				padding: 0.5rem 0.75rem;
+				margin-bottom: 1.25rem;
+				background: var(--card);
 			}
-			.dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--muted); }
-			.dot.ok { background: #2f9e44; }
-			.dot.warn { background: #e8590c; }
-			.row { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
-			input[type='text'], textarea {
-				width: 100%; font: inherit; color: inherit; background: var(--card);
-				border: 1px solid var(--line); border-radius: 0.55rem; padding: 0.55rem 0.7rem;
+			.dot {
+				width: 0.6rem;
+				height: 0.6rem;
+				border-radius: 50%;
+				background: var(--muted);
 			}
-			textarea { resize: vertical; min-height: 3rem; }
+			.dot.ok {
+				background: #2f9e44;
+			}
+			.dot.warn {
+				background: #e8590c;
+			}
+			.row {
+				display: flex;
+				gap: 0.5rem;
+				margin-bottom: 1rem;
+			}
+			input[type='text'],
+			textarea {
+				width: 100%;
+				font: inherit;
+				color: inherit;
+				background: var(--card);
+				border: 1px solid var(--line);
+				border-radius: 0.55rem;
+				padding: 0.55rem 0.7rem;
+			}
+			textarea {
+				resize: vertical;
+				min-height: 3rem;
+			}
 			button {
-				font: inherit; cursor: pointer; border: 1px solid var(--line);
-				background: var(--card); color: inherit; border-radius: 0.55rem;
+				font: inherit;
+				cursor: pointer;
+				border: 1px solid var(--line);
+				background: var(--card);
+				color: inherit;
+				border-radius: 0.55rem;
 				padding: 0.55rem 0.9rem;
 			}
-			button.primary { background: var(--accent); color: #fff; border-color: transparent; }
-			.note { border: 1px solid var(--line); border-radius: 0.6rem; padding: 0.75rem; margin-bottom: 0.75rem; background: var(--card); }
-			.note .meta { display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem; }
-			.note .meta small { color: var(--muted); }
-			.empty { color: var(--muted); text-align: center; padding: 2rem 0; }
-			details { border: 1px solid var(--line); border-radius: 0.6rem; padding: 0.5rem 0.9rem; margin-top: 2rem; background: var(--card); }
-			summary { cursor: pointer; font-weight: 600; }
-			details .row { margin-top: 0.9rem; }
+			button.primary {
+				background: var(--accent);
+				color: #fff;
+				border-color: transparent;
+			}
+			.note {
+				border: 1px solid var(--line);
+				border-radius: 0.6rem;
+				padding: 0.75rem;
+				margin-bottom: 0.75rem;
+				background: var(--card);
+			}
+			.note .meta {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				margin-top: 0.5rem;
+			}
+			.note .meta small {
+				color: var(--muted);
+			}
+			.empty {
+				color: var(--muted);
+				text-align: center;
+				padding: 2rem 0;
+			}
+			details {
+				border: 1px solid var(--line);
+				border-radius: 0.6rem;
+				padding: 0.5rem 0.9rem;
+				margin-top: 2rem;
+				background: var(--card);
+			}
+			summary {
+				cursor: pointer;
+				font-weight: 600;
+			}
+			details .row {
+				margin-top: 0.9rem;
+			}
 			selfstore-connect {
 				--selfstore-accent: var(--accent);
-				display: block; margin-top: 0.9rem;
+				display: block;
+				margin-top: 0.9rem;
 			}
-			.hint { color: var(--muted); font-size: 0.85rem; margin: 0.4rem 0 0; }
+			.hint {
+				color: var(--muted);
+				font-size: 0.85rem;
+				margin: 0.4rem 0 0;
+			}
 		</style>
 	</head>
 	<body>
 		<main>
 			<h1>Encrypted notes</h1>
 			<p class="lede">
-				A local-first notebook on <strong>selfstore</strong>. It works offline,
-				your notes stay in this browser, and you choose where a backup lives.
+				A local-first notebook on <strong>selfstore</strong>. It works offline, your notes stay in
+				this browser, and you choose where a backup lives.
 			</p>
 
-			<div class="status"><span class="dot" id="dot"></span><span id="status">device only, saved locally</span></div>
+			<div class="status">
+				<span class="dot" id="dot"></span><span id="status">device only, saved locally</span>
+			</div>
 
 			<div class="row">
 				<input type="text" id="new" placeholder="Write a note, press Enter" autocomplete="off" />
@@ -119,10 +204,9 @@
 			<details>
 				<summary>Sync it to a home you control</summary>
 				<p class="hint">
-					Pick a disk file (works right here in a Chromium browser), or your own
-					WebDAV / S3 server. Your notes stay a plain cache on this device; a
-					home is where the backup lives. Open this page in a second tab to
-					watch edits sync on their own.
+					Pick a disk file (works right here in a Chromium browser), or your own WebDAV / S3 server.
+					Your notes stay a plain cache on this device; a home is where the backup lives. Open this
+					page in a second tab to watch edits sync on their own.
 				</p>
 				<selfstore-connect id="connect"></selfstore-connect>
 				<div class="row">
@@ -130,8 +214,8 @@
 					<button id="protect" disabled>Encrypt backup</button>
 				</div>
 				<p class="hint" id="encryptHint">
-					Connect a home first, then set a password: every backup is encrypted
-					end to end and the destination only ever sees ciphertext.
+					Connect a home first, then set a password: every backup is encrypted end to end and the
+					destination only ever sees ciphertext.
 				</p>
 			</details>
 		</main>
@@ -179,8 +263,12 @@
 				}
 				// Headless status -> a plain dot + line (the app owns the wording).
 				const s = store.status;
-				$('status').textContent = s.labelKey.replace(/^status\./, '').replace(/([A-Z])/g, ' $1').toLowerCase();
-				$('dot').className = 'dot ' + (s.severity === 'ok' ? 'ok' : s.severity === 'info' ? '' : 'warn');
+				$('status').textContent = s.labelKey
+					.replace(/^status\./, '')
+					.replace(/([A-Z])/g, ' $1')
+					.toLowerCase();
+				$('dot').className =
+					'dot ' + (s.severity === 'ok' ? 'ok' : s.severity === 'info' ? '' : 'warn');
 
 				// Encryption protects the backup, so the password only makes sense
 				// once a home is connected. Gate it on the state, not on copy.

@@ -1,6 +1,7 @@
 name: ci
 
-# Type-check, test and build on every push and PR to main.
+# The full quality gate on every push and PR to main. Self-contained (sonarjs
+# rules in eslint, knip, jscpd, coverage thresholds), so it runs anywhere.
 # The library is framework-agnostic and its tests run in plain Node (native
 # WebCrypto), so there is nothing to install beyond the dev toolchain.
 
@@ -15,8 +16,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
-    name: check
+  quality:
+    name: quality
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,6 +26,42 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci --ignore-scripts # block install-time lifecycle scripts (supply-chain)
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run build
+      - name: Format check (prettier)
+        run: npm run format:check
+      - name: Lint (eslint + sonarjs, zero warnings)
+        run: npm run lint
+      - name: Type-check
+        run: npm run typecheck
+      - name: Dead code (knip)
+        run: npm run knip
+      - name: Duplication (jscpd)
+        run: npm run dup
+      - name: Audit runtime dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Test with coverage thresholds
+        run: npm run test:coverage # thresholds in vitest.config.ts are a ratchet
+      - name: Build
+        run: npm run build
+      - name: Pack sanity
+        run: npm pack --dry-run # the exact file list a release would ship
+
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # scan the whole history, not just the tip
+      - name: Scan for secrets
+        run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest detect --source /repo --redact --no-banner

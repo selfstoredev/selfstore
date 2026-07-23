@@ -100,7 +100,10 @@ function fakeManager(initial: {
 			log('forgetShared', fileId);
 			snapshot = {
 				...snapshot,
-				registry: { ...snapshot.registry, shared: snapshot.registry.shared.filter((s) => s.fileId !== fileId) }
+				registry: {
+					...snapshot.registry,
+					shared: snapshot.registry.shared.filter((s) => s.fileId !== fileId)
+				}
 			};
 			listeners.forEach((fn) => fn(snapshot));
 		},
@@ -149,7 +152,10 @@ describe('selfstore-backups', () => {
 
 	it('renders the state pills and omits the unknown ones', async () => {
 		const fake = fakeManager({
-			rows: [row('p1', null, { encrypted: true, shared: null }), row('f2', 'family', { encrypted: null, shared: true })],
+			rows: [
+				row('p1', null, { encrypted: true, shared: null }),
+				row('f2', 'family', { encrypted: null, shared: true })
+			],
 			activeFileId: null
 		});
 		const el = await mount(fake);
@@ -161,7 +167,10 @@ describe('selfstore-backups', () => {
 	});
 
 	it('prefers the live active states over the learned memories', async () => {
-		const fake = fakeManager({ rows: [row('p1', null, { encrypted: false, shared: false })], activeFileId: 'p1' });
+		const fake = fakeManager({
+			rows: [row('p1', null, { encrypted: false, shared: false })],
+			activeFileId: 'p1'
+		});
 		const el = await mount(fake);
 		el.activeEncrypted = true;
 		el.activeShared = true;
@@ -182,7 +191,10 @@ describe('selfstore-backups', () => {
 	});
 
 	it('collects the passphrase inline for a protected row, then opens with it', async () => {
-		const fake = fakeManager({ rows: [row('p1', null), row('f2', 'family', { encrypted: true })], activeFileId: 'p1' });
+		const fake = fakeManager({
+			rows: [row('p1', null), row('f2', 'family', { encrypted: true })],
+			activeFileId: 'p1'
+		});
 		const el = await mount(fake);
 		(q(el, '[data-row="f2"] [data-action="open"]') as HTMLButtonElement).click();
 		await tick();
@@ -250,7 +262,9 @@ describe('selfstore-backups', () => {
 		(q(el, '[data-row="f2"] [data-action="menu"]') as HTMLButtonElement).click();
 		(q(el, '[data-action="delete"]') as HTMLButtonElement).click();
 		await tick();
-		expect(seen).toEqual([{ type: 'delete', fileId: 'f2', name: 'App (family).zip', active: false }]);
+		expect(seen).toEqual([
+			{ type: 'delete', fileId: 'f2', name: 'App (family).zip', active: false }
+		]);
 		expect(fake.calls.deleteBackup).toBeUndefined();
 		el.confirmAction = () => true;
 		(q(el, '[data-row="f2"] [data-action="menu"]') as HTMLButtonElement).click();
@@ -267,7 +281,11 @@ describe('selfstore-backups', () => {
 		el.addEventListener('selfstore-backups-encrypt', enc as EventListener);
 		(q(el, '[data-row="f2"] [data-action="menu"]') as HTMLButtonElement).click();
 		(q(el, '[data-action="encrypt"]') as HTMLButtonElement).click();
-		expect((enc.mock.calls[0][0] as CustomEvent).detail).toEqual({ fileId: 'f2', label: 'family', active: false });
+		expect((enc.mock.calls[0][0] as CustomEvent).detail).toEqual({
+			fileId: 'f2',
+			label: 'family',
+			active: false
+		});
 	});
 
 	it('renders the shared section: member row leaves, registry row forgets', async () => {
@@ -413,7 +431,9 @@ describe('selfstore-backups', () => {
 		expect(q(el, '[part~="menu"]')).toBeNull();
 		// Escape closes too, and focus returns to the trigger.
 		(q(el, '[data-row="f2"] [data-action="menu"]') as HTMLButtonElement).click();
-		q(el, '[part~="menu"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+		q(el, '[part~="menu"]')!.dispatchEvent(
+			new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })
+		);
 		expect(q(el, '[part~="menu"]')).toBeNull();
 		expect(el.shadowRoot!.activeElement?.getAttribute('data-menu-key')).toBe('f2');
 	});

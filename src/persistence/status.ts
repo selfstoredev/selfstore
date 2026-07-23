@@ -4,12 +4,7 @@
 export type Severity = 'ok' | 'info' | 'warn' | 'danger';
 
 export type StorageState =
-	| 'ephemeral'
-	| 'cache-only'
-	| 'saving'
-	| 'saved'
-	| 'pending-download'
-	| 'needs-attention';
+	'ephemeral' | 'cache-only' | 'saving' | 'saved' | 'pending-download' | 'needs-attention';
 
 /** A suggested action the UI can wire to a button. */
 export type StatusAction = 'choose-destination' | 'download' | 'reconnect' | 'unlock';
