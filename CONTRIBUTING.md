@@ -25,6 +25,14 @@ npm run build     # tsup (ESM + d.ts)
 All three must be green. New behaviour needs a test that fails without the
 change; contract-level behaviour belongs in `contract.test.ts`.
 
+## Branches and releases
+
+`main` is the only long-lived branch and is always releasable. Every change
+lands as a small pull request against `main` (short-lived topic branch,
+green CI, squash merge). A release is a tag cut from `main` (`vX.Y.Z`, with
+a matching CHANGELOG section and GitHub Release), followed by the npm
+publish - there is no develop or release branch.
+
 ## Commit style
 
 Conventional commits (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,

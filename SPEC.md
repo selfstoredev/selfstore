@@ -1,11 +1,10 @@
 # selfstore backup format specification
 
-A backup is exactly one of a few shapes, and the container generation is the
-discriminant: **2** = a plain (unencrypted) ZIP, **3** = group mode (section
-12), **5** = the authenticated password envelope (section 13, the shape every
-writer emits for password mode) and **4** = its predecessor whose header was not
-bound to the ciphertext (still read, never written). This document specifies the
-on-disk format precisely enough to
+A backup is exactly one of three shapes, and the container generation is the
+discriminant: **1** = a plain (unencrypted) ZIP, **2** = group mode (section
+12), **3** = the authenticated password envelope (section 13, the shape every
+writer emits for password mode). This document specifies the on-disk format
+precisely enough to
 implement a reader or writer in any language, independent of the reference
 TypeScript library. An executable companion lives in
 [`spec/selfstore_reader.py`](./spec/selfstore_reader.py) (a small Python
@@ -141,9 +140,9 @@ envelope (section 13) wraps the sealing key per password, group mode (section
    `UNSUPPORTED_VERSION`. If `encryption` is neither `none` nor
    `aes-256-gcm`, or any slot's `kdf.algo` is not `argon2id`, fail
    `UNSUPPORTED_VERSION`. Bind mode to the format id, both ways: `keying`
-   present iff `format` is 3, `keys` present iff `format` is 5; a mismatch is
+   present iff `format` is 2, `keys` present iff `format` is 3; a mismatch is
    `BAD_FORMAT` (section 12.6, 13.5).
-3. If the format is 3 (group mode), continue at section 12.5. If it is 5
+3. If the format is 2 (group mode), continue at section 12.5. If it is 3
    (password envelope), continue at section 13.4.
 4. If `encryption` is `none`: read `selfstore.json` and each `files/<id>` from the
    archive.
@@ -166,10 +165,10 @@ envelope (section 13) wraps the sealing key per password, group mode (section
 
 ## 10. Versioning
 
-`meta.format` is the container generation: 2 (plain), 3 (group mode, section
-12), 5 (authenticated password envelope, section 13) and 4 (its unauthenticated
-predecessor, still read). A backup with no `format` field is a plain
-generation-2 ZIP. A reader MUST refuse a generation it does not understand
+`meta.format` is the container generation: 1 (plain), 2 (group mode, section
+12) and 3 (authenticated password envelope, section 13). A backup with no
+`format` field is a plain generation-1 ZIP. A reader MUST refuse a generation
+it does not understand
 (step 2) rather than guess. New OPTIONAL header fields MAY be added within a
 generation; readers MUST ignore unknown fields.
 
@@ -180,7 +179,7 @@ opens plain, group, and envelope backups, and refuses anything else.
 
 ## 11. Test vectors
 
-[`spec/vectors/`](./spec/vectors/) holds six canonical backups written by the
+[`spec/vectors/`](./spec/vectors/) holds five canonical backups written by the
 reference library, plus `manifest.json` describing their expected decoded
 content:
 
@@ -236,9 +235,9 @@ keys instead of a KDF) and an author signature.
 }
 ```
 
-`kdf` is ABSENT in group mode. A pre-group reader refuses the file at step 2
-(`format: 3` exceeds its supported generation) - by design, never a misleading
-parameter error.
+`kdf` is ABSENT in group mode. The mode binding at step 2 routes a group box
+only to the group path - a reader never falls through to a misleading
+missing-parameter error.
 
 ### 12.3 Stanza cryptography
 
@@ -273,7 +272,7 @@ The readme entry is cosmetic and deliberately not covered.
 
 ### 12.5 Read algorithm (normative, the continuation of section 8 step 3 for generation 2)
 
-1. Parse `meta.json`; require `format === 3` iff `keying` is present (the mode
+1. Parse `meta.json`; require `format === 2` iff `keying` is present (the mode
    and the generation MUST agree, both ways), known `encryption`, known
    `keying`.
 2. A trusted-author list (the manifest members' Ed25519 publics) is
@@ -295,8 +294,8 @@ The readme entry is cosmetic and deliberately not covered.
   MUST NOT expose a group-read path that skips this (an optional author list is
   a defect: a self-declared author would be accepted).
 - **Mode binds to generation.** `keying`/`author`/`recipients` appear iff
-  `format === 3`; a reader MUST reject a mismatch rather than fall to a weaker
-  path (e.g. a `format:3` box lacking `keying`, or a plaintext box carrying
+  `format === 2`; a reader MUST reject a mismatch rather than fall to a weaker
+  path (e.g. a `format:2` box lacking `keying`, or a plaintext box carrying
   `keying`).
 - **Bounded envelopes and 32-byte key.** A reader MUST cap the stanza count and
   reject a non-32-byte unwrapped data key.
@@ -361,7 +360,7 @@ one-slot envelope.
 
 **Header authentication (format 3).** The slot table is cleartext, so on its own
 a party with WRITE access to the backup could strip or corrupt a slot undetected.
-Generation 5 closes this: the exact `meta.json` bytes are passed as the `data.enc`
+The envelope closes this: the exact `meta.json` bytes are passed as the `data.enc`
 GCM additional authenticated data (AAD), binding the whole header - the `keys[]`
 table above all - to the ciphertext. Any alteration fails the tag, so the read
 returns `DECRYPT_FAILED` rather than silently accepting a tampered slot table.
@@ -432,7 +431,7 @@ rotation. Writers MUST NOT copy a slot from one data key generation to another
 ### 13.4 Read algorithm (normative, the continuation of section 8 step 3)
 
 1. Parse `meta.json`; require `keys` to be a non-empty array present iff
-   `format` is 5 (mode and format id MUST agree, both ways), and known
+   `format` is 3 (mode and format id MUST agree, both ways), and known
    `encryption`. Each slot is a password slot (`kind` absent or `"password"`)
    or an external-key slot (`kind": "external"`, section 13.7).
 2. Reject more than 8 slots as `UNSUPPORTED_VERSION` BEFORE any derivation:
@@ -460,7 +459,7 @@ failure it MUST fall back to the slot path (the file may have been rotated).
 
 ### 13.5 Security requirements (additional)
 
-- **Mode binds to generation.** `keys` appears iff `format` is 4 or 5; a reader
+- **Mode binds to generation.** `keys` appears iff `format` is 3; a reader
   MUST reject a mismatch rather than fall to a weaker path (an envelope box
   without `keys`, or a plain box carrying `keys`, is a forgery).
 - **Header authentication.** A reader MUST decrypt `data.enc` with the exact
@@ -500,7 +499,7 @@ An external-key slot wraps the data key under a KEK derived from a secret the
 CALLER supplies, rather than a typed password. It exists so a backup can be
 sealed by something other than a password - a passkey/WebAuthn-PRF output, a
 hardware token, a platform keychain value - while reusing the same envelope, the
-same data key, and the same generation-5 header authentication. The format itself
+same data key, and the same format-3 header authentication. The format itself
 never performs the WebAuthn or hardware dance: the application derives a 32-byte
 secret, hands it in, and stores whatever it needs to re-derive it later in the
 opaque `keyRef`.
@@ -537,14 +536,14 @@ reference Python reader (section 11) does exactly this with the vector's secret.
 
 - **`keyRef` is cosmetic.** Like `id`, it is cleartext and NOT authenticated - a
   locator the application owns (e.g. a WebAuthn credential id), never a security
-  input. It rides inside the generation-5 AAD, so it cannot be altered silently,
+  input. It rides inside the format-3 AAD, so it cannot be altered silently,
   but a reader MUST NOT base any trust decision on its value.
 - **Caller owns the secret's strength.** The envelope assumes a high-entropy
   secret and does no stretching; supplying a low-entropy secret through this path
   (instead of the password path, which applies Argon2id) forfeits the memory-hard
   protection. The 16-byte floor is a guard, not a guarantee of entropy.
 - **Same table, same bounds, same authentication.** External slots count toward
-  the 8-slot cap, share the one data key, and are bound by the generation-5
+  the 8-slot cap, share the one data key, and are bound by the format-3
   header AAD exactly like password slots - stripping or altering an external slot
   fails the tag.
 

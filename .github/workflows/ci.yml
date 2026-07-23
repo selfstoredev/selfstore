@@ -1,14 +1,14 @@
 name: ci
 
-# Type-check, test and build on every push and PR to the integration branches.
+# Type-check, test and build on every push and PR to main.
 # The library is framework-agnostic and its tests run in plain Node (native
 # WebCrypto), so there is nothing to install beyond the dev toolchain.
 
 on:
   pull_request:
-    branches: [main, develop]
+    branches: [main]
   push:
-    branches: [main, develop]
+    branches: [main]
 
 concurrency:
   group: ci-${{ github.ref }}
