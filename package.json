@@ -1,0 +1,99 @@
+{
+  "name": "selfstore",
+  "version": "1.0.0",
+  "description": "Local-first storage for browser apps: an IndexedDB working copy, portable encrypted ZIP backups (AES-256-GCM over Argon2id), durable homes (disk, Google Drive, WebDAV) and a serverless multi-device merge.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Florian Mousseau <florian.mousseau@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/selfstoredev/selfstore.git"
+  },
+  "homepage": "https://selfstore.dev",
+  "bugs": {
+    "url": "https://github.com/selfstoredev/selfstore/issues"
+  },
+  "keywords": [
+    "local-first",
+    "offline-first",
+    "indexeddb",
+    "encryption",
+    "backup",
+    "crdt",
+    "sync",
+    "typescript",
+    "browser-storage",
+    "e2e-encryption",
+    "zip",
+    "webdav",
+    "google-drive",
+    "argon2id",
+    "privacy"
+  ],
+  "sideEffects": [
+    "dist/kdf-worker.js"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./advanced": {
+      "types": "./dist/advanced.d.ts",
+      "import": "./dist/advanced.js"
+    },
+    "./backups": {
+      "types": "./dist/backups.d.ts",
+      "import": "./dist/backups.js"
+    },
+    "./flows": {
+      "types": "./dist/flows.d.ts",
+      "import": "./dist/flows.js"
+    },
+    "./groups": {
+      "types": "./dist/groups.d.ts",
+      "import": "./dist/groups.js"
+    },
+    "./households": {
+      "types": "./dist/households.d.ts",
+      "import": "./dist/households.js"
+    },
+    "./sync": {
+      "types": "./dist/sync.d.ts",
+      "import": "./dist/sync.js"
+    },
+    "./widgets": {
+      "types": "./dist/widgets.d.ts",
+      "import": "./dist/widgets.js"
+    },
+    "./kdf-worker": "./dist/kdf-worker.js"
+  },
+  "files": [
+    "dist",
+    "llms.txt"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit && tsc -p examples/tsconfig.json",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+  },
+  "dependencies": {
+    "fflate": "^0.8.3",
+    "hash-wasm": "4.12.0",
+    "idb": "^8.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "happy-dom": "^20.10.6",
+    "tsup": "^8.3.5",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}

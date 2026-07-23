@@ -1,0 +1,36 @@
+name: publish
+
+# Publish to npm when a GitHub Release is published. Creating the release (in the
+# UI or via the API) also creates the tag, so the whole release is one action.
+# Gated on the NPM_TOKEN secret: without it the job skips cleanly instead of
+# failing, so the workflow can land before the secret is set.
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    name: publish to npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # npm provenance
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::warning::NPM_TOKEN absent, npm publish skipped. Add it in the repo secrets to enable automated publishing."
+            exit 0
+          fi
+          # `npm publish` runs prepublishOnly (typecheck + test + build) first.
+          npm publish --provenance --access public

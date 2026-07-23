@@ -1,0 +1,20 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.DS_Store
+coverage/
+
+# editors / IDEs
+.idea/
+.vscode/
+*.iml
+
+# npm pack output
+*.tgz
+
+# crash dumps
+*.stackdump
+
+# Python reference reader bytecode
+__pycache__/
+*.pyc

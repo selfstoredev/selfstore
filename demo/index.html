@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>selfstore - encrypted notes demo</title>
+		<link
+			rel="icon"
+			href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='7' y='14' width='18' height='13' rx='2' fill='%233b5bdb'/%3E%3Cpath d='M11 14v-3a5 5 0 0 1 10 0v3' fill='none' stroke='%233b5bdb' stroke-width='2.5'/%3E%3C/svg%3E"
+		/>
+		<!--
+			A tiny notes app on the simple store, to show the whole pitch in one page:
+			it works offline, the data lives in your browser, you connect a home you
+			control to sync it, a password encrypts it end to end, and a second tab
+			stays in sync on its own.
+
+			Run it: `npm run build` at the repo root, `npm install` so the runtime
+			deps are on disk, then serve the repo over http (`npx serve`) and open
+			/demo/. No network needed once it is served.
+
+			The importmap wires the local build plus its three runtime deps straight
+			from node_modules, so nothing is fetched from a CDN. To run without a
+			build or a checkout, drop the last three entries and point "selfstore" and
+			"selfstore/widgets" at https://esm.sh/selfstore@0.26.0 (esm.sh resolves the
+			deps itself).
+		-->
+		<script type="importmap">
+			{
+				"imports": {
+					"selfstore": "../dist/index.js",
+					"selfstore/widgets": "../dist/widgets.js",
+					"idb": "../node_modules/idb/build/index.js",
+					"hash-wasm": "../node_modules/hash-wasm/dist/index.esm.js",
+					"fflate": "../node_modules/fflate/esm/browser.js"
+				}
+			}
+		</script>
+		<style>
+			:root {
+				color-scheme: light dark;
+				--bg: #fbfbfd;
+				--fg: #1d1d22;
+				--muted: #6b6b76;
+				--line: #e3e3ea;
+				--accent: #3b5bdb;
+				--card: #ffffff;
+			}
+			@media (prefers-color-scheme: dark) {
+				:root {
+					--bg: #16161a;
+					--fg: #ececf1;
+					--muted: #9a9aa6;
+					--line: #2b2b33;
+					--accent: #8aa0ff;
+					--card: #1e1e24;
+				}
+			}
+			* { box-sizing: border-box; }
+			body {
+				margin: 0;
+				font: 15px/1.5 system-ui, sans-serif;
+				background: var(--bg);
+				color: var(--fg);
+			}
+			main { max-width: 640px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+			h1 { font-size: 1.5rem; margin: 0 0 0.25rem; }
+			.lede { color: var(--muted); margin: 0 0 1.5rem; }
+			.status {
+				display: flex; align-items: center; gap: 0.5rem;
+				font-size: 0.85rem; color: var(--muted);
+				border: 1px solid var(--line); border-radius: 0.6rem;
+				padding: 0.5rem 0.75rem; margin-bottom: 1.25rem; background: var(--card);
+			}
+			.dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--muted); }
+			.dot.ok { background: #2f9e44; }
+			.dot.warn { background: #e8590c; }
+			.row { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+			input[type='text'], textarea {
+				width: 100%; font: inherit; color: inherit; background: var(--card);
+				border: 1px solid var(--line); border-radius: 0.55rem; padding: 0.55rem 0.7rem;
+			}
+			textarea { resize: vertical; min-height: 3rem; }
+			button {
+				font: inherit; cursor: pointer; border: 1px solid var(--line);
+				background: var(--card); color: inherit; border-radius: 0.55rem;
+				padding: 0.55rem 0.9rem;
+			}
+			button.primary { background: var(--accent); color: #fff; border-color: transparent; }
+			.note { border: 1px solid var(--line); border-radius: 0.6rem; padding: 0.75rem; margin-bottom: 0.75rem; background: var(--card); }
+			.note .meta { display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem; }
+			.note .meta small { color: var(--muted); }
+			.empty { color: var(--muted); text-align: center; padding: 2rem 0; }
+			details { border: 1px solid var(--line); border-radius: 0.6rem; padding: 0.5rem 0.9rem; margin-top: 2rem; background: var(--card); }
+			summary { cursor: pointer; font-weight: 600; }
+			details .row { margin-top: 0.9rem; }
+			selfstore-connect {
+				--selfstore-accent: var(--accent);
+				display: block; margin-top: 0.9rem;
+			}
+			.hint { color: var(--muted); font-size: 0.85rem; margin: 0.4rem 0 0; }
+		</style>
+	</head>
+	<body>
+		<main>
+			<h1>Encrypted notes</h1>
+			<p class="lede">
+				A local-first notebook on <strong>selfstore</strong>. It works offline,
+				your notes stay in this browser, and you choose where a backup lives.
+			</p>
+
+			<div class="status"><span class="dot" id="dot"></span><span id="status">device only, saved locally</span></div>
+
+			<div class="row">
+				<input type="text" id="new" placeholder="Write a note, press Enter" autocomplete="off" />
+				<button class="primary" id="add">Add</button>
+			</div>
+			<div id="list"></div>
+
+			<details>
+				<summary>Sync it to a home you control</summary>
+				<p class="hint">
+					Pick a disk file (works right here in a Chromium browser), or your own
+					WebDAV / S3 server. Your notes stay a plain cache on this device; a
+					home is where the backup lives. Open this page in a second tab to
+					watch edits sync on their own.
+				</p>
+				<selfstore-connect id="connect"></selfstore-connect>
+				<div class="row">
+					<input type="text" id="pw" placeholder="Backup password" autocomplete="off" disabled />
+					<button id="protect" disabled>Encrypt backup</button>
+				</div>
+				<p class="hint" id="encryptHint">
+					Connect a home first, then set a password: every backup is encrypted
+					end to end and the destination only ever sees ciphertext.
+				</p>
+			</details>
+		</main>
+
+		<script type="module">
+			import { selfstore } from 'selfstore';
+			import { defineSelfstoreWidgets } from 'selfstore/widgets';
+
+			defineSelfstoreWidgets();
+
+			const store = await selfstore('selfstore-notes-demo');
+
+			const $ = (id) => document.getElementById(id);
+			const fmt = (t) => new Date(t).toLocaleString();
+			let encrypted = false;
+
+			function render() {
+				const notes = [...store.all('notes')].sort((a, b) => (b.updated ?? 0) - (a.updated ?? 0));
+				const list = $('list');
+				list.replaceChildren();
+				if (notes.length === 0) {
+					const p = document.createElement('p');
+					p.className = 'empty';
+					p.textContent = 'No notes yet.';
+					list.append(p);
+				}
+				for (const n of notes) {
+					const card = document.createElement('div');
+					card.className = 'note';
+					const ta = document.createElement('textarea');
+					ta.value = n.text ?? '';
+					ta.addEventListener('change', () =>
+						store.put('notes', { ...n, text: ta.value, updated: Date.now() })
+					);
+					const meta = document.createElement('div');
+					meta.className = 'meta';
+					const when = document.createElement('small');
+					when.textContent = n.updated ? `edited ${fmt(n.updated)}` : '';
+					const del = document.createElement('button');
+					del.textContent = 'Delete';
+					del.addEventListener('click', () => store.remove('notes', n.id));
+					meta.append(when, del);
+					card.append(ta, meta);
+					list.append(card);
+				}
+				// Headless status -> a plain dot + line (the app owns the wording).
+				const s = store.status;
+				$('status').textContent = s.labelKey.replace(/^status\./, '').replace(/([A-Z])/g, ' $1').toLowerCase();
+				$('dot').className = 'dot ' + (s.severity === 'ok' ? 'ok' : s.severity === 'info' ? '' : 'warn');
+
+				// Encryption protects the backup, so the password only makes sense
+				// once a home is connected. Gate it on the state, not on copy.
+				const connected = s.state !== 'cache-only' && s.state !== 'ephemeral';
+				$('pw').disabled = !connected || encrypted;
+				$('protect').disabled = !connected || encrypted;
+				$('protect').textContent = encrypted ? 'Encrypted' : 'Encrypt backup';
+				$('encryptHint').textContent = encrypted
+					? 'Backup encrypted end to end. The destination only ever sees ciphertext.'
+					: connected
+						? 'Set a password: every backup is encrypted end to end and the destination only ever sees ciphertext.'
+						: 'Connect a home first, then set a password to encrypt every backup end to end.';
+			}
+
+			function addNote() {
+				const input = $('new');
+				const text = input.value.trim();
+				if (!text) return;
+				store.put('notes', { id: crypto.randomUUID(), text, updated: Date.now() });
+				input.value = '';
+			}
+			$('add').addEventListener('click', addNote);
+			$('new').addEventListener('keydown', (e) => e.key === 'Enter' && addNote());
+
+			// The connect widget drives the whole "where does my data live" journey.
+			const connect = $('connect');
+			connect.store = store;
+			connect.targets = { file: true, webdav: true, s3: true };
+
+			$('protect').addEventListener('click', async () => {
+				const pw = $('pw').value;
+				if (!pw) return;
+				try {
+					await store.protect(pw);
+					encrypted = true;
+					$('pw').value = '';
+					render();
+				} catch (e) {
+					alert(`Could not encrypt: ${e?.code ?? e?.message ?? e}`);
+				}
+			});
+
+			store.onChange(render);
+			render();
+		</script>
+	</body>
+</html>

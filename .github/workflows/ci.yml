@@ -1,0 +1,30 @@
+name: ci
+
+# Type-check, test and build on every push and PR to the integration branches.
+# The library is framework-agnostic and its tests run in plain Node (native
+# WebCrypto), so there is nothing to install beyond the dev toolchain.
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --ignore-scripts # block install-time lifecycle scripts (supply-chain)
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build

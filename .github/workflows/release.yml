@@ -1,0 +1,63 @@
+name: Release
+
+# Tag and publish a GitHub Release from the changelog, on demand. Exists because
+# tags cannot always be pushed from every environment; the runner holds the write
+# token, so a dispatch turns a merged release commit into a tag + Release without a
+# local tag push. Idempotent: a version already released is left untouched.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, without the v prefix (e.g. 0.0.6).
+        required: true
+      sha:
+        description: Commit SHA to tag. Defaults to the dispatched ref.
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Tag and publish from CHANGELOG
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Resolve target commit
+        id: target
+        run: |
+          sha="${{ inputs.sha }}"
+          [ -z "$sha" ] && sha="${{ github.sha }}"
+          # Expand to a full commit sha: the release API rejects abbreviated ones.
+          sha=$(git rev-parse "${sha}^{commit}")
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+      - name: Extract the changelog section
+        run: |
+          version="${{ inputs.version }}"
+          awk -v v="$version" '
+            $0 ~ ("^## \\[" v "\\]") { grab = 1; next }
+            grab && /^## \[/ { exit }
+            grab { print }
+          ' CHANGELOG.md > RELEASE_NOTES.md
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "No changelog section for [$version]." >&2
+            exit 1
+          fi
+      - name: Create the tag and the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${{ inputs.version }}"
+          sha="${{ steps.target.outputs.sha }}"
+          if gh release view "v$version" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release v$version already exists; nothing to do."
+            exit 0
+          fi
+          gh release create "v$version" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$sha" \
+            --title "v$version" \
+            --notes-file RELEASE_NOTES.md
