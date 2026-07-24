@@ -1,0 +1,45 @@
+name: Bug report
+description: Something behaves wrong in the library.
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: selfstore version
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Browser + version, OS, and anything unusual (private mode, iframe, extension...).
+      placeholder: Chrome 138 / Windows 11
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area involved
+      options:
+        - Local store (IndexedDB working copy)
+        - Backup file (write or read)
+        - Sync / merge between devices
+        - A home (disk, Google Drive, WebDAV, S3)
+        - Encryption / password
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you got instead. Paste errors verbatim.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: The smallest snippet or steps that show the bug. A failing test is perfect.
+      render: ts
