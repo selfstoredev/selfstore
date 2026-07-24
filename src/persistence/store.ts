@@ -413,6 +413,39 @@ const KEY = {
 
 const JOURNAL_MAX = 20;
 
+/** Ceiling on each network wait of init(): a radio waking from sleep can
+ *  suspend a fetch without ever erroring, and one such stall used to hang the
+ *  whole boot behind "connecting..." until the user reconnected by hand. The
+ *  work keeps running in the background; only the BOOT stops waiting for it,
+ *  falls back to the cached copy, and the next save/sync retries. */
+const BOOT_NET_MS = 25_000;
+
+/** Marks a boot wait that hit BOOT_NET_MS (a stall, not an auth verdict). */
+class BootTimeout extends Error {
+	constructor(what: string) {
+		super(`${what} timed out at boot`);
+		this.name = 'BootTimeout';
+	}
+}
+
+/** Reject with BootTimeout after `ms` unless `work` settles first. The timer is
+ *  cleared on settle so tests and short-lived workers never linger. */
+function bootDeadline<T>(work: Promise<T>, what: string, ms = BOOT_NET_MS): Promise<T> {
+	return new Promise<T>((resolve, reject) => {
+		const timer = setTimeout(() => reject(new BootTimeout(what)), ms);
+		work.then(
+			(v) => {
+				clearTimeout(timer);
+				resolve(v);
+			},
+			(e) => {
+				clearTimeout(timer);
+				reject(e instanceof Error ? e : new Error(String(e)));
+			}
+		);
+	});
+}
+
 // Focus events can burst; skip repeat staleness checks inside this window.
 const STALE_CHECK_MS = 20_000;
 
@@ -1850,7 +1883,12 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 				let t: BackupTarget | null = null;
 				let restoreThrew = false;
 				try {
-					t = opts.restoreTarget ? await opts.restoreTarget(savedKind) : null;
+					t = opts.restoreTarget
+						? await bootDeadline(
+								Promise.resolve(opts.restoreTarget(savedKind)),
+								'destination restore'
+							)
+						: null;
 				} catch (e) {
 					restoreThrew = true;
 					lastError = transient('Could not restore the destination; will retry.');
@@ -1862,19 +1900,26 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 					label = t.label;
 					// isReady() rethrows a genuine auth loss (open the gate) and returns
 					// false only for a transient hiccup (stay connected, retry later) - so
-					// booting during a broker cold-start no longer pops a spurious reconnect.
+					// booting during a broker cold-start no longer pops a spurious
+					// reconnect. A BOOT TIMEOUT is a stall, not an auth verdict: stay
+					// connected, skip the boot pull, let the next sync retry.
 					let ok = false;
 					try {
-						ok = await t.isReady();
-					} catch {
-						raiseGate('AUTH_EXPIRED', 'Access to the destination expired or was revoked.');
+						ok = await bootDeadline(t.isReady(), 'destination check');
+					} catch (e) {
+						if (e instanceof BootTimeout) {
+							lastError = transient('Destination is slow to answer; will retry.');
+							logger.error('[selfstore] boot destination check stalled', e);
+						} else {
+							raiseGate('AUTH_EXPIRED', 'Access to the destination expired or was revoked.');
+						}
 					}
 					needsAttention = needsAttention || locked();
 					if (ok && !locked()) {
-						// Boot must never crash the app on a bad remote: log, gate nothing,
-						// keep the local copy and let a later sync retry.
+						// Boot must never crash OR HANG the app on a bad remote: log, gate
+						// nothing, keep the local copy and let a later sync retry.
 						try {
-							await pull('boot');
+							await bootDeadline(pull('boot'), 'boot sync');
 						} catch (e) {
 							lastError = transient('Boot sync failed; will retry.');
 							logger.error('[selfstore] boot sync failed', e);
@@ -1893,10 +1938,10 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 			}
 			// Peers attached before init() with no durable home (a read-only
 			// follower): fold them now - with a durable target the boot pull above
-			// already did. Same crash rule as boot: log, never block.
+			// already did. Same crash rule as boot: log, never block, never hang.
 			if (!durable && peerList.length > 0) {
 				try {
-					await pull('boot');
+					await bootDeadline(pull('boot'), 'boot sync');
 				} catch (e) {
 					lastError = transient('Boot sync failed; will retry.');
 					logger.error('[selfstore] boot sync failed', e);

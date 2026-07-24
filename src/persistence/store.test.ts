@@ -7,7 +7,7 @@
  * the plain Node project (native WebCrypto powers the .selfstore round-trips).
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { zipSync, strToU8 } from 'fflate';
 import { createLocalStore } from './store';
 import type { LocalCache, KV, CachedFile } from './cache';
@@ -998,21 +998,7 @@ describe('store durable-push failure classification', () => {
 	});
 
 	it('boot: a lost session opens the gate, a transient hiccup does not', async () => {
-		const cache = memCache();
-		const app: { collections: Record<string, unknown[]> } = {
-			collections: { accounts: [{ id: 'a1' }] }
-		};
-		const mk = (restore: () => Promise<BackupTarget | null>): ReturnType<typeof createLocalStore> =>
-			createLocalStore({
-				app: 'test',
-				schemaVersion: 1,
-				gather: () => ({ collections: structuredClone(app.collections), files: [] }),
-				apply: (snap: Snapshot) => {
-					app.collections = structuredClone((snap.collections ?? {}) as Record<string, unknown[]>);
-				},
-				cache,
-				restoreTarget: restore
-			});
+		const { mk } = rebootRig();
 
 		// First session connects a drive target, so the cache remembers it.
 		const t0 = controllableTarget();
@@ -1348,5 +1334,88 @@ describe('write-verified key operations and format refusals', () => {
 		// clobbered by the tampered copy.
 		await expect(store.syncNow()).rejects.toMatchObject({ code: 'UNSUPPORTED_VERSION' });
 		expect(app.collections.accounts).toEqual([{ id: 'a1' }]);
+	});
+});
+
+/** The reboot rig: a cache seeded with one collection, and a store factory
+ *  that boots over it with the given session restore - the shape every
+ *  "reboot with X" scenario shares. */
+function rebootRig() {
+	const cache = memCache();
+	const app: { collections: Record<string, unknown[]> } = {
+		collections: { accounts: [{ id: 'a1' }] }
+	};
+	const mk = (restore: () => Promise<BackupTarget | null>): ReturnType<typeof createLocalStore> =>
+		createLocalStore({
+			app: 'test',
+			schemaVersion: 1,
+			gather: () => ({ collections: structuredClone(app.collections), files: [] }),
+			apply: (snap: Snapshot) => {
+				app.collections = structuredClone((snap.collections ?? {}) as Record<string, unknown[]>);
+			},
+			cache,
+			restoreTarget: restore
+		});
+	return { mk };
+}
+
+describe('store.init boot deadline', () => {
+	// A mobile radio waking from sleep can suspend a network wait without ever
+	// erroring: the boot used to hang behind "connecting..." until the user
+	// reconnected by hand. Every network wait of init() is now bounded.
+	it('a destination check that never settles cannot hang the boot', async () => {
+		vi.useFakeTimers();
+		try {
+			const { mk } = rebootRig();
+
+			// First session connects a drive target, so the cache remembers it.
+			const t0 = controllableTarget();
+			await mk(async () => t0.target).attachTarget(t0.target, { strategy: 'replace-remote' });
+
+			// Reboot with a target whose readiness check NEVER settles.
+			const frozen: BackupTarget = {
+				...t0.target,
+				isReady: () => new Promise<boolean>(() => {})
+			};
+			const s = mk(async () => frozen);
+			const boot = s.init();
+			await vi.advanceTimersByTimeAsync(30_000);
+			await boot;
+
+			expect(s.state.ready).toBe(true);
+			// A stall is not an auth verdict: stay connected, no reconnect gate.
+			expect(s.state.status.state).not.toBe('needs-attention');
+			expect(s.state.targetKind).toBe('drive');
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('a boot pull that never settles cannot hang the boot either', async () => {
+		vi.useFakeTimers();
+		try {
+			const { mk } = rebootRig();
+
+			const t0 = controllableTarget();
+			await mk(async () => t0.target).attachTarget(t0.target, { strategy: 'replace-remote' });
+
+			// Ready answers, but the download never does.
+			const stalled: BackupTarget = {
+				...t0.target,
+				async isReady() {
+					return true;
+				},
+				load: () => new Promise<Blob | null>(() => {})
+			};
+			const s = mk(async () => stalled);
+			const boot = s.init();
+			await vi.advanceTimersByTimeAsync(30_000);
+			await boot;
+
+			expect(s.state.ready).toBe(true);
+			expect(s.state.targetKind).toBe('drive');
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });
