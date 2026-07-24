@@ -1418,4 +1418,49 @@ describe('store.init boot deadline', () => {
 			vi.useRealTimers();
 		}
 	});
+
+	// The boot deadline frees init(), but the hung pull still HOLDS the serialize
+	// chain - and detachTarget queues behind it. The user's "disconnect" must cut
+	// the suspended request instead of silently waiting out its deadline (the
+	// dead disconnect button on a phone that woke with a stuck radio).
+	it('detachTarget() cuts a hung boot pull instead of queueing behind it', async () => {
+		vi.useFakeTimers();
+		try {
+			const { mk } = rebootRig();
+
+			const t0 = controllableTarget();
+			await mk(async () => t0.target).attachTarget(t0.target, { strategy: 'replace-remote' });
+
+			// Ready answers, but the download hangs like a suspended mobile fetch;
+			// abortInFlight rejects it, exactly as the real targets' life line does.
+			let rejectLoad: ((e: unknown) => void) | undefined;
+			const stalled: BackupTarget = {
+				...t0.target,
+				async isReady() {
+					return true;
+				},
+				load: () =>
+					new Promise<Blob | null>((_resolve, reject) => {
+						rejectLoad = reject;
+					}),
+				abortInFlight() {
+					rejectLoad?.(
+						new SelfstoreError('TARGET_UNAVAILABLE', 'Request aborted: target detaching.')
+					);
+				}
+			};
+			const s = mk(async () => stalled);
+			void s.init();
+			// Let the boot reach its pull: the chain now holds the hung download.
+			await vi.advanceTimersByTimeAsync(1);
+			expect(rejectLoad).toBeDefined();
+
+			// No timer advance past the deadline: this settles only if the cut works.
+			await s.detachTarget();
+
+			expect(s.state.targetKind).toBe('device');
+		} finally {
+			vi.useRealTimers();
+		}
+	});
 });

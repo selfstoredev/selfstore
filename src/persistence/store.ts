@@ -2183,6 +2183,12 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 		},
 
 		detachTarget(opts) {
+			// The user is walking away NOW: cut the target's in-flight requests
+			// first, or a suspended pull/save (a waking mobile radio at boot) would
+			// hold the serialize chain - and this very detach - hostage until its
+			// network deadline. The cut rejects those requests as transient; the
+			// chain then reaches the drop below immediately.
+			durable?.abortInFlight?.();
 			// Serialized like setManualFile: a concurrent save/pull must not run
 			// against a target that is being dropped out from under it.
 			return serialize(async () => {

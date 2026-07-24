@@ -1,6 +1,6 @@
 {
 	"name": "selfstore",
-	"version": "1.0.1",
+	"version": "1.1.0",
 	"description": "Local-first storage for browser apps: an IndexedDB working copy, portable encrypted ZIP backups (AES-256-GCM over Argon2id), durable homes (disk, Google Drive, WebDAV) and a serverless multi-device merge.",
 	"type": "module",
 	"license": "MIT",

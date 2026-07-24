@@ -58,4 +58,9 @@ export interface BackupTarget {
 	reconnect(): Promise<boolean>;
 	/** Forget the target locally. Never deletes the remote data. */
 	disconnect(): Promise<void>;
+	/** Cut any in-flight network request NOW (best-effort). The store calls it
+	 *  when the user detaches the target, so a suspended request cannot make
+	 *  the detach wait behind its network deadline. Optional: without it,
+	 *  in-flight calls simply run to their own deadlines first. */
+	abortInFlight?(): void;
 }

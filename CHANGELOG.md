@@ -4,6 +4,21 @@ All notable changes to selfstore are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-07-24
+
+### Added
+
+- `BackupTarget.abortInFlight()` (optional): cut the target's in-flight
+  network requests immediately. The built-in Drive, WebDAV and S3 targets
+  implement it; `detachTarget()` calls it, so a user's "disconnect" lands
+  at once instead of queueing behind a suspended request until its 15-30s
+  network deadline - previously the disconnect looked dead on a phone
+  whose radio woke up stuck, and only closing the tab recovered.
+- `DriveAuth.token()` now also receives `{ signal }`: an app-side token
+  broker running its own retry loop can pass it to its fetches and stop
+  retrying the moment the target's work is cut. Implementations that
+  ignore the option keep working exactly as before.
+
 ## [1.0.1] - 2026-07-24
 
 ### Fixed

@@ -19,6 +19,7 @@
 import type { BackupTarget, PeerSource } from '../target';
 import type { KV } from '../cache';
 import { seal, unseal, isEnvelope, newDeviceKey } from '../cache-crypto';
+import { boundedSignal, lifeLine } from './abort';
 import { AuthExpiredError, SelfstoreError } from '../../selfstore';
 
 const CONFIG_KEY = 'webdavConfig';
@@ -96,6 +97,10 @@ function versionOf(res: Response): string | null {
 
 function fromConfig(c: WebdavConfig, kv: KV): BackupTarget {
 	const headers = { Authorization: 'Basic ' + btoa(`${c.username}:${c.password}`) };
+	// The instance's LIFE line: abortInFlight() (a user detach) cuts every
+	// suspended request now instead of at its deadline (see the Drive target).
+	const life = lifeLine();
+	const bounded = (ms: number): AbortSignal => boundedSignal(ms, life.current());
 
 	/** One HEAD, or null on a network/CORS failure (transient - the caller decides
 	 *  what "cannot reach" means for it). */
@@ -104,7 +109,7 @@ function fromConfig(c: WebdavConfig, kv: KV): BackupTarget {
 			return await fetch(c.url, {
 				method: 'HEAD',
 				headers,
-				signal: AbortSignal.timeout(META_DEADLINE_MS)
+				signal: bounded(META_DEADLINE_MS)
 			});
 		} catch {
 			return null;
@@ -136,12 +141,13 @@ function fromConfig(c: WebdavConfig, kv: KV): BackupTarget {
 	return {
 		kind: 'webdav',
 		label: labelOf(c.url),
+		abortInFlight: life.cut,
 		async save(blob: Blob): Promise<string | null> {
 			const res = await fetch(c.url, {
 				method: 'PUT',
 				headers,
 				body: blob,
-				signal: AbortSignal.timeout(DATA_DEADLINE_MS)
+				signal: bounded(DATA_DEADLINE_MS)
 			});
 			// 401/403 = the server rejected the stored credentials: a genuine loss of
 			// access the user must fix. Anything else (5xx, conflict) is transient.
@@ -156,7 +162,7 @@ function fromConfig(c: WebdavConfig, kv: KV): BackupTarget {
 			const res = await fetch(c.url, {
 				method: 'GET',
 				headers,
-				signal: AbortSignal.timeout(DATA_DEADLINE_MS)
+				signal: bounded(DATA_DEADLINE_MS)
 			});
 			if (res.status === 404) return null;
 			if (res.status === 401 || res.status === 403) {

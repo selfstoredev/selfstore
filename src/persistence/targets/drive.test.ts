@@ -449,3 +449,55 @@ describe('drive target - backup management ops', () => {
 		expect(isSelfstoreError(err) && err.code === 'TARGET_WRITE_FAILED').toBe(true);
 	});
 });
+
+describe('drive target - abortInFlight', () => {
+	// A detach must not wait behind a suspended request's 15-30s deadline: the
+	// life line cuts it NOW, and the auth receives the same signal so its own
+	// retry loop (an app-side token broker) can stop too.
+	it('cuts a suspended request now and hands the life signal to the auth', async () => {
+		const base = stalableAuth();
+		const seen: Array<AbortSignal | undefined> = [];
+		const auth: DriveAuth = {
+			...base,
+			token: async (o?: { forceRefresh?: boolean; signal?: AbortSignal }) => {
+				seen.push(o?.signal);
+				return base.token(o);
+			}
+		};
+		const fetchMock = vi.fn(
+			(_url: string, init?: RequestInit) =>
+				new Promise<Response>((_resolve, reject) => {
+					const s = init?.signal;
+					if (!s) return; // no signal: hang forever, the test would time out
+					if (s.aborted) {
+						reject(s.reason);
+						return;
+					}
+					s.addEventListener('abort', () => reject(s.reason), { once: true });
+				})
+		);
+		vi.stubGlobal('fetch', fetchMock);
+
+		const target = await fromSession(opts(auth));
+		const hung = target!.load().catch((e: unknown) => e);
+		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
+		target!.abortInFlight!();
+		const err = await hung;
+
+		expect(isSelfstoreError(err) && err.code === 'TARGET_UNAVAILABLE').toBe(true);
+		expect(seen[0]).toBeInstanceOf(AbortSignal);
+	});
+
+	it('work started after a cut lives normally', async () => {
+		const auth = stalableAuth();
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response(JSON.stringify({ version: '7' }), { status: 200 }))
+		);
+
+		const target = await fromSession(opts(auth));
+		target!.abortInFlight!();
+
+		expect(await target!.stat!()).toBe('7');
+	});
+});
