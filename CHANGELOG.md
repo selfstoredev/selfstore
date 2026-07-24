@@ -4,6 +4,17 @@ All notable changes to selfstore are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.1] - 2026-07-24
+
+### Fixed
+
+- Boot can no longer hang behind a stalled network wait. A radio waking
+  from sleep can suspend a request without ever erroring; every network
+  wait of init() (session restore, destination check, boot pull) is now
+  bounded to 25 seconds. On a stall the store comes up on the cached
+  copy, stays connected, and the next save or sync retries - a stall is
+  never treated as an authentication loss.
+
 ## [1.0.0] - 2026-07-23
 
 First stable release. One install, three layers:
