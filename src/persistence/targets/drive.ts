@@ -13,6 +13,7 @@
 
 import type { BackupTarget } from '../target';
 import type { KV } from '../cache';
+import { boundedSignal, lifeLine } from './abort';
 import { AuthExpiredError, SelfstoreError, isAuthExpired } from '../../selfstore';
 
 /** KV key holding the connected backup's Drive file id. Public because app-level
@@ -40,8 +41,12 @@ export interface DriveAuth {
 	 *  the target calls this after a 401 to tell a merely STALE token (a refresh
 	 *  fixes it, no gate) from a genuinely lost session (the refresh 401s too).
 	 *  An implementation that cannot force a refresh may ignore the flag; the
-	 *  target then retries with the same token, no worse than before. */
-	token(opts?: { forceRefresh?: boolean }): Promise<string>;
+	 *  target then retries with the same token, no worse than before.
+	 *  `signal` fires when the target's in-flight work is cut (the user is
+	 *  detaching): an implementation that runs its own retry loop should abort
+	 *  it then (pass the signal to its fetches, stop retrying); ignoring the
+	 *  signal only means the loop runs to its own deadline first. */
+	token(opts?: { forceRefresh?: boolean; signal?: AbortSignal }): Promise<string>;
 	/** Re-establish access with a user gesture; resolves to whether it worked. */
 	reconnect(): Promise<boolean>;
 	/** Forget the connection, locally and server-side. */
@@ -56,11 +61,12 @@ export interface DriveAuth {
  *  from raising the blocking reconnect gate over a still-valid connection. */
 async function driveFetch(
 	auth: DriveAuth,
-	run: (token: string) => Promise<Response>
+	run: (token: string) => Promise<Response>,
+	signal?: AbortSignal
 ): Promise<Response> {
-	const r = await run(await auth.token());
+	const r = await run(await auth.token({ signal }));
 	if (r.status !== 401) return r;
-	return run(await auth.token({ forceRefresh: true }));
+	return run(await auth.token({ forceRefresh: true, signal }));
 }
 
 export interface DriveOptions {
@@ -141,21 +147,33 @@ function makeTarget(opts: DriveOptions, fixedId?: string): BackupTarget {
 	let captured: string | undefined = fixedId;
 	const fileIdOf = async (): Promise<string | undefined> =>
 		(captured ??= await kv.get<string>(FILE_ID_KEY));
+	// The instance's LIFE line: abortInFlight() (a user detach) cuts every
+	// suspended request now instead of at its deadline. Requests mint their
+	// signal per call, so work started AFTER a cut lives normally.
+	const life = lifeLine();
+	const bounded = (ms: number): AbortSignal => boundedSignal(ms, life.current());
 	return {
 		kind: 'drive',
 		label: 'Google Drive',
+		abortInFlight: life.cut,
 		async save(blob: Blob): Promise<string | null> {
 			const fileId = await fileIdOf();
 			if (!fileId) throw new SelfstoreError('NOT_CONNECTED', 'Drive not connected.');
 			// fields=version: the response reports the file's new version, so the
 			// store records exactly OUR write (no marker race with other replicas).
-			const r = await driveFetch(auth, (token) =>
-				fetch(`${DRIVE_UPLOAD}/${fileId}?uploadType=media&fields=version`, {
-					method: 'PATCH',
-					headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/octet-stream' },
-					body: blob,
-					signal: AbortSignal.timeout(DATA_DEADLINE_MS)
-				})
+			const r = await driveFetch(
+				auth,
+				(token) =>
+					fetch(`${DRIVE_UPLOAD}/${fileId}?uploadType=media&fields=version`, {
+						method: 'PATCH',
+						headers: {
+							Authorization: `Bearer ${token}`,
+							'Content-Type': 'application/octet-stream'
+						},
+						body: blob,
+						signal: bounded(DATA_DEADLINE_MS)
+					}),
+				life.current()
 			);
 			if (!r.ok) {
 				// A 401 that survives a forced token refresh (driveFetch) is a genuine
@@ -183,11 +201,14 @@ function makeTarget(opts: DriveOptions, fixedId?: string): BackupTarget {
 		async load(): Promise<Blob | null> {
 			const fileId = await fileIdOf();
 			if (!fileId) return null;
-			const r = await driveFetch(auth, (token) =>
-				fetch(`${DRIVE_FILES}/${fileId}?alt=media`, {
-					headers: { Authorization: `Bearer ${token}` },
-					signal: AbortSignal.timeout(DATA_DEADLINE_MS)
-				})
+			const r = await driveFetch(
+				auth,
+				(token) =>
+					fetch(`${DRIVE_FILES}/${fileId}?alt=media`, {
+						headers: { Authorization: `Bearer ${token}` },
+						signal: bounded(DATA_DEADLINE_MS)
+					}),
+				life.current()
 			);
 			// A failed read must never pass for an empty file: null tells the store
 			// "nothing there", and a fresh connect would then overwrite the backup
@@ -206,11 +227,14 @@ function makeTarget(opts: DriveOptions, fixedId?: string): BackupTarget {
 			try {
 				const fileId = await fileIdOf();
 				if (!fileId) return null;
-				const r = await driveFetch(auth, (token) =>
-					fetch(`${DRIVE_FILES}/${fileId}?fields=version`, {
-						headers: { Authorization: `Bearer ${token}` },
-						signal: AbortSignal.timeout(META_DEADLINE_MS)
-					})
+				const r = await driveFetch(
+					auth,
+					(token) =>
+						fetch(`${DRIVE_FILES}/${fileId}?fields=version`, {
+							headers: { Authorization: `Bearer ${token}` },
+							signal: bounded(META_DEADLINE_MS)
+						}),
+					life.current()
 				);
 				if (!r.ok) return null;
 				const data: { version?: string | number } = await r.json();
@@ -221,7 +245,7 @@ function makeTarget(opts: DriveOptions, fixedId?: string): BackupTarget {
 		},
 		async isReady(): Promise<boolean> {
 			try {
-				await auth.token();
+				await auth.token({ signal: life.current() });
 				return true;
 			} catch (e) {
 				// A transient token failure means "not writable right now", not a lost

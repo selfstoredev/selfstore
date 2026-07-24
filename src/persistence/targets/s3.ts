@@ -24,6 +24,7 @@
 import type { BackupTarget } from '../target';
 import type { KV } from '../cache';
 import { seal, unseal, isEnvelope, newDeviceKey } from '../cache-crypto';
+import { boundedSignal, lifeLine } from './abort';
 import { AuthExpiredError, SelfstoreError } from '../../selfstore';
 import { signS3, sha256Hex, EMPTY_PAYLOAD_SHA256 } from './sigv4';
 
@@ -115,6 +116,9 @@ function fromConfig(c: S3Config, kv: KV): BackupTarget {
 		? `${endpointUrl.protocol}//${endpointUrl.host}`
 		: `${endpointUrl.protocol}//${c.bucket}.${endpointUrl.host}`;
 	const objectPath = pathStyle ? `/${c.bucket}/${c.key}` : `/${c.key}`;
+	// The instance's LIFE line: abortInFlight() (a user detach) cuts every
+	// suspended request now instead of at its deadline (see the Drive target).
+	const life = lifeLine();
 
 	async function request(
 		method: string,
@@ -137,7 +141,7 @@ function fromConfig(c: S3Config, kv: KV): BackupTarget {
 			method,
 			headers: signed.headers,
 			body,
-			signal: AbortSignal.timeout(deadlineMs)
+			signal: boundedSignal(deadlineMs, life.current())
 		});
 	}
 
@@ -174,6 +178,7 @@ function fromConfig(c: S3Config, kv: KV): BackupTarget {
 	return {
 		kind: 's3',
 		label: labelOf(c),
+		abortInFlight: life.cut,
 		async save(blob: Blob): Promise<string | null> {
 			const bytes = new Uint8Array(await blob.arrayBuffer());
 			const res = await request('PUT', await sha256Hex(bytes), bytes);
