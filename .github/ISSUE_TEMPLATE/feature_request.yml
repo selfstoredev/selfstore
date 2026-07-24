@@ -1,0 +1,32 @@
+name: Feature request
+description: Something the library should do and does not.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you are trying to build and where selfstore gets in the way.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What the API could look like. Sketches welcome.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you tried, other libraries, why they fall short.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Local store (IndexedDB working copy)
+        - Backup format
+        - Sync / merge
+        - Homes (disk, Google Drive, WebDAV, S3)
+        - New home / integration
+        - Docs or website
