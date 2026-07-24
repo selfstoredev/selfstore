@@ -65,8 +65,13 @@ export interface ShareBackend {
 	takeStashedIncoming(): Promise<{ key: string; fileId: string; content: IncomingShare } | null>;
 	/** Re-read a joined share's bulletin (member): the freshest roster. The
 	 *  engine passes the invitation capability it joined through, so every
-	 *  membership rereads ITS bulletin. Null when unreachable or revoked. */
-	rereadJoined(fileId: string, key: string): Promise<SharePayload | null>;
+	 *  membership rereads ITS bulletin. Null when unreachable or revoked -
+	 *  nothing is concluded. The literal 'unreadable' when the bulletin WAS
+	 *  fetched but cannot be opened (the key no longer decrypts it - the admin
+	 *  rotated the link): the engine counts consecutive ones toward the stale
+	 *  verdict. A backend that cannot tell may keep returning null; the stale
+	 *  detection then simply never fires. */
+	rereadJoined(fileId: string, key: string): Promise<SharePayload | null | 'unreadable'>;
 	/** Member: announce my copy to the group's mailbox so the admin folds it. */
 	announce(mailboxId: string, copy: CopyLink): Promise<void>;
 	/** Admin: drain the announce mailbox - the copies members published. */
@@ -104,6 +109,21 @@ interface StoredGroup {
 	/** Admin only: a roster change could not be rebroadcast (offline mid-fold);
 	 *  the next converge republishes even though nothing new was folded. */
 	needsRebroadcast?: boolean;
+	/** Member only: my copy has not been SEEN in a fresh roster yet - the join
+	 *  announce (or a later one) may have been lost. While set, every converge
+	 *  re-announces, readable bulletin or not, so a joiner whose first announce
+	 *  died on a network blip still becomes visible without re-opening the
+	 *  invitation. Cleared the moment a fresh roster carries my copy. */
+	announcePending?: boolean;
+	/** Member only: consecutive rereads whose bulletin was FETCHED but no longer
+	 *  decrypts under my key. Two in a row set `stale` (one bad read must not
+	 *  condemn a share over a hiccup); any readable read resets both. */
+	unreadableReads?: number;
+	/** Member only: the admin rotated the link (see unreadableReads) - my edits
+	 *  publish into a copy nobody folds anymore. The host should surface "this
+	 *  share was renewed, ask for a fresh invitation" instead of letting the
+	 *  member edit into the void. */
+	stale?: boolean;
 }
 
 /** The persisted shape: every membership on this device. A lone pre-multi
@@ -134,6 +154,13 @@ export interface MembershipInfo {
 	/** Who shares it with me (the admin's roster label); null for my own share. */
 	sharedBy: string | null;
 	memberCount: number;
+	/** Member: my copy is not in a fresh roster yet (the announce may have been
+	 *  lost; the engine keeps re-announcing). The host can show "waiting for the
+	 *  admin to see you" instead of a false everything-is-fine. */
+	announcePending: boolean;
+	/** Member: the admin rotated the link - edits publish into the void until a
+	 *  fresh invitation is joined. The host must surface it. */
+	stale: boolean;
 }
 
 /** The reactive-friendly snapshot the UI reads (hosts wrap it in their own
@@ -321,6 +348,124 @@ export function createHouseholdGroup(deps: {
 		return [...byId.values()];
 	}
 
+	/** Post an announce with small bounded retries; true when one landed. A lost
+	 *  announce strands the joiner - visible to nobody, editing into the void -
+	 *  so it is worth a few immediate retries before falling back to the
+	 *  persistent announcePending re-announce loop. */
+	async function announceWithRetry(mailboxId: string, copy: CopyLink): Promise<boolean> {
+		for (let attempt = 0; attempt < 3; attempt++) {
+			try {
+				await backend.announce(mailboxId, copy);
+				return true;
+			} catch {
+				if (attempt < 2) await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+			}
+		}
+		return false;
+	}
+
+	/** One admin converge: fold newly-announced member copies, rebroadcast. */
+	async function adminRound(group: StoredGroup): Promise<void> {
+		const announced = await backend.takeAnnounces(group.mailboxId);
+		const roster = mergeRoster(group.roster, announced, group.myCopy.fileId);
+		const grew = roster.length !== group.roster.length;
+		const needed = group.needsRebroadcast === true;
+		group.roster = roster;
+		await persist();
+		attachPeers(group);
+		// Rebroadcast on growth or when a previous rebroadcast failed: keyed
+		// on `grew` alone, an offline publish left the bulletin stale forever
+		// (the announce was already consumed, so no later round re-grew).
+		if ((grew || needed) && group.live === true) {
+			try {
+				const where = await backend.publishBulletin(group.key, {
+					v: 1,
+					mailboxId: group.mailboxId,
+					roster
+				});
+				group.bulletin = where;
+				group.needsRebroadcast = undefined;
+			} catch {
+				group.needsRebroadcast = true;
+			}
+			await persist();
+		}
+	}
+
+	/** Mirror the authoritative roster onto the local one. Removals apply
+	 *  CONSERVATIVELY: a peer drops only after two consecutive fresh reads
+	 *  without it (stale relay tolerance). */
+	function applyRosterRemovals(group: StoredGroup, byId: Map<string, CopyLink>): void {
+		for (const link of group.roster) {
+			if (link.fileId === group.myCopy.fileId) continue;
+			const missKey = `${group.mailboxId}:${link.fileId}`;
+			if (byId.has(link.fileId)) {
+				rosterMisses.delete(missKey);
+				continue;
+			}
+			const misses = (rosterMisses.get(missKey) ?? 0) + 1;
+			if (misses >= 2) {
+				rosterMisses.delete(missKey);
+				store.detachPeer(link.fileId);
+			} else {
+				rosterMisses.set(missKey, misses);
+				byId.set(link.fileId, link);
+			}
+		}
+	}
+
+	/** One member converge: reread the bulletin (the admin's roster is
+	 *  AUTHORITATIVE - replace, not merge, so removals propagate), self-heal a
+	 *  lost announce, track the stale verdict. Pre-multi records carry no
+	 *  bulletin: their refresh stays dormant, peers still fold. */
+	async function memberRound(group: StoredGroup): Promise<void> {
+		const share = group.bulletin
+			? await backend.rereadJoined(group.bulletin.fileId, group.bulletin.key)
+			: null;
+		if (share === 'unreadable') {
+			// Fetched but no longer decrypts: the admin rotated the link. Two
+			// consecutive verdicts set the stale flag the host must surface -
+			// from here my edits publish into a copy nobody folds. Peers keep
+			// folding (the member keeps what already converged).
+			const n = (group.unreadableReads ?? 0) + 1;
+			group.unreadableReads = n;
+			if (n >= 2) group.stale = true;
+			await persist();
+			attachPeers(group);
+			return;
+		}
+		if (!share) {
+			// Unreachable bulletin: conclude nothing - but a pending announce
+			// still retries (the mailbox may answer even when the bulletin
+			// relay does not), so a stranded joiner heals as soon as ANY
+			// network path opens, not only after a full bulletin read.
+			if (group.announcePending) {
+				await backend.announce(group.mailboxId, group.myCopy).catch(() => undefined);
+			}
+			attachPeers(group);
+			return;
+		}
+		// A readable bulletin is proof the share lives: clear staleness.
+		group.unreadableReads = undefined;
+		group.stale = undefined;
+		const byId = new Map(share.roster.map((l) => [l.fileId, l]));
+		// SELF-HEAL: my own copy missing from a fresh roster means my
+		// announce was lost. Announce again (with retries); the admin's
+		// fold de-dups. announcePending tracks the truth either way, so
+		// the host can say "waiting to be seen" instead of false calm.
+		if (!byId.has(group.myCopy.fileId)) {
+			byId.set(group.myCopy.fileId, group.myCopy);
+			group.announcePending = true;
+			await announceWithRetry(group.mailboxId, group.myCopy);
+		} else {
+			group.announcePending = undefined;
+		}
+		applyRosterRemovals(group, byId);
+		group.roster = [...byId.values()];
+		await persist();
+		attachPeers(group);
+	}
+
 	return {
 		get state(): HouseholdGroupState {
 			const list = groups ?? [];
@@ -329,7 +474,9 @@ export function createHouseholdGroup(deps: {
 				isAdmin: g.role === 'admin',
 				selfFileId: g.myCopy.fileId,
 				sharedBy: sharedByOf(g),
-				memberCount: g.roster.length
+				memberCount: g.roster.length,
+				announcePending: g.announcePending === true,
+				stale: g.stale === true
 			}));
 			const group = primaryGroup(list);
 			if (!group) {
@@ -461,8 +608,15 @@ export function createHouseholdGroup(deps: {
 			await persist();
 			ensureMirror(group);
 			attachPeers(group);
-			// Announce my copy so the admin folds it into everyone's roster.
-			await backend.announce(content.share.mailboxId, link).catch(() => undefined);
+			// Announce my copy so the admin folds it into everyone's roster. NOT
+			// best-effort-and-forget: a swallowed failure here once stranded a
+			// joiner for good - member on their side, visible to nobody, editing
+			// into the void. Retry now; still failing, persist announcePending so
+			// every converge keeps announcing until a fresh roster carries me.
+			if (!(await announceWithRetry(content.share.mailboxId, link))) {
+				group.announcePending = true;
+				await persist();
+			}
 			return 'joined';
 		},
 
@@ -485,73 +639,8 @@ export function createHouseholdGroup(deps: {
 					continue;
 				}
 				ensureMirror(group);
-				if (group.role === 'admin') {
-					// Fold any newly-announced member copies into the roster and rebroadcast.
-					const announced = await backend.takeAnnounces(group.mailboxId);
-					const roster = mergeRoster(group.roster, announced, group.myCopy.fileId);
-					const grew = roster.length !== group.roster.length;
-					const needed = group.needsRebroadcast === true;
-					group.roster = roster;
-					await persist();
-					attachPeers(group);
-					// Rebroadcast on growth or when a previous rebroadcast failed: keyed
-					// on `grew` alone, an offline publish left the bulletin stale forever
-					// (the announce was already consumed, so no later round re-grew).
-					if ((grew || needed) && group.live === true) {
-						try {
-							const where = await backend.publishBulletin(group.key, {
-								v: 1,
-								mailboxId: group.mailboxId,
-								roster
-							});
-							group.bulletin = where;
-							group.needsRebroadcast = undefined;
-						} catch {
-							group.needsRebroadcast = true;
-						}
-						await persist();
-					}
-				} else {
-					// The admin's bulletin roster is AUTHORITATIVE for members: mirror it
-					// (replace, not merge) so removals propagate, not only newcomers.
-					// Reread through the invitation THIS membership joined on (pre-multi
-					// records carry none: their refresh stays dormant, peers still fold).
-					const share = group.bulletin
-						? await backend.rereadJoined(group.bulletin.fileId, group.bulletin.key)
-						: null;
-					if (share) {
-						const byId = new Map(share.roster.map((l) => [l.fileId, l]));
-						// SELF-HEAL: my own copy missing from a fresh roster means my
-						// announce was lost. Announce again; the admin's fold de-dups.
-						if (!byId.has(group.myCopy.fileId)) {
-							byId.set(group.myCopy.fileId, group.myCopy);
-							await backend.announce(group.mailboxId, group.myCopy).catch(() => undefined);
-						}
-						// Removals apply CONSERVATIVELY: a peer drops only after two
-						// consecutive fresh reads without it (stale relay tolerance).
-						for (const link of group.roster) {
-							if (link.fileId === group.myCopy.fileId) continue;
-							const missKey = `${group.mailboxId}:${link.fileId}`;
-							if (byId.has(link.fileId)) {
-								rosterMisses.delete(missKey);
-								continue;
-							}
-							const misses = (rosterMisses.get(missKey) ?? 0) + 1;
-							if (misses >= 2) {
-								rosterMisses.delete(missKey);
-								store.detachPeer(link.fileId);
-							} else {
-								rosterMisses.set(missKey, misses);
-								byId.set(link.fileId, link);
-							}
-						}
-						group.roster = [...byId.values()];
-						await persist();
-						attachPeers(group);
-					} else {
-						attachPeers(group);
-					}
-				}
+				if (group.role === 'admin') await adminRound(group);
+				else await memberRound(group);
 			}
 		},
 

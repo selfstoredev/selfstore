@@ -714,4 +714,73 @@ describe('capability-link household share (mirror model)', () => {
 		expect(rebooted.state.memberships.length).toBe(1);
 		expect(m.store.state.mirrors.some((x) => x.id.startsWith('household-copy'))).toBe(true);
 	});
+
+	it('a lost join announce persists as pending and heals on the next converge', async () => {
+		const world = new World();
+		const admin = await makeMember(world, 'admin@x.fr', 'hh-lost', 'lost-wallet');
+		const link = await admin.group.startShare();
+
+		// Bob joins while the mailbox drops every announce (a network blip, a
+		// relay cold start): the exact stranded-joiner incident - member on his
+		// side, visible to nobody, editing into the void.
+		const bob = await makeMember(world, 'bob@x.fr', 'hh-lost-bob', 'lost-bob-wallet');
+		const backend = makeBackend(world, 'bob@x.fr');
+		let mailboxDown = true;
+		const flaky: ShareBackend = {
+			...backend,
+			async announce(mailboxId, copy) {
+				if (mailboxDown) throw new Error('relay 429');
+				return backend.announce(mailboxId, copy);
+			}
+		};
+		const group = createHouseholdGroup({ store: bob.store, kv: memKV(), backend: flaky });
+		await group.openIncoming(link.fileId, link.key);
+		expect(await group.join()).toBe('joined'); // joined on his side, but...
+		expect(group.state.memberships[0].announcePending).toBe(true); // ...honestly pending
+
+		// The admin folds nothing: the announce never arrived.
+		await admin.group.syncGroup();
+		expect(admin.group.state.memberCount).toBe(1);
+
+		// The blip clears. Bob's next converge re-announces (fresh bulletin,
+		// his copy absent), and the admin's fold finally admits him.
+		mailboxDown = false;
+		await group.syncGroup();
+		await admin.group.syncGroup();
+		expect(admin.group.state.memberCount).toBe(2);
+
+		// A fresh roster now carries bob: pending clears on his next reread.
+		await group.syncGroup();
+		expect(group.state.memberships[0].announcePending).toBe(false);
+	}, 20_000);
+
+	it('a rotated link marks the membership stale after two unreadable reads; a readable one clears it', async () => {
+		const world = new World();
+		const admin = await makeMember(world, 'admin@x.fr', 'hh-rot', 'rot-wallet');
+		const link = await admin.group.startShare();
+		const bob = await makeMember(world, 'bob@x.fr', 'hh-rot-bob', 'rot-bob-wallet');
+		const backend = makeBackend(world, 'bob@x.fr');
+		let unreadable = false;
+		const rotatable: ShareBackend = {
+			...backend,
+			async rereadJoined(fileId, key) {
+				return unreadable ? 'unreadable' : backend.rereadJoined(fileId, key);
+			}
+		};
+		const group = createHouseholdGroup({ store: bob.store, kv: memKV(), backend: rotatable });
+		await group.openIncoming(link.fileId, link.key);
+		expect(await group.join()).toBe('joined');
+
+		// The admin rotated: bob's key stops decrypting the bulletin.
+		unreadable = true;
+		await group.syncGroup();
+		expect(group.state.memberships[0].stale).toBe(false); // one read: doubt
+		await group.syncGroup();
+		expect(group.state.memberships[0].stale).toBe(true); // two in a row: truth
+
+		// A readable bulletin again (re-shared under the same key) clears it.
+		unreadable = false;
+		await group.syncGroup();
+		expect(group.state.memberships[0].stale).toBe(false);
+	});
 });

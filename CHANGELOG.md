@@ -4,6 +4,30 @@ All notable changes to selfstore are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-07-24
+
+### Fixed
+
+- A household join whose announce was lost (a network blip, a relay cold
+  start at the exact join moment) no longer strands the joiner silently -
+  member on their side, visible to nobody, edits publishing into a copy
+  no one folds. The join now retries the announce, then persists an
+  `announcePending` flag so EVERY converge keeps announcing (readable
+  bulletin or not) until a fresh roster carries the copy.
+
+### Added
+
+- `MembershipInfo.announcePending`: the copy is not in a fresh roster yet;
+  the host can show "waiting for the admin to see you" instead of a false
+  everything-is-fine.
+- `MembershipInfo.stale` + rotated-link detection: when the bulletin is
+  fetched but no longer decrypts (the admin re-shared under a fresh key),
+  two consecutive reads mark the membership stale so the host can say
+  "this share was renewed, ask for a fresh invitation" instead of letting
+  the member edit into the void. `ShareBackend.rereadJoined` may now
+  resolve the literal `'unreadable'` to feed that verdict; backends that
+  keep returning null simply never trigger it.
+
 ## [1.1.0] - 2026-07-24
 
 ### Added
