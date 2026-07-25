@@ -1,13 +1,26 @@
 name: publish
 
-# Publish to npm when a GitHub Release is published. Creating the release (in the
-# UI or via the API) also creates the tag, so the whole release is one action.
+# Publish to npm when a GitHub Release is published. Creating the release in the
+# UI also creates the tag, so the whole release is one action.
+#
+# The dispatch exists because that trigger has a blind spot: release.yml creates
+# the release with the automatic GITHUB_TOKEN, and events raised by that token
+# never start another workflow (GitHub's recursion guard). So the whole
+# tag-from-changelog path - the documented way to release here - could never
+# reach npm, and every publish had to be done by hand. Dispatch with the tag to
+# publish it; the checkout resolves the tag rather than the default branch.
+#
 # Gated on the NPM_TOKEN secret: without it the job skips cleanly instead of
 # failing, so the workflow can land before the secret is set.
 
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to publish, with the v prefix (e.g. v1.5.0).
+        required: true
 
 jobs:
   publish:
@@ -18,6 +31,9 @@ jobs:
       id-token: write # npm provenance
     steps:
       - uses: actions/checkout@v7
+        with:
+          # On a release event the default checkout is already the tagged commit.
+          ref: ${{ inputs.tag || github.ref }}
       - uses: actions/setup-node@v7
         with:
           node-version: 20
