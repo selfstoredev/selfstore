@@ -23,7 +23,13 @@
  * and `footer` (the app's usual foot). Slotted nodes are never rebuilt.
  */
 
-import type { ConnectFlowOptions, ConnectKind, ConnectTargets, FlowHost } from '../flows/connect';
+import type {
+	ConnectFlowOptions,
+	ConnectKind,
+	ConnectTargets,
+	FlowHost,
+	StoreLike
+} from '../flows/connect';
 import type { SelfstoreConnectElement, WebdavPreset } from './connect';
 import { FlowWidget, h, put, type WidgetLabels } from './base';
 
@@ -90,7 +96,7 @@ export class SelfstoreGateElement extends FlowWidget {
 		return ['armed', 'deferrable'];
 	}
 
-	#store: FlowHost | { flowHost: FlowHost } | null = null;
+	#store: StoreLike | null = null;
 	#targets: ConnectTargets | null = null;
 	#options: ConnectFlowOptions = {};
 	#icons: Partial<Record<ConnectKind, string>> = {};
@@ -108,10 +114,10 @@ export class SelfstoreGateElement extends FlowWidget {
 	}
 
 	/** The simple store (anything exposing `flowHost`), or a hand-built FlowHost. */
-	get store(): FlowHost | { flowHost: FlowHost } | null {
+	get store(): StoreLike | null {
 		return this.#store;
 	}
-	set store(v: FlowHost | { flowHost: FlowHost } | null) {
+	set store(v: StoreLike | null) {
 		this.#store = v;
 		this.wire();
 	}

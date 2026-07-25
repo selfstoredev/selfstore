@@ -5,7 +5,7 @@
 // An actionable status emits 'selfstore-status-action' with the suggested
 // action; what it means (open settings, run reconnect) is the host's call.
 
-import type { FlowHost } from '../flows/connect';
+import type { FlowHost, StoreLike } from '../flows/connect';
 import { FlowWidget, h, put, type WidgetLabels } from './base';
 
 const EN: WidgetLabels = {
@@ -27,7 +27,7 @@ export class SelfstoreStatusElement extends FlowWidget {
 		return ['variant'];
 	}
 
-	#store: FlowHost | { flowHost: FlowHost } | null = null;
+	#store: StoreLike | null = null;
 	#variant: 'row' | 'dot' = 'row';
 	#icons: Record<string, string> = {};
 
@@ -36,10 +36,10 @@ export class SelfstoreStatusElement extends FlowWidget {
 	}
 
 	/** The simple store (anything exposing `flowHost`), or a hand-built FlowHost. */
-	get store(): FlowHost | { flowHost: FlowHost } | null {
+	get store(): StoreLike | null {
 		return this.#store;
 	}
-	set store(v: FlowHost | { flowHost: FlowHost } | null) {
+	set store(v: StoreLike | null) {
 		this.#store = v;
 		this.wire();
 	}

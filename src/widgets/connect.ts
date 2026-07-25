@@ -23,7 +23,7 @@ import {
 	type ConnectKind,
 	type ConnectSnapshot,
 	type ConnectTargets,
-	type FlowHost
+	type StoreLike
 } from '../flows/connect';
 import { FlowWidget, h, put, type WidgetLabels } from './base';
 
@@ -134,7 +134,7 @@ export class SelfstoreConnectElement extends FlowWidget {
 		return ['recommended', 'advanced'];
 	}
 
-	#store: FlowHost | { flowHost: FlowHost } | null = null;
+	#store: StoreLike | null = null;
 	#targets: ConnectTargets | null = null;
 	#options: ConnectFlowOptions = {};
 	#flow: ConnectFlow | null = null;
@@ -164,10 +164,10 @@ export class SelfstoreConnectElement extends FlowWidget {
 	}
 
 	/** The simple store (anything exposing `flowHost`), or a hand-built FlowHost. */
-	get store(): FlowHost | { flowHost: FlowHost } | null {
+	get store(): StoreLike | null {
 		return this.#store;
 	}
-	set store(v: FlowHost | { flowHost: FlowHost } | null) {
+	set store(v: StoreLike | null) {
 		this.#store = v;
 		this.wire();
 	}
