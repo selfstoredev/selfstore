@@ -161,6 +161,10 @@ const needsAHome = () => store.status.action === 'choose-destination';
 Offer an honest way to defer (device-only IS a working mode, just a fragile
 one) and say what is risked, rather than blocking the app behind the choice.
 
+`<selfstore-gate>` is that whole screen, ready-made: the condition above, a
+full-screen frame around `<selfstore-connect>`, and the way out (see recipe
+14). Build it by hand only if you want a different shape.
+
 Framework bindings are a few lines each (`store.subscribe` + a stable
 `store.state`); see "Framework bindings" in the README for React and Svelte.
 
@@ -433,7 +437,7 @@ restylable through `::part()`, and every string is replaceable through
 
 ```ts
 import { defineSelfstoreWidgets } from 'selfstore/widgets';
-defineSelfstoreWidgets(); // <selfstore-connect>, <selfstore-share>, <selfstore-join>
+defineSelfstoreWidgets(); // <selfstore-connect>, <selfstore-gate>, <selfstore-share>, ...
 ```
 
 ```html
@@ -450,6 +454,33 @@ defineSelfstoreWidgets(); // <selfstore-connect>, <selfstore-share>, <selfstore-
   el.addEventListener('selfstore-connected', (e) => console.log(e.detail.outcome));
 </script>
 ```
+
+`<selfstore-gate>` is `<selfstore-connect>` wrapped in the first-run screen of
+recipe 6: it opens itself while `status.action === 'choose-destination'`, shuts
+as soon as the store has a home, and offers the honest way out. It takes the
+connect knobs (`targets`, `options`, `icons`, `recommended`, `advanced`) and
+passes them down; your own chrome goes in three slots.
+
+```html
+<selfstore-gate id="gate" recommended="file">
+  <img slot="brand" src="/logo.svg" alt="" />
+  <a slot="extra" href="/?demo">See the demo instead</a>
+</selfstore-gate>
+<script type="module">
+  const gate = document.querySelector('#gate');
+  gate.targets = { file: true, webdav: true };
+  gate.store = store; // set last: the gate opens as soon as it can read the status
+  gate.addEventListener('selfstore-gate-deferred', () => track('device-only'));
+</script>
+```
+
+Set `armed = false` while your app is still restoring its destination, so a
+connected user never glimpses the gate on the way in, and `deferrable="false"`
+if your app truly cannot run device-only. `targets`, `options` and the frame
+are read when the gate opens: while it is on screen it is never rebuilt, so a
+connect journey in progress cannot be dropped under the user. `gate.connect`
+is the child element (and `gate.connect.flow` its flow) for programmatic
+control.
 
 `<selfstore-share>` and `<selfstore-join>` take the same engine ports as
 their flows (recipe 13): `shareEl.engine = myShareEngine`,
