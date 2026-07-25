@@ -38,8 +38,9 @@ collaborative editing (use a CRDT library), or Node-side storage.
   Svelte-contract store (subscribe emits the snapshot immediately);
   React reads it with useSyncExternalStore(flow.subscribe, () => flow.snapshot).
 - 'selfstore/widgets' - the journeys as drop-in web components:
-  defineSelfstoreWidgets() registers <selfstore-connect>, <selfstore-share>,
-  <selfstore-join>, <selfstore-status>, <selfstore-backups>. Framework-free
+  defineSelfstoreWidgets() registers <selfstore-connect>, <selfstore-gate>,
+  <selfstore-share>, <selfstore-join>, <selfstore-status>,
+  <selfstore-backups>. Framework-free
   custom elements over the flows; theme via
   --selfstore-* CSS custom properties and ::part() selectors; reword/localize
   via the `labels` property (partial map over EN defaults); listen to
@@ -47,7 +48,11 @@ collaborative editing (use a CRDT library), or Node-side storage.
   events; el.flow exposes the underlying flow. share/join take the same
   engine ports as their flows. Every knob is optional (full journey by
   default): connect renders targets in insertion order and recommended="kind"
-  badges one card; share renders ONE link per level (a level shows its live
+  badges one card; gate is that same connect wrapped in the first-run screen
+  (opens itself while status.action === 'choose-destination', shuts once the
+  store has a durable home, event 'selfstore-gate-deferred' when the user
+  stays device-only) with armed / deferrable / deferred props, brand|extra|
+  footer slots, and gate.connect for the child; share renders ONE link per level (a level shows its live
   link or a create button, nothing to name) with knobs levels / with-create /
   with-members / confirmAction (veto over revoke/remove/stop) / qrProvider
   (url to image, no dependency), and an engine exposing revokeAll() adds a

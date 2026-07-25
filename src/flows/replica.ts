@@ -8,7 +8,7 @@ import type { BackupTarget } from '../persistence/target';
 import type { KV } from '../persistence/cache';
 import type { ReplicaState, StoreError } from '../persistence/store';
 import { makeMachine, toStoreError, type FlowStore } from './machine';
-import type { ConnectKind, ConnectTargets, Connector, FlowHost } from './connect';
+import type { ConnectKind, ConnectTargets, Connector, StoreLike } from './connect';
 import {
 	connect as driveConnect,
 	fromSession as driveFromSession,
@@ -105,7 +105,7 @@ function replicaFileName(backupName: string): string {
 }
 
 export function replicaFlow(
-	store: FlowHost | { flowHost: FlowHost },
+	store: StoreLike,
 	targets: ConnectTargets,
 	options: ReplicaFlowOptions = {}
 ): ReplicaFlow {

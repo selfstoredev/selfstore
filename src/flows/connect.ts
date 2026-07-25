@@ -70,6 +70,10 @@ export interface FlowHost {
 	backupName: string;
 }
 
+/** What every flow and widget accepts as "the store": the simple facade, which
+ *  carries its ports on `flowHost`, or a hand-built host. */
+export type StoreLike = FlowHost | { flowHost: FlowHost };
+
 export interface ConnectFlowOptions {
 	/** Declare when this device holds data worth a question: only then does an
 	 *  existing backup raise the 'conflict' step with the destructive choices.
@@ -189,7 +193,7 @@ function planFor(how: ConnectResolution): {
 }
 
 export function connectFlow(
-	store: FlowHost | { flowHost: FlowHost },
+	store: StoreLike,
 	targets: ConnectTargets,
 	options: ConnectFlowOptions = {}
 ): ConnectFlow {

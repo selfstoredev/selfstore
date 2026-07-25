@@ -16,6 +16,7 @@ export { SelfstoreShareElement, type ShareAction } from '../widgets/share';
 export { SelfstoreJoinElement } from '../widgets/join';
 export { SelfstoreStatusElement } from '../widgets/status';
 export { SelfstoreBackupsElement, type BackupsAction } from '../widgets/backups';
+export { SelfstoreGateElement } from '../widgets/gate';
 export { FlowWidget, type WidgetLabels } from '../widgets/base';
 
 import { SelfstoreConnectElement } from '../widgets/connect';
@@ -23,11 +24,12 @@ import { SelfstoreShareElement } from '../widgets/share';
 import { SelfstoreJoinElement } from '../widgets/join';
 import { SelfstoreStatusElement } from '../widgets/status';
 import { SelfstoreBackupsElement } from '../widgets/backups';
+import { SelfstoreGateElement } from '../widgets/gate';
 
 /** Register the elements as <PREFIX-connect>, <PREFIX-share>, <PREFIX-join>,
- *  <PREFIX-status> and <PREFIX-backups> (default prefix 'selfstore'). Safe to
- *  call twice; throws in environments without custom elements (browser code
- *  only). */
+ *  <PREFIX-status>, <PREFIX-backups> and <PREFIX-gate> (default prefix
+ *  'selfstore'). Safe to call twice; throws in environments without custom
+ *  elements (browser code only). */
 export function defineSelfstoreWidgets(prefix = 'selfstore'): void {
 	const define = (name: string, ctor: CustomElementConstructor): void => {
 		if (!customElements.get(name)) customElements.define(name, ctor);
@@ -37,4 +39,7 @@ export function defineSelfstoreWidgets(prefix = 'selfstore'): void {
 	define(`${prefix}-join`, SelfstoreJoinElement);
 	define(`${prefix}-status`, SelfstoreStatusElement);
 	define(`${prefix}-backups`, SelfstoreBackupsElement);
+	// The gate builds its own connect child and reads the prefix back off its
+	// own tag name, so a custom prefix keeps the pair together.
+	define(`${prefix}-gate`, SelfstoreGateElement);
 }

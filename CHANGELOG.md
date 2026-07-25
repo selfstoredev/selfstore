@@ -4,6 +4,33 @@ All notable changes to selfstore are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.5.0] - 2026-07-25
+
+### Added
+
+- `<selfstore-gate>`: the first-run screen, as a widget. Asking "where should
+  this live?" up front is the one screen every consuming app had to build by
+  hand, and the hand-rolled version kept getting the same two things wrong:
+  it inspected `targetKind` instead of the derived `status.action`, so it
+  demanded a new destination while the real problem was a broken connection,
+  and it rebuilt its frame on every status tick, which re-appended the connect
+  element and silently dropped a journey in progress. The gate opens itself
+  while `status.action === 'choose-destination'`, shuts once the store has a
+  durable home, and stands still while it is open. `armed` holds it closed
+  during an app's boot, `deferrable` offers the honest way out (device-only is
+  a working mode, just a fragile one) and emits `selfstore-gate-deferred`, and
+  `brand` / `extra` / `footer` slots take the host's own chrome. It forwards
+  the connect knobs (`targets`, `options`, `icons`, `recommended`, `advanced`,
+  `webdavPresets`) to the child it builds, exposed as `gate.connect`.
+
+### Tests
+
+- The gate's ten cases, including the two regressions it exists to prevent: it
+  stays shut over a `reconnect` status (a needs-attention destination outranks
+  a missing one), and the connect child keeps its identity across status
+  notifications, so a journey in progress survives. Coverage ratchet raised to
+  81 / 75.5 / 75.9 / 83.8.
+
 ## [1.4.0] - 2026-07-25
 
 ### Added
