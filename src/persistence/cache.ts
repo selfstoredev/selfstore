@@ -53,6 +53,17 @@ export interface LockableCache extends LocalCache {
 	 *  does not open existing data - the cache stays locked. The first secret on
 	 *  an empty cache sets the lock. */
 	unlock(secret: string | CryptoKey): Promise<boolean>;
+	/**
+	 * Change the secret that seals this cache, in place: re-derive the key (a
+	 * fresh salt for a password) and rewrite every sealed record under it.
+	 *
+	 * Without this, "change my password" has no honest implementation for a
+	 * locked cache - the app has to wipe and rebuild, which also throws away
+	 * the durable destination's session, and a half-finished wipe leaves data
+	 * no key can open. Requires the cache to be unlocked: what cannot be read
+	 * cannot be re-sealed.
+	 */
+	reseal(secret: string | CryptoKey): Promise<void>;
 	/** Drop the in-memory key: reads and writes lock until unlock() is called. */
 	lockNow(): void;
 	/** Whether no seal key is currently held. */
@@ -265,6 +276,51 @@ export function indexedDbCache(name: string, opts?: { lock?: boolean }): LocalCa
 		},
 		lockNow() {
 			sealKey = null;
+		},
+		async reseal(secret: string | CryptoKey): Promise<void> {
+			const { keyFromPassword, freshCacheKdf } = await import('./cache-lock');
+			const previous = sealKey;
+			if (previous === null) {
+				throw new SelfstoreError(
+					'PASSWORD_REQUIRED',
+					'reseal(): the local cache is locked - unlock() it first.'
+				);
+			}
+			const d = await db();
+			// A password gets a fresh salt: reusing the old one would let a stolen
+			// derivation survive the change the user just made.
+			const kdf = typeof secret === 'string' ? freshCacheKdf() : null;
+			const next = kdf ? await keyFromPassword(secret as string, kdf) : (secret as CryptoKey);
+
+			// Re-encrypt everything BEFORE touching the database. Writing the new
+			// salt first and the payload after would, on a crash or a closed tab in
+			// between, leave records that no key opens - the cache would be lost
+			// with the very gesture meant to keep it.
+			const rawCollections = await d.get('kv', COLLECTIONS_KEY);
+			const collections = isEnvelope(rawCollections)
+				? await seal(next, await unseal(previous, rawCollections))
+				: null;
+			const files: { id: IDBValidKey; rec: EncFile }[] = [];
+			for (const fileKey of await d.getAllKeys('files')) {
+				const v = (await d.get('files', fileKey)) as EncFile | undefined;
+				if (!v) continue;
+				const bytes = await unseal(previous, v);
+				files.push({
+					id: fileKey,
+					rec: { name: v.name, mime: v.mime, ...(await seal(next, bytes)) }
+				});
+			}
+
+			// One transaction, so the salt and every record it governs land together.
+			const tx = d.transaction(['kv', 'files'], 'readwrite');
+			const store = tx.objectStore('kv');
+			if (kdf) store.put(kdf, CACHE_KDF);
+			else store.delete(CACHE_KDF); // an app-supplied key needs no salt
+			if (collections) store.put(collections, COLLECTIONS_KEY);
+			const fileStore = tx.objectStore('files');
+			for (const { id, rec } of files) fileStore.put(rec, id);
+			await tx.done;
+			sealKey = next;
 		},
 		async unlock(secret: string | CryptoKey): Promise<boolean> {
 			// cache-lock (and its Argon2id dependency) load only when lock mode is

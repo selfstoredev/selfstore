@@ -4,6 +4,29 @@ All notable changes to selfstore are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.4.0] - 2026-07-25
+
+### Added
+
+- `LockableCache.reseal(secret)`: change the secret that seals a locked cache,
+  in place. Until now "change my password" had no honest implementation for
+  `cacheLock` - `unlock()` opens a cache but nothing changed its secret, so an
+  app had to wipe and rebuild, which also throws away the durable
+  destination's session. `reseal` re-derives the key under a fresh salt and
+  rewrites every sealed record (collections and files), encrypting into memory
+  first so the new salt and the data it governs land in a single transaction:
+  an interrupted change can never leave records that no key opens. Requires
+  the cache to be unlocked, since what cannot be read cannot be re-sealed.
+
+### Tests
+
+- First coverage of the sealed IndexedDB cache (`fake-indexeddb`): the first
+  secret setting the lock, a wrong secret leaving it shut, a locked read
+  refusing rather than answering "empty" (which would invite an app to save
+  over real data), `clear()` working without the secret so a forgotten
+  passphrase is not a dead end, and the `reseal` guarantees. Coverage ratchet
+  raised to 80.7 / 75.4 / 75.6 / 83.5.
+
 ## [1.3.0] - 2026-07-25
 
 ### Fixed
