@@ -168,6 +168,14 @@ export class SelfstoreConnectElement extends FlowWidget {
 		return this.#store;
 	}
 	set store(v: StoreLike | null) {
+		// Assigning the SAME handle is a no-op, so a host can write
+		// `el.store = app.store` inside a reactive effect and let it run as often
+		// as the framework likes. Without this the setter rebuilt the flow every
+		// time, dropping a journey in progress - which forced every host to invent
+		// a "wire once" guard, and a guard keyed on the element (the obvious
+		// shape) then swallowed the real assignment when the store was created
+		// after the widget. The widget owes the host this, not the other way round.
+		if (v === this.#store) return;
 		this.#store = v;
 		this.wire();
 	}

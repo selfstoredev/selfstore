@@ -161,8 +161,10 @@ export interface SimpleStore<
 	// --- Portable backups ---------------------------------------------------
 	/** The portable backup file (a real ZIP; encrypted when protect() is on). */
 	exportBackup(): Promise<Blob>;
-	/** Download the backup (also resolves the 'manual' file mode's pending flag). */
-	downloadBackup(filename?: string): Promise<void>;
+	/** Download the backup (also resolves the 'manual' file mode's pending flag).
+	 *  False when the user closed the save dialog: nothing was written, the
+	 *  pending flag stands, and the app must not record a backup. */
+	downloadBackup(filename?: string): Promise<boolean>;
 	/** Load a backup file into this store, replacing the local data (removals
 	 *  propagate like edits). Throws PASSWORD_REQUIRED / DECRYPT_FAILED. */
 	importBackup(file: Blob | Uint8Array, opts?: { password?: string }): Promise<void>;
@@ -450,9 +452,12 @@ export async function selfstore<
 		reconnect: () => store.reconnect(),
 
 		exportBackup: () => store.exportBlob(),
-		async downloadBackup(filename?: string): Promise<void> {
-			await saveToDisk(await store.exportBlob(), filename ?? backupName);
-			store.markDownloaded();
+		async downloadBackup(filename?: string): Promise<boolean> {
+			const written = await saveToDisk(await store.exportBlob(), filename ?? backupName);
+			// Clearing the pending flag on a cancelled dialog would drop the very
+			// nudge that asks for the file the user still does not have.
+			if (written) store.markDownloaded();
+			return written;
 		},
 		async importBackup(file: Blob | Uint8Array, opts?: { password?: string }): Promise<void> {
 			// The fluent read() strips reserved bookkeeping collections; removals

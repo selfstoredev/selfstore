@@ -37,8 +37,9 @@ await store.connectWebdav({ url, username, password: appPassword }); // Nextclou
 // End-to-end encryption of everything that leaves the device.
 await store.protect('a passphrase the user chose');
 
-// A portable encrypted .zip the user can walk away with.
-await store.downloadBackup();
+// A portable encrypted .zip the user can walk away with. False when they closed
+// the save dialog - nothing was written, so do not tell them they are covered.
+const saved = await store.downloadBackup();
 ```
 
 `connectDrive` / `connectFile` / `connectWebdav` all resolve to what actually
@@ -311,7 +312,9 @@ const persistence = {
   .clear()` needs no key and abandons the sealed cache, after which they can
   start again from a backup file or from scratch. Throwing from the
   `cacheLock` callback aborts the boot and hands control back to you, which
-  is where that offer belongs.
+  is where that offer belongs. Read the backup BEFORE you clear anything -
+  recipe 4b spells out why that order is the difference between a recovery
+  and a second loss.
 - Opt-in hardening for sensitive deployments: `requireEncryption` refuses to
   write or export a plaintext backup, and `passwordPolicy` refuses a password
   weaker than a length / character-class rule - both enforced at the store, so

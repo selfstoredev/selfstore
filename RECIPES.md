@@ -52,7 +52,9 @@ await store.protect('a passphrase the user chose'); // AES-256-GCM over Argon2id
 // From here every byte leaving the device is ciphertext. Reversible:
 await store.unprotect();
 
-await store.downloadBackup();          // a portable .zip (encrypted while protected)
+// A portable .zip (encrypted while protected). FALSE means the user closed the
+// save dialog: nothing was written, so do not record "backed up today".
+const saved = await store.downloadBackup();
 const blob = await store.exportBackup(); // the same file, yours to route
 ```
 
@@ -94,6 +96,38 @@ await store.importBackup(file, {
   password: (await restore(file).isEncrypted()) ? await promptPassword() : undefined
 });
 ```
+
+### 4b. Start over after a forgotten `cacheLock` secret
+
+A sealed cache whose secret is gone is unreadable by design, so the app has to
+offer a way out: abandon it and rebuild from a backup file. **The order is the
+whole recipe.** Clearing first and restoring second looks natural and is a data
+loss waiting to happen: if the file turns out to be sealed with a different
+password, the user has lost the cache AND kept nothing from the file.
+
+Read the backup first. `read()` decrypts into memory and touches no storage, so
+a wrong password costs a retry and nothing else.
+
+```ts
+import { restore, selfstore } from 'selfstore';
+import { indexedDbCache } from 'selfstore/advanced';
+
+// 1. Prove the file opens. Throws DECRYPT_FAILED / BAD_FORMAT - show that,
+//    and let the user try another password. Nothing has been destroyed yet.
+await restore(file).withPassword(password).read();
+
+// 2. Only now abandon the unreadable cache (clear() needs no key).
+await indexedDbCache('my-app', { lock: true }).clear();
+
+// 3. Reopen under the new secret and fill it from the file.
+const store = await selfstore('my-app', { cacheLock: async () => password });
+await store.importBackup(file, { password });
+```
+
+Step 1 also decides the secret: reusing the backup's own password means the
+user has nothing new to remember, which matters at the exact moment they have
+just proved they forget passwords. Ask for a different one only when the
+backup's fails your `passwordPolicy`.
 
 ## 5. The string-id rule (and remapping it)
 
@@ -453,6 +487,18 @@ defineSelfstoreWidgets(); // <selfstore-connect>, <selfstore-gate>, <selfstore-s
   el.labels = { 'connect.title': 'Ou garder vos donnees ?' }; // partial, merges over EN
   el.addEventListener('selfstore-connected', (e) => console.log(e.detail.outcome));
 </script>
+```
+
+`store` is idempotent on all three store-taking widgets: assigning the same
+handle again does nothing. So set it straight from a reactive effect (Svelte
+`$effect`, React `useEffect`, Vue `watchEffect`) and let that effect re-run as
+often as your framework likes - a journey in progress survives, and a store
+created AFTER the widget was mounted still reaches it.
+
+```ts
+$effect(() => {
+  el.store = app.store; // null now, a real handle later: both land
+});
 ```
 
 `<selfstore-gate>` is `<selfstore-connect>` wrapped in the first-run screen of

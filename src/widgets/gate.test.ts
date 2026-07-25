@@ -190,6 +190,28 @@ describe('selfstore-gate', () => {
 		el.remove();
 	});
 
+	it('takes the store late, and re-assigning the same one changes nothing', () => {
+		// A host that creates its store AFTER mounting the widget (a vault opened
+		// on a later screen) must be able to just assign it from a reactive effect.
+		// Re-running that effect re-assigns the same handle, which has to be inert:
+		// otherwise hosts need a "wire once" guard, and the obvious guard - keyed on
+		// the element - swallows the real assignment and the gate never opens.
+		const { engine } = fakeEngine();
+		const el = document.createElement('selfstore-gate') as SelfstoreGateElement;
+		document.body.append(el);
+		el.targets = { file: true };
+		expect(el.open).toBe(false);
+
+		const host = { engine, kv: {} as FlowHost['kv'], backupName: 'x.zip' };
+		el.store = host;
+		expect(el.open).toBe(true);
+		const child = el.connect;
+
+		el.store = host;
+		expect(el.connect).toBe(child);
+		el.remove();
+	});
+
 	it('builds its connect child under the prefix it was registered with', () => {
 		// A custom prefix, as the registry allows it: one constructor per name, so
 		// a second registration is a subclass.

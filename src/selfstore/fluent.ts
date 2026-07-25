@@ -61,13 +61,15 @@ export class BackupBuilder {
 	}
 
 	/** Save the backup to disk (File System Access API, else a download).
-	 *  Browser-only terminal; defaults to `<app>-<date>.zip`. */
-	async toDisk(filename?: string): Promise<void> {
+	 *  Browser-only terminal; defaults to `<app>-<date>.zip`. False when the
+	 *  user closed the save dialog: nothing was written, so do not tell them
+	 *  they have a backup. */
+	async toDisk(filename?: string): Promise<boolean> {
 		const blob = await this.toBlob();
 		const name =
 			filename ?? `${this.opts.app}-${new Date().toISOString().slice(0, 10)}${BACKUP_EXTENSION}`;
 		const { saveToDisk } = await import('./targets/local');
-		await saveToDisk(blob, name);
+		return saveToDisk(blob, name);
 	}
 }
 

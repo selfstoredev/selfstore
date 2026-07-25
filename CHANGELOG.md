@@ -4,6 +4,47 @@ All notable changes to selfstore are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.6.0] - 2026-07-25
+
+### Changed
+
+- `saveToDisk()`, `backup(...).toDisk()` and `store.downloadBackup()` now
+  resolve to a **boolean**: true when bytes were handed to the browser, false
+  when the user closed the save dialog. They used to swallow the cancellation
+  and resolve as if the file had been written, so a host that stamped "last
+  backup: today" afterwards told the user they were covered when no file
+  existed - a lie that only surfaces the day the file is needed.
+  `downloadBackup()` also keeps the pending-download flag up on a cancellation,
+  instead of clearing the very nudge that asks for the missing file. Widening
+  `Promise<void>` to `Promise<boolean>` breaks no caller that ignored it.
+- `store` is now **idempotent** on `<selfstore-connect>`, `<selfstore-status>`
+  and `<selfstore-gate>`: assigning the same handle again does nothing. Hosts
+  can therefore assign it straight from a reactive effect and let that effect
+  re-run. Before, every assignment rewired the flow, which would drop a journey
+  in progress - so hosts invented "wire once" guards, and the obvious guard
+  (keyed on the element) then swallowed the real assignment when the store was
+  created after the widget was mounted, leaving the widget permanently inert.
+  The widget owes the host this, not the other way round.
+
+### Docs
+
+- Recipe 4b: starting over after a forgotten `cacheLock` secret, where the
+  ORDER is the whole recipe. Read the backup first (`read()` decrypts into
+  memory and touches no storage), and only then clear the sealed cache: doing
+  it the other way round loses the cache AND keeps nothing from a file whose
+  password turns out not to match.
+- Recipe 14 shows the reactive-effect assignment the idempotent setter allows.
+
+### Tests
+
+- `saveToDisk` over an accepting picker, a cancelled one, a picker that fails
+  for another reason (falls through to the download), and no picker at all.
+- `downloadBackup` on both paths, asserting the pending flag is only cleared
+  once bytes are written.
+- The two widget regressions: a re-assigned handle leaves a journey in progress
+  untouched, and a store arriving after the mount still opens the gate.
+  Coverage ratchet raised to 81.7 / 75.9 / 76.4 / 84.6.
+
 ## [1.5.0] - 2026-07-25
 
 ### Added

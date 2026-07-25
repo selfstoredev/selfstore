@@ -40,6 +40,9 @@ export class SelfstoreStatusElement extends FlowWidget {
 		return this.#store;
 	}
 	set store(v: StoreLike | null) {
+		// Idempotent, so a host may assign it from a reactive effect: see the
+		// note on <selfstore-connect>.
+		if (v === this.#store) return;
 		this.#store = v;
 		this.wire();
 	}
