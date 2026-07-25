@@ -367,6 +367,28 @@ describe('selfstore-connect: never a dead end', () => {
 		await waitFor(() => q(el, 'button[part="card"]')); // back on choose
 		el.remove();
 	});
+
+	it('re-assigning the SAME store leaves a journey in progress alone', async () => {
+		// Hosts assign the store from a reactive effect; that effect re-runs for
+		// reasons of its own. If every assignment rebuilt the flow, a password
+		// half-typed would vanish under the user - so hosts wrote "wire once"
+		// guards, and those guards then swallowed the store when it arrived late.
+		// Idempotence here is what lets the host stop guarding.
+		const { host, engine } = makeHost();
+		await engine.init();
+		const t = fakeTarget();
+		const el = mount();
+		el.store = host;
+		el.targets = { drive: async () => t.target };
+
+		(await waitFor(() => q(el, 'button[part="card"][data-kind="drive"]'))).click();
+		await waitFor(() => q(el, '[part~="status-ok"]'));
+		const shown = el.shadowRoot!.innerHTML;
+
+		el.store = host;
+		expect(el.shadowRoot!.innerHTML).toBe(shown);
+		el.remove();
+	});
 });
 
 describe('selfstore-connect: the password step', () => {
