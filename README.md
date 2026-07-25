@@ -306,6 +306,12 @@ const persistence = {
   full-profile copy cannot read it. One unlock per session - `cacheLock` on the
   simple facade, or `indexedDbCache(name, { lock: true })` at the store layer.
   Still bounded by the origin (unlocked, code in the page decrypts).
+  A forgotten secret is unrecoverable by design, so give your users a way
+  out rather than a dead-end prompt: `indexedDbCache(name, { lock: true })
+  .clear()` needs no key and abandons the sealed cache, after which they can
+  start again from a backup file or from scratch. Throwing from the
+  `cacheLock` callback aborts the boot and hands control back to you, which
+  is where that offer belongs.
 - Opt-in hardening for sensitive deployments: `requireEncryption` refuses to
   write or export a plaintext backup, and `passwordPolicy` refuses a password
   weaker than a length / character-class rule - both enforced at the store, so
