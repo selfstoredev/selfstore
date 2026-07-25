@@ -92,6 +92,26 @@ export interface ConnectFlowOptions {
 	 *  holding real local data connect should keep the password-first
 	 *  journey - adoption replaces the working copy. */
 	deferUnlock?: boolean;
+	/**
+	 * A secret the host already holds (an app passphrase, a derived key), used
+	 * to encrypt the backup when this journey creates or adopts one that is NOT
+	 * already encrypted - an empty destination, or a plaintext file.
+	 *
+	 * Two things need it. A store built with `requireEncryption` refuses a
+	 * passwordless attach outright (ENCRYPTION_REQUIRED), so without this the
+	 * connect journey cannot complete at all. And even without that setting, a
+	 * fresh backup is better born encrypted than written in clear and protected
+	 * on a second write, which would leave cleartext on the destination in
+	 * between.
+	 *
+	 * Never used against a destination whose backup is already encrypted: that
+	 * one is proven through the password step (or adopted locked under
+	 * `deferUnlock`), so a host secret that happens to differ can neither fail
+	 * the attach nor overwrite what it cannot read. Resolved lazily, so the
+	 * secret is only read when a connect actually needs it. Must satisfy the
+	 * store's password policy.
+	 */
+	password?: string | (() => string | Promise<string>);
 	/** Deadline for each network leg (inspect, trial-read, attach), ms. */
 	deadlineMs?: number;
 }
@@ -197,11 +217,15 @@ export function connectFlow(
 	let generation = 0;
 	let target: BackupTarget | null = null;
 	let password: string | null = null;
+	// Set at inspection: the destination already holds an ENCRYPTED backup, so
+	// its key is the one that matters and the host secret must stay out of it.
+	let remoteEncrypted = false;
 
 	const backToChoose = (): void => {
 		generation++;
 		target = null;
 		password = null;
+		remoteEncrypted = false;
 		m.set({
 			step: 'choose',
 			kind: null,
@@ -217,6 +241,13 @@ export function connectFlow(
 	const fail = (e: unknown): void => {
 		password = null;
 		m.set({ step: 'error', busy: false, error: toStoreError(e) });
+	};
+
+	/** The host's own secret, resolved on demand (see options.password). */
+	const hostSecret = async (): Promise<string | null> => {
+		const supplied = options.password;
+		if (supplied === undefined) return null;
+		return typeof supplied === 'function' ? await supplied() : supplied;
 	};
 
 	function connectorFor(
@@ -257,6 +288,7 @@ export function connectFlow(
 		const info = await withDeadline(host.engine.inspectTarget(t), deadlineMs, 'The destination');
 		if (gen !== generation) return;
 		target = t;
+		remoteEncrypted = info.encrypted;
 		m.set({ hasBackup: info.hasBackup, encrypted: info.encrypted });
 		if (!info.hasBackup) {
 			// Empty destination: this device's data becomes its content. Nothing
@@ -306,8 +338,14 @@ export function connectFlow(
 		if (gen !== generation || !target) return;
 		m.set({ busy: true });
 		try {
+			// A backup that is already encrypted carries its own key: it was proven
+			// at the password step, or deliberately left locked. Everywhere else -
+			// an empty destination, a plaintext one - the host secret (when it
+			// offers one) makes the backup encrypted from its very first write.
+			const secret = password ?? (remoteEncrypted ? null : await hostSecret());
+			if (gen !== generation) return;
 			await withDeadline(
-				host.engine.attachTarget(target, { password, strategy, wipe }),
+				host.engine.attachTarget(target, { password: secret, strategy, wipe }),
 				deadlineMs,
 				'The destination'
 			);

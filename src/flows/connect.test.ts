@@ -83,7 +83,10 @@ function fakeTarget(initialRemote: Blob | null = null) {
 }
 
 /** An app + engine + host, mirroring how the simple store wires the flow. */
-function makeHost(initial: Record<string, unknown[]> = {}) {
+function makeHost(
+	initial: Record<string, unknown[]> = {},
+	opts: { requireEncryption?: boolean } = {}
+) {
 	const app = { collections: structuredClone(initial) };
 	const cache = memCache();
 	const engine = createLocalStore({
@@ -93,13 +96,20 @@ function makeHost(initial: Record<string, unknown[]> = {}) {
 		apply: (snap: Snapshot) => {
 			app.collections = structuredClone(snap.collections ?? {}) as Record<string, unknown[]>;
 		},
-		cache
+		cache,
+		requireEncryption: opts.requireEncryption
 	});
 	const host: FlowHost = { engine, kv: cache.kv, backupName: 'flow-test.zip' };
 	return { app, engine, host };
 }
 
-async function until<T>(flow: FlowStore<T>, pred: (s: T) => boolean, ms = 3000): Promise<T> {
+/**
+ * Wait for a step. The budget has to cover a real Argon2id derivation (46 MiB,
+ * 3 passes): the password steps here decrypt for real, and under the full suite
+ * every core is busy, so a KDF-bound wait can take seconds. It stays well under
+ * vitest's own testTimeout, which remains the backstop for a genuine hang.
+ */
+async function until<T>(flow: FlowStore<T>, pred: (s: T) => boolean, ms = 20_000): Promise<T> {
 	if (pred(flow.snapshot)) return flow.snapshot;
 	return new Promise<T>((resolve, reject) => {
 		let unsub: (() => void) | null = null;
@@ -296,13 +306,92 @@ describe('connectFlow: the default resolution', () => {
 	});
 });
 
-describe('connectFlow: the password step', () => {
-	const encryptedBackup = () =>
-		backup(snapOf({ todos: [{ id: 'a', text: 'secret' }] }))
-			.as('flow-test')
-			.encryptedWith('right')
-			.toBlob();
+const encryptedBackup = () =>
+	backup(snapOf({ todos: [{ id: 'a', text: 'secret' }] }))
+		.as('flow-test')
+		.encryptedWith('right')
+		.toBlob();
 
+describe('connectFlow: a store that requires encryption', () => {
+	it('has nowhere to put the data without a secret to encrypt it with', async () => {
+		const { host, engine } = makeHost({ todos: [{ id: 't1' }] }, { requireEncryption: true });
+		await engine.init();
+		const t = fakeTarget();
+		const flow = connectFlow(host, { drive: async () => t.target });
+		flow.choose('drive');
+		const s = await until(flow, (x) => x.step === 'error');
+		expect(s.error?.code).toBe('ENCRYPTION_REQUIRED');
+		expect(engine.state.targetKind).toBe('device'); // nothing attached, nothing written
+	});
+
+	it("encrypts a fresh backup with the host's secret, from its very first write", async () => {
+		const { host, engine } = makeHost(
+			{ todos: [{ id: 't1', text: 'ship it' }] },
+			{ requireEncryption: true }
+		);
+		await engine.init();
+		const t = fakeTarget();
+		const flow = connectFlow(
+			host,
+			{ drive: async () => t.target },
+			{ password: 'a-long-passphrase' }
+		);
+		flow.choose('drive');
+		const s = await until(flow, (x) => x.step === 'connected');
+		expect(s.outcome).toBe('started');
+		expect(engine.state.encrypted).toBe(true);
+		// What landed on the destination is ciphertext - never a plaintext write
+		// followed by a protecting one.
+		await expect(importSnapshot(t.remote!)).rejects.toMatchObject({
+			code: 'PASSWORD_REQUIRED'
+		});
+		const remote = await importSnapshot(t.remote!, { password: 'a-long-passphrase' });
+		expect(remote.collections?.todos).toEqual([{ id: 't1', text: 'ship it' }]);
+	});
+
+	it('accepts the secret lazily, so the host reads it only when a connect needs it', async () => {
+		const { host, engine } = makeHost({ todos: [{ id: 't1' }] }, { requireEncryption: true });
+		await engine.init();
+		const t = fakeTarget();
+		let reads = 0;
+		const flow = connectFlow(
+			host,
+			{ drive: async () => t.target },
+			{
+				password: () => {
+					reads++;
+					return 'a-long-passphrase';
+				}
+			}
+		);
+		expect(reads).toBe(0); // not touched while merely offering the choice
+		flow.choose('drive');
+		await until(flow, (x) => x.step === 'connected');
+		expect(reads).toBe(1);
+	});
+
+	it('leaves a backup that is already encrypted to its own password step', async () => {
+		const { host, engine } = makeHost();
+		await engine.init();
+		const t = fakeTarget(await encryptedBackup());
+		// The host secret differs from the backup's: it must not be tried, or a
+		// connect would fail on a backup whose real password the user knows.
+		const flow = connectFlow(
+			host,
+			{ drive: async () => t.target },
+			{ password: 'not-the-one-here' }
+		);
+		flow.choose('drive');
+		const asked = await until(flow, (x) => x.step === 'password');
+		expect(asked.encrypted).toBe(true);
+		expect(engine.state.targetKind).toBe('device');
+		flow.submitPassword('right');
+		const done = await until(flow, (x) => x.step === 'connected');
+		expect(done.outcome).toBe('merged');
+	});
+});
+
+describe('connectFlow: the password step', () => {
 	it('an encrypted backup asks BEFORE anything attaches', async () => {
 		const { host, engine } = makeHost();
 		await engine.init();

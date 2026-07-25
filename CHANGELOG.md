@@ -4,6 +4,29 @@ All notable changes to selfstore are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] - 2026-07-25
+
+### Fixed
+
+- A store built with `requireEncryption` could not complete the connect
+  journey at all: attaching an empty or plaintext destination went through
+  without a password and the store refused it (`ENCRYPTION_REQUIRED`), so
+  "create a new backup" always ended on the generic error step. The flow
+  now encrypts such a destination with the secret the host supplies (see
+  below), which also removes the older workaround of writing a cleartext
+  backup and protecting it on a second write - the very first write is
+  ciphertext.
+
+### Added
+
+- `ConnectFlowOptions.password`: a secret the host already holds (an app
+  passphrase, a derived key), as a value or a lazily-resolved callback. It
+  is used only when the journey creates or adopts a backup that is NOT
+  already encrypted; a backup that is already encrypted keeps being proven
+  through the password step (or adopted locked under `deferUnlock`), so a
+  host secret that happens to differ can neither fail the attach nor
+  overwrite what it cannot read.
+
 ## [1.2.0] - 2026-07-24
 
 ### Fixed
