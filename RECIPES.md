@@ -125,13 +125,41 @@ store.subscribe(() => {
   if (store.error) toast(t(store.error.labelKey));    // e.g. 'error.authExpired'
 });
 
-// Only two situations ever need a user gesture:
-if (store.status.action === 'unlock')    await store.unlock(await promptPassword());
-if (store.status.action === 'reconnect') await store.reconnect();
+// `status.action` names the ONE gesture that would move things forward.
+// There are four, and leaving any of them unhandled shows the user a problem
+// with no way to act on it:
+switch (store.status.action) {
+  case 'unlock':             await store.unlock(await promptPassword()); break;
+  case 'reconnect':          await store.reconnect();                    break;
+  case 'download':           await store.downloadBackup();               break;  // degraded file mode
+  case 'choose-destination': showConnectUi();                            break;  // nothing durable yet
+}
 ```
 
 Transient trouble (offline, cold start, 5xx) never raises `reconnect`: edits
 stay safe locally and the next save or sync retries on its own.
+
+`<selfstore-status>` renders the same descriptor and emits
+`selfstore-status-action` carrying that action - the widget deliberately does
+not decide what it means (open your settings pane? start the connect journey?),
+so the host must listen. A host that forgets ships a button that does nothing.
+
+### The first-run gate
+
+`action === 'choose-destination'` is also the whole condition for "this app has
+no durable home yet": it covers both an ephemeral store and one still on the
+device-only cache. Use it rather than inspecting `targetKind` by hand - the
+derivation already ranks a needs-attention destination above a missing one, so
+a hand-rolled condition tends to nag a user whose real problem is elsewhere.
+
+```ts
+// Ask once, up front, instead of burying the choice in a settings screen:
+// data that lives only in a browser profile dies with it.
+const needsAHome = () => store.status.action === 'choose-destination';
+```
+
+Offer an honest way to defer (device-only IS a working mode, just a fragile
+one) and say what is risked, rather than blocking the app behind the choice.
 
 Framework bindings are a few lines each (`store.subscribe` + a stable
 `store.state`); see "Framework bindings" in the README for React and Svelte.
