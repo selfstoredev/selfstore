@@ -371,6 +371,16 @@ flow applies `defaultResolution` - `'merge'` unless you choose `'resume'`
 "open my backup") or `'replace'` (this device wins). An encrypted backup
 still proves its password first, whatever the resolution.
 
+If your app already holds a secret (its own passphrase, a key it derived),
+hand it over with `{ password: () => myPassphrase }` and a backup this
+journey creates is encrypted from its very first write - no cleartext on the
+destination, not even briefly. A store built with `requireEncryption` needs
+this: without a password the attach is refused outright
+(`ENCRYPTION_REQUIRED`). It is never tried against a backup that is already
+encrypted - that one goes through the password step as usual - so a secret
+that happens to differ can neither fail the connect nor overwrite what it
+cannot read.
+
 `shareFlow(engine)` and `joinFlow(link, engine)` run the share panel and the
 invitation journey over a small engine port YOU implement (how links travel -
 a Drive public link, a relay - is your app's business). The machines bring the
