@@ -59,7 +59,11 @@ produce false timeouts. A timeout there is an environment signal, not a bug.
 - GitHub flow: `main` is the only long-lived branch and stays releasable.
   Every change is a small PR into `main`, squash-merged with a green CI.
 - A release is a `vX.Y.Z` tag cut from `main` (release.yml dispatch, notes
-  from the CHANGELOG section); npm publish is a manual, human step.
+  from the CHANGELOG section). The version bump and the dated CHANGELOG
+  section travel IN the feature PR, not in a commit of their own.
+- Publishing to npm is then a second, deliberate step: publish.yml runs on a
+  published release, or on demand with the tag. It never rides along with a
+  merge.
 - Conventional commits, English, pure ASCII. Author is always
   Florian Mousseau <florian.mousseau@gmail.com>; no AI mention, no co-author
   trailer, no tool branding anywhere (commits, branches, PRs).
