@@ -4,6 +4,20 @@ All notable changes to selfstore are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.6.8] - 2026-07-26
+
+### Added
+
+- `.verified()` on the backup chain, and `verifyBackup()` standalone: read a
+  freshly written backup back before anyone is told it exists, and throw the new
+  `VERIFY_FAILED` otherwise. A backup encrypted with a key nobody can reproduce,
+  truncated, or built from an empty snapshot looks exactly like a good one -
+  right name, right date, plausible size - and the difference only shows up on
+  the day of the disaster, when it is too late to make another. The only way to
+  know is to open it, and it costs one decrypt of data the app already holds.
+  The flag rides in the encode options, so setting it on one link of the chain
+  and losing it on the next is not possible.
+
 ## [1.6.7] - 2026-07-26
 
 ### Fixed

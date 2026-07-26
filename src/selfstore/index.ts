@@ -47,6 +47,7 @@ export {
 	type EncryptedBackupBuilder,
 	type RestoreBuilder
 } from './fluent';
+export { verifyBackup, countsOf, type ExpectedContents } from './verify';
 
 /** Serialize a snapshot to a portable backup blob (compressed; encrypted if a password is given). */
 export async function exportSnapshot(snapshot: Snapshot, opts: EncodeOptions): Promise<Blob> {

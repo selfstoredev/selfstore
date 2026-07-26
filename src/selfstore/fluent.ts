@@ -9,6 +9,7 @@
 import type { Snapshot, Header, EncodeOptions } from './types';
 import { RESERVED_COLLECTION_PREFIX } from './types';
 import { writeBox, readBox, readBoxMeta, asBytes, BACKUP_MIME, BACKUP_EXTENSION } from './box';
+import { verifyBackup, countsOf } from './verify';
 
 /** Start writing a backup. Naming the app via .as() is the required next step. */
 export function backup(snapshot: Snapshot): BackupDraft {
@@ -50,9 +51,30 @@ export class BackupBuilder {
 		return new EncryptedBackupBuilder(this.snapshot, { ...this.opts, password });
 	}
 
+	/**
+	 * Read the backup back before handing it over, and throw VERIFY_FAILED if it
+	 * does not hold what went in.
+	 *
+	 * A backup encrypted with a key nobody can reproduce, truncated, or built
+	 * from an empty snapshot looks exactly like a good one: right name, right
+	 * date, plausible size. The difference only shows up on the day of the
+	 * disaster, when it is too late to make another. The only way to know is to
+	 * open it, and it costs one decrypt of data the app already holds.
+	 *
+	 * Applies to every terminal below, so a host cannot verify and then write a
+	 * different set of bytes by accident.
+	 */
+	verified(): BackupBuilder {
+		return new BackupBuilder(this.snapshot, { ...this.opts, verify: true });
+	}
+
 	/** The backup as raw bytes. */
 	async toBytes(): Promise<Uint8Array> {
-		return writeBox(this.snapshot, this.opts);
+		const bytes = await writeBox(this.snapshot, this.opts);
+		if (this.opts.verify) {
+			await verifyBackup(bytes, { password: this.opts.password, expect: countsOf(this.snapshot) });
+		}
+		return bytes;
 	}
 
 	/** The backup as a Blob, ready to upload or hand to a save dialog. */
@@ -94,6 +116,11 @@ export class EncryptedBackupBuilder extends BackupBuilder {
 			);
 		}
 		super(snapshot, opts);
+	}
+
+	/** Same guarantee, keeping the encrypted chain's own links reachable. */
+	override verified(): EncryptedBackupBuilder {
+		return new EncryptedBackupBuilder(this.snapshot, { ...this.opts, verify: true });
 	}
 
 	/** Brand the README shipped inside the encrypted ZIP. */
