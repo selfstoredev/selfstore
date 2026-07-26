@@ -102,7 +102,8 @@ export {
 import {
 	connect as fileConnect,
 	fromSession as fileFromSession,
-	isSupported as fileIsSupported
+	isSupported as fileIsSupported,
+	isOpenSupported as fileIsOpenSupported
 } from '../persistence/targets/file';
 import {
 	connect as webdavConnect,
@@ -127,7 +128,8 @@ import {
 export const fileTarget = {
 	connect: fileConnect,
 	fromSession: fileFromSession,
-	isSupported: fileIsSupported
+	isSupported: fileIsSupported,
+	isOpenSupported: fileIsOpenSupported
 };
 
 /** WebDAV destination (Nextcloud, ownCloud, any server the user controls), plus
