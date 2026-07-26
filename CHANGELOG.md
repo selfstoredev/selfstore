@@ -14,6 +14,8 @@ adheres to [Semantic Versioning](https://semver.org/).
   that gesture separately. `<selfstore-connect>` now uses it instead of testing
   `window` directly, and stops rendering the "open" button on a browser that has
   refused the picker - it used to leave a button that answered nothing.
+- New `labelled` and `label` parts on `<selfstore-connect>`, for theming the
+  form fields' names.
 
 ### Fixed
 
@@ -31,6 +33,13 @@ adheres to [Semantic Versioning](https://semver.org/).
 - `openExisting()` no longer throws on a refused picker either. A permission
   denied on one chosen file is kept apart from a refused picker: the first says
   nothing about the browser, which has just proved that it opens.
+- The WebDAV and S3 forms name their fields with a visible label instead of a
+  placeholder only. The name vanished at the first keystroke, so anyone who
+  paused mid-form had to clear a field to remember what it wanted, and a screen
+  reader announced a row of unnamed inputs. A placeholder is a hint, not a label.
+- The destination card puts its icon on the title's line. A card carrying its own
+  action row is tall, and centering floated the icon in the middle of the text,
+  beside no line in particular.
 
 ### Tests
 
