@@ -4,6 +4,14 @@ All notable changes to selfstore are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.6.3] - 2026-07-26
+
+### Fixed
+
+- The form field labels added in 1.6.2 referenced a CSS variable that does not
+  exist (`--_muted`), so they rendered at full text colour instead of the muted
+  tone every other secondary line uses.
+
 ## [1.6.2] - 2026-07-26
 
 ### Added
