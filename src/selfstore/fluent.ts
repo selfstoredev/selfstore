@@ -100,6 +100,30 @@ export class EncryptedBackupBuilder extends BackupBuilder {
 	withReadme(text: string): EncryptedBackupBuilder {
 		return new EncryptedBackupBuilder(this.snapshot, { ...this.opts, readme: text });
 	}
+
+	/**
+	 * A second secret that also opens this backup - a recovery code the user
+	 * printed and put away.
+	 *
+	 * A password that only lives in one person's memory is the likeliest way a
+	 * local-first backup dies: no server can reset it, so the day it is
+	 * forgotten the data is gone for good. The envelope has always held several
+	 * key slots (see `keys[]` in the header); this exposes them where a backup
+	 * is actually written. Each secret wraps the SAME data key, so either one
+	 * opens the file and neither can read the other.
+	 *
+	 * Call it more than once for more than one recovery secret. Reading needs no
+	 * change: `restore(...).withPassword(code)` already tries every slot.
+	 */
+	alsoOpenedWith(secret: string): EncryptedBackupBuilder {
+		if (!secret) {
+			throw new TypeError('alsoOpenedWith(): a non-empty secret is required.');
+		}
+		return new EncryptedBackupBuilder(this.snapshot, {
+			...this.opts,
+			extraSecrets: [...(this.opts.extraSecrets ?? []), secret]
+		});
+	}
 }
 
 export class RestoreBuilder {

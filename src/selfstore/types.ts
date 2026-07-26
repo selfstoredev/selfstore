@@ -141,4 +141,8 @@ export interface EncodeOptions {
 	 *  from the last read) so a writer that knows only one password keeps
 	 *  every other slot. Mutually exclusive with `password` and `group`. */
 	envelope?: { dataKey: Uint8Array; slots: KeySlot[] };
+	/** Extra secrets that ALSO open this backup, each getting its own key slot
+	 *  around the same data key - typically a recovery code the user printed.
+	 *  Only meaningful alongside `password`. */
+	extraSecrets?: string[];
 }
