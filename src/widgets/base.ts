@@ -135,6 +135,10 @@ button[part~='advanced-link'] {
 	margin-top: 0.1rem;
 }
 [part~='card'] [part~='row'] { margin-top: 0.45rem; }
+/* A card carrying its own action row is tall; centering then floated the icon
+   somewhere in the middle of the text, next to no line in particular. It
+   belongs on the title's line. */
+[part~='card']:has([part~='row']) { align-items: flex-start; }
 input[part~='input'] {
 	font: inherit;
 	color: inherit;
