@@ -9,6 +9,7 @@ export type SelfstoreErrorCode =
 	| 'PASSWORD_REQUIRED' // encrypted backup opened without a password, or vault used before unlock()
 	| 'DECRYPT_FAILED' // wrong password, or tampered/corrupt ciphertext
 	| 'TOO_LARGE' // archive entry exceeds the size guard (zip-bomb defence)
+	| 'VERIFY_FAILED' // a freshly written backup did not read back as expected: do not announce it
 	// durable targets / store lifecycle
 	| 'AUTH_EXPIRED' // access genuinely lost: only a user gesture (reconnect) fixes it
 	| 'TARGET_UNAVAILABLE' // transient: offline, cold start, 5xx - retry later

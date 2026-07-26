@@ -141,6 +141,11 @@ export interface EncodeOptions {
 	 *  from the last read) so a writer that knows only one password keeps
 	 *  every other slot. Mutually exclusive with `password` and `group`. */
 	envelope?: { dataKey: Uint8Array; slots: KeySlot[] };
+	/** Read the bytes back before returning them, and throw VERIFY_FAILED if
+	 *  they do not hold what went in. Carried in the options rather than on the
+	 *  builder so it survives every link of the chain: set on one link and lost
+	 *  by the next is the silent failure this whole feature exists to prevent. */
+	verify?: boolean;
 	/** Extra secrets that ALSO open this backup, each getting its own key slot
 	 *  around the same data key - typically a recovery code the user printed.
 	 *  Only meaningful alongside `password`. */

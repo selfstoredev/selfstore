@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { unzipSync, strFromU8 } from 'fflate';
-import { backup, restore, changePassword, inspect, type Snapshot } from './index';
+import { backup, restore, changePassword, inspect, verifyBackup, type Snapshot } from './index';
 import { unzip } from './archive';
 
 function sample(): Snapshot {
@@ -170,5 +170,41 @@ describe('zip-bomb guard', () => {
 		expect(() => backup(sample()).as('a').encryptedWith('pw').alsoOpenedWith('')).toThrow(
 			TypeError
 		);
+	});
+
+	it('verified() reads the backup back before handing it over', async () => {
+		// The whole point: a backup nobody has reopened is not a backup. Here it
+		// opens, so nothing changes for the caller.
+		const bytes = await backup(sample()).as('test-app').encryptedWith('pw').verified().toBytes();
+		expect((await restore(bytes).withPassword('pw').read()).collections.notes).toHaveLength(1);
+	});
+
+	it('survives being set anywhere in the chain', async () => {
+		// Set on one link and dropped by the next is the silent failure this
+		// feature exists to prevent, so the flag rides in the options.
+		const early = await backup(sample()).as('a').verified().encryptedWith('pw').toBytes();
+		const late = await backup(sample()).as('a').encryptedWith('pw').verified().toBytes();
+		expect(early.length).toBeGreaterThan(0);
+		expect(late.length).toBeGreaterThan(0);
+	});
+
+	it('refuses a backup whose contents do not match what went in', async () => {
+		// Stand in for the real failure - an empty snapshot written while the app
+		// believed it held data - by checking the counts contract directly.
+		await expect(
+			verifyBackup(await backup(sample()).as('a').encryptedWith('pw').toBytes(), {
+				password: 'pw',
+				expect: { counts: { notes: 99 } }
+			})
+		).rejects.toMatchObject({ code: 'VERIFY_FAILED' });
+	});
+
+	it('refuses a backup that will not open with the secret it was sealed with', async () => {
+		// The most expensive failure to discover late: an archive nobody can open.
+		await expect(
+			verifyBackup(await backup(sample()).as('a').encryptedWith('pw').toBytes(), {
+				password: 'not-the-password'
+			})
+		).rejects.toMatchObject({ code: 'VERIFY_FAILED' });
 	});
 });
