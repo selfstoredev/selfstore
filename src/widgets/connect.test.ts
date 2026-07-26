@@ -202,6 +202,19 @@ describe('selfstore-connect: choosing', () => {
 		// The same journey: the link opens the WebDAV form step.
 		link!.click();
 		await waitFor(() => q(el, 'input[data-keep="wd-url"]'));
+
+		// Each box keeps its name once you start typing: these were placeholders
+		// only, so the label vanished at the first keystroke and a screen reader
+		// announced three unnamed fields. A placeholder is a hint, not a label.
+		for (const [keep, nom] of [
+			['wd-url', 'Server URL'],
+			['wd-user', 'Username'],
+			['wd-pass', 'Password']
+		]) {
+			const champ = q(el, `input[data-keep="${keep}"]`)!.closest('label[part~="labelled"]');
+			expect(champ, keep).not.toBeNull();
+			expect(champ!.querySelector('[part~="label"]')!.textContent, keep).toBe(nom);
+		}
 		el.remove();
 	});
 

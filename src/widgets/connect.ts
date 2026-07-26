@@ -513,6 +513,18 @@ export class SelfstoreConnectElement extends FlowWidget {
 		);
 	}
 
+	/**
+	 * A form field that keeps its name once you start typing.
+	 *
+	 * These were placeholders only: the label vanished at the first keystroke, so
+	 * anyone who paused mid-form had to clear a field to remember what it wanted,
+	 * and a screen reader announced three unnamed boxes. A placeholder is a hint,
+	 * never a label.
+	 */
+	private labelled(labelKey: string, input: HTMLElement): HTMLElement {
+		return h('label', { part: 'labelled' }, h('span', { part: 'label' }, this.t(labelKey)), input);
+	}
+
 	private destCard(kind: ConnectKind): HTMLElement {
 		const icon = this.#icons[kind];
 		const head = icon ? h('img', { part: 'icon', src: icon, alt: '' }) : null;
@@ -645,30 +657,36 @@ export class SelfstoreConnectElement extends FlowWidget {
 			);
 		}
 		out.push(
-			h('input', {
-				part: 'input',
-				type: 'url',
-				placeholder: this.t('connect.webdav.url'),
-				'data-keep': 'wd-url',
-				value: this.#webdavUrl,
-				oninput: (e: Event) => (this.#webdavUrl = (e.target as HTMLInputElement).value)
-			}),
-			h('input', {
-				part: 'input',
-				type: 'text',
-				placeholder: this.t('connect.webdav.user'),
-				'data-keep': 'wd-user',
-				value: this.#webdavUser,
-				oninput: (e: Event) => (this.#webdavUser = (e.target as HTMLInputElement).value)
-			}),
-			h('input', {
-				part: 'input',
-				type: 'password',
-				placeholder: this.t('connect.webdav.password'),
-				'data-keep': 'wd-pass',
-				value: this.#webdavPass,
-				oninput: (e: Event) => (this.#webdavPass = (e.target as HTMLInputElement).value)
-			})
+			this.labelled(
+				'connect.webdav.url',
+				h('input', {
+					part: 'input',
+					type: 'url',
+					'data-keep': 'wd-url',
+					value: this.#webdavUrl,
+					oninput: (e: Event) => (this.#webdavUrl = (e.target as HTMLInputElement).value)
+				})
+			),
+			this.labelled(
+				'connect.webdav.user',
+				h('input', {
+					part: 'input',
+					type: 'text',
+					'data-keep': 'wd-user',
+					value: this.#webdavUser,
+					oninput: (e: Event) => (this.#webdavUser = (e.target as HTMLInputElement).value)
+				})
+			),
+			this.labelled(
+				'connect.webdav.password',
+				h('input', {
+					part: 'input',
+					type: 'password',
+					'data-keep': 'wd-pass',
+					value: this.#webdavPass,
+					oninput: (e: Event) => (this.#webdavPass = (e.target as HTMLInputElement).value)
+				})
+			)
 		);
 		// A picked provider may carry guidance and a sign-up link (no account yet).
 		if (picked?.help) {
@@ -729,14 +747,16 @@ export class SelfstoreConnectElement extends FlowWidget {
 			get: () => string,
 			set: (v: string) => void
 		): HTMLElement =>
-			h('input', {
-				part: 'input',
-				type,
-				placeholder: this.t(label),
-				'data-keep': keep,
-				value: get(),
-				oninput: (e: Event) => set((e.target as HTMLInputElement).value)
-			});
+			this.labelled(
+				label,
+				h('input', {
+					part: 'input',
+					type,
+					'data-keep': keep,
+					value: get(),
+					oninput: (e: Event) => set((e.target as HTMLInputElement).value)
+				})
+			);
 		return [
 			field(
 				'url',
