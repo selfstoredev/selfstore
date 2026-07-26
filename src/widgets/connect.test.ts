@@ -167,6 +167,25 @@ describe('selfstore-connect: choosing', () => {
 		el.remove();
 	});
 
+	it('offers only what the browser can actually do on a built-in file target', async () => {
+		// Creating degrades to a download; opening an existing file has NO
+		// fallback. Where the browser cannot open a picker, that gesture must not
+		// be on screen at all - a button that answers nothing is worse than an
+		// absent one, because it makes the practitioner doubt their own click.
+		// (Custom connectors are exempt: they bring their own mechanism.)
+		const { host, engine } = makeHost();
+		await engine.init();
+		const el = mount();
+		el.store = host;
+		el.targets = { file: { create: true, open: true } };
+
+		await waitFor(() => q(el, '[part="card"][data-kind="file"]'));
+		expect(q(el, '[data-kind="file"] button[data-action="create"]')).not.toBeNull();
+		// jsdom has no showOpenFilePicker, like Firefox and Safari.
+		expect(q(el, '[data-kind="file"] button[data-action="open"]')).toBeNull();
+		el.remove();
+	});
+
 	it('an advanced destination renders as a discreet link, not a card', async () => {
 		const { host } = makeHost();
 		const el = mount();

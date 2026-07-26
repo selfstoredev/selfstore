@@ -51,6 +51,15 @@ export function isSupported(): boolean {
 	return !refused && typeof window !== 'undefined' && 'showSaveFilePicker' in window;
 }
 
+/** True when the browser can let the user point at an EXISTING file. Hosts must
+ *  gate that gesture on this: unlike creating, it has no download fallback, so
+ *  offering it where it cannot run leaves a button that answers nothing. The
+ *  refusal is shared with `isSupported` - a browser that refuses one picker
+ *  refuses the family. */
+export function isOpenSupported(): boolean {
+	return !refused && typeof window !== 'undefined' && 'showOpenFilePicker' in window;
+}
+
 /** Run a picker. Cancelling and refusing both mean "no file", but only a
  *  refusal says something about the browser - and it must not surface as an
  *  error, or the host reports a fault where it should offer another way. */

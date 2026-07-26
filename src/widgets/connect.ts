@@ -16,6 +16,7 @@
 
 import type { WebdavConfig } from '../persistence/targets/webdav';
 import type { S3Config } from '../persistence/targets/s3';
+import { isOpenSupported } from '../persistence/targets/file';
 import {
 	connectFlow,
 	type ConnectFlow,
@@ -529,7 +530,10 @@ export class SelfstoreConnectElement extends FlowWidget {
 		// gesture needs the browser's open picker; without it only new remains.
 		const fileSpec = kind === 'file' ? this.#targets?.file : null;
 		if (fileSpec && typeof fileSpec === 'object') {
-			const openSupported = typeof window !== 'undefined' && 'showOpenFilePicker' in window;
+			// Asked to the target, not to `window`: a browser can ship the picker and
+			// refuse to open it, and only the target remembers that refusal. Testing
+			// presence here left a button that answered nothing, forever.
+			const openSupported = isOpenSupported();
 			const actions = h('div', { part: 'row' });
 			if (fileSpec.create != null) {
 				actions.append(

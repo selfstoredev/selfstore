@@ -6,6 +6,15 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [1.6.2] - 2026-07-26
 
+### Added
+
+- `fileTarget.isOpenSupported()`: whether this browser can let the user point at
+  an EXISTING file. Creating a backup degrades to a download when the picker is
+  missing, but adopting an existing one has no fallback, so hosts need to gate
+  that gesture separately. `<selfstore-connect>` now uses it instead of testing
+  `window` directly, and stops rendering the "open" button on a browser that has
+  refused the picker - it used to leave a button that answered nothing.
+
 ### Fixed
 
 - A browser that ships the file picker and then refuses to open it no longer
