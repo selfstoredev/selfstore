@@ -4,6 +4,27 @@ All notable changes to selfstore are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.6.6] - 2026-07-26
+
+### Added
+
+- `storageAdvice()`: whether this browser will keep the local store, and the one
+  gesture that changes it. Safari erases script-writable storage after seven
+  days of browser use without interaction with the site - it does not
+  inconvenience a local-first app, it deletes it. Installing to the Dock or Home
+  Screen switches the store to persistent mode, which WebKit exempts from its
+  eviction triggers. Reported as an advisory, never a guarantee: WebKit does not
+  document that this neutralises the inactivity rule by name. The library ships
+  no copy - the host writes the sentence.
+
+### Fixed
+
+- `markDownloaded()` records WHEN. A download is the save on a browser that
+  cannot hold a file, so `state.lastSavedAt` moves with it and a host can say
+  "saved two hours ago" instead of a bare state word. Every host had to keep its
+  own memo of the last export, and one of them kept it in memory - telling the
+  user, the next morning, that they had never saved anything.
+
 ## [1.6.5] - 2026-07-26
 
 ### Added

@@ -2338,6 +2338,14 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 
 		markDownloaded() {
 			pendingDownload = false;
+			// A download IS the save on a browser that cannot hold a file: recording
+			// when it happened is what lets a host say "saved 2 hours ago" instead of
+			// a bare state word. Without it, every host had to keep its own memo of
+			// the last export - and one of them found out the hard way that a memo
+			// living in memory tells the practitioner, the next morning, that he has
+			// never saved anything.
+			lastSavedAt = Date.now();
+			void kv.set(KEY.lastSavedAt, lastSavedAt).catch(() => undefined);
 			notify();
 		},
 
