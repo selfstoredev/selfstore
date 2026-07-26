@@ -103,7 +103,8 @@ import {
 	connect as fileConnect,
 	fromSession as fileFromSession,
 	isSupported as fileIsSupported,
-	isOpenSupported as fileIsOpenSupported
+	isOpenSupported as fileIsOpenSupported,
+	openExisting as fileOpenExisting
 } from '../persistence/targets/file';
 import {
 	connect as webdavConnect,
@@ -129,7 +130,11 @@ export const fileTarget = {
 	connect: fileConnect,
 	fromSession: fileFromSession,
 	isSupported: fileIsSupported,
-	isOpenSupported: fileIsOpenSupported
+	isOpenSupported: fileIsOpenSupported,
+	/** Let the user point at an EXISTING backup file and adopt it as the
+	 *  destination. Gate on isOpenSupported(): unlike creating, this has no
+	 *  download fallback. */
+	openExisting: fileOpenExisting
 };
 
 /** WebDAV destination (Nextcloud, ownCloud, any server the user controls), plus
