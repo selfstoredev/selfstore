@@ -146,6 +146,10 @@ input[part~='input'] {
 	box-sizing: border-box;
 }
 input[part~='input']:focus { outline: 2px solid var(--_accent); outline-offset: 1px; }
+/* A field that keeps its name visible above the box, placeholders being hints
+   and not labels. */
+label[part~='labelled'] { display: flex; flex-direction: column; gap: 0.2rem; width: 100%; }
+label[part~='labelled'] [part~='label'] { font-size: 0.85em; color: var(--_muted); }
 /* A text input with a trailing button (the password eye) tucked inside it. */
 [part~='field'] { position: relative; display: flex; align-items: center; width: 100%; }
 [part~='field'] input[part~='input'] { padding-right: 2.4rem; }
