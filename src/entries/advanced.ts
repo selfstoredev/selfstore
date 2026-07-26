@@ -52,6 +52,9 @@ export {
 	type StatusAction
 } from '../persistence/status';
 
+// --- Will this browser keep the data, and what can the user do about it ---
+export { storageAdvice, type StorageAdvice, type StorageRisk } from '../persistence/installation';
+
 // --- The target contract (write your own destination) ---
 export {
 	RESERVED_STORE_MODES,
