@@ -4,6 +4,19 @@ All notable changes to selfstore are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.6.4] - 2026-07-26
+
+### Added
+
+- `backup(...).encryptedWith(pw).alsoOpenedWith(secret)`: a second secret that
+  also opens the backup, typically a recovery code the user prints and puts
+  away. A password that lives only in one person's memory is the likeliest way
+  a local-first backup dies - nothing can reset it. The envelope has always held
+  several key slots; this exposes them where a backup is actually written. Each
+  secret wraps the same data key, so either one opens the file and neither can
+  be derived from the other. Reading is unchanged: `restore(...).withPassword()`
+  already tries every slot.
+
 ## [1.6.3] - 2026-07-26
 
 ### Fixed

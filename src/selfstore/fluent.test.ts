@@ -120,4 +120,55 @@ describe('zip-bomb guard', () => {
 		const bytes = await backup(sample()).as('a').toBytes();
 		await expect(unzip(bytes, 1_000_000, 8)).rejects.toMatchObject({ code: 'TOO_LARGE' });
 	});
+
+	it('opens with the recovery secret as well as with the password', async () => {
+		// A password that lives only in one person's memory is the likeliest way a
+		// local-first backup dies: nothing can reset it. A second slot around the
+		// same data key is the whole remedy, and reading needs no new API.
+		const bytes = await backup(sample())
+			.as('test-app', '7')
+			.encryptedWith('le-mot-de-passe')
+			.alsoOpenedWith('CODE-DE-SECOURS-2026')
+			.toBytes();
+
+		expect(
+			(await restore(bytes).withPassword('le-mot-de-passe').read()).collections.notes
+		).toHaveLength(1);
+		expect(
+			(await restore(bytes).withPassword('CODE-DE-SECOURS-2026').read()).collections.notes
+		).toHaveLength(1);
+	});
+
+	it('does not let one secret be read from the other, nor a third one in', async () => {
+		const bytes = await backup(sample())
+			.as('test-app')
+			.encryptedWith('le-mot-de-passe')
+			.alsoOpenedWith('CODE-DE-SECOURS-2026')
+			.toBytes();
+
+		await expect(restore(bytes).withPassword('autre-chose').read()).rejects.toMatchObject({
+			code: 'DECRYPT_FAILED'
+		});
+		// Deux slots, pas un de plus: le compte est verifiable sans dechiffrer.
+		const meta = await restore(bytes).meta();
+		expect(meta.keys).toHaveLength(2);
+	});
+
+	it('accepts several recovery secrets', async () => {
+		const bytes = await backup(sample())
+			.as('test-app')
+			.encryptedWith('pw')
+			.alsoOpenedWith('un')
+			.alsoOpenedWith('deux')
+			.toBytes();
+
+		expect(await restore(bytes).withPassword('deux').read()).toBeTruthy();
+		expect((await restore(bytes).meta()).keys).toHaveLength(3);
+	});
+
+	it('refuses an empty recovery secret rather than minting a slot for it', async () => {
+		expect(() => backup(sample()).as('a').encryptedWith('pw').alsoOpenedWith('')).toThrow(
+			TypeError
+		);
+	});
 });

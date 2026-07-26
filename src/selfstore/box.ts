@@ -173,7 +173,14 @@ export async function writeBox(
 		// The iv is minted before meta.json is serialized so it sits inside the
 		// AAD; seal and open then agree on the exact header bytes.
 		const dataKey = opts.envelope?.dataKey ?? crypto.getRandomValues(new Uint8Array(32));
-		const slots = opts.envelope?.slots ?? [await mintSlot(opts.password!, dataKey)];
+		// Every extra secret gets its own slot around the SAME data key: either
+		// one opens the file, and neither can be derived from the other. A rewrite
+		// (`envelope`) already carries the slot table, so extras only apply when
+		// minting a fresh envelope.
+		const slots = opts.envelope?.slots ?? [
+			await mintSlot(opts.password!, dataKey),
+			...(await Promise.all((opts.extraSecrets ?? []).map((s) => mintSlot(s, dataKey))))
+		];
 		if (slots.length === 0 || slots.length > MAX_KEY_SLOTS) {
 			throw new TypeError(`writeBox(): between 1 and ${MAX_KEY_SLOTS} password slots.`);
 		}
