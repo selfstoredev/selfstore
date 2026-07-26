@@ -410,13 +410,16 @@ export async function selfstore<
 			return connectTarget(target, opts);
 		},
 		async connectFile(opts?: { password?: string }): Promise<ConnectOutcome> {
-			if (!fileIsSupported()) {
-				await store.setManualFile();
-				return 'manual';
+			// Asked twice on purpose: the first call answers from what the browser
+			// exposes, the second from what it did when actually asked. A browser
+			// that ships the picker and then refuses it only tells us so here.
+			if (fileIsSupported()) {
+				const target = await fileConnect({ kv: cache.kv, fileName: backupName });
+				if (target) return connectTarget(target, opts);
+				if (fileIsSupported()) return 'cancelled';
 			}
-			const target = await fileConnect({ kv: cache.kv, fileName: backupName });
-			if (!target) return 'cancelled';
-			return connectTarget(target, opts);
+			await store.setManualFile();
+			return 'manual';
 		},
 		async connectWebdav(
 			config: WebdavConfig,
