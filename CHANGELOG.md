@@ -4,6 +4,30 @@ All notable changes to selfstore are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.6.1] - 2026-07-26
+
+### Fixed
+
+- `backup(...).toDisk()` asks WHERE before it encrypts. The save dialog needs
+  the transient user activation of the click that led to it, and building an
+  encrypted backup outlives that window - Argon2id is deliberately slow. So the
+  browser refused the dialog, `saveToDisk` read the refusal as "no picker here"
+  and fell through to a download: the user clicked "save", chose nothing, and
+  found a file in their downloads folder instead of where they meant to put it.
+  Asking first fixes it, and a cancelled dialog now also skips building the
+  backup at all rather than encrypting for nothing.
+- A picker that refuses for any reason other than cancellation is no longer
+  confused with a cancellation: the first still falls back to a download (the
+  backup must reach the disk somehow), the second reports false and writes
+  nothing.
+
+### Tests
+
+- The order is locked down: the dialog opens before the blob is built, and a
+  cancellation builds no blob at all. Both would pass silently under the old
+  order, which is why they exist. Coverage ratchet raised to
+  81.8 / 75.95 / 76.6 / 84.7.
+
 ## [1.6.0] - 2026-07-25
 
 ### Changed

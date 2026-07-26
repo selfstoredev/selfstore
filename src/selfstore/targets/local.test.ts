@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach } from 'vitest';
-import { saveToDisk } from './local';
+import { pickSaveHandle, saveToDisk } from './local';
+import { backup } from '../index';
 
 /**
  * The return value is the whole point: a host that records "backed up today"
@@ -52,5 +53,64 @@ describe('saveToDisk', () => {
 
 	it('reports the write on the plain download path', async () => {
 		await expect(saveToDisk(new Blob(['x']), 'a.zip')).resolves.toBe(true);
+	});
+
+	it('treats a refused picker as no picker, not as a cancellation', async () => {
+		// A browser that refuses for lack of user activation must not be read as
+		// "the user said no": the backup still has to reach the disk somehow.
+		picker(() => {
+			throw new DOMException('Must be handling a user gesture', 'SecurityError');
+		});
+		await expect(pickSaveHandle('a.zip')).resolves.toBeNull();
+	});
+
+	it('reports a cancellation distinctly, so no download follows it', async () => {
+		picker(() => {
+			throw new DOMException('cancelled', 'AbortError');
+		});
+		await expect(pickSaveHandle('a.zip')).resolves.toBe('CANCELLED');
+	});
+});
+
+describe('the order of the save dialog', () => {
+	it('asks WHERE before building the blob', async () => {
+		// The whole point: the dialog needs the click's transient activation, and
+		// building an encrypted backup outlives it. If this order ever flips back,
+		// browsers refuse the dialog and silently download instead.
+		const ordre: string[] = [];
+		picker(() => {
+			ordre.push('dialogue');
+			return {
+				createWritable: async () => ({
+					write: async () => void ordre.push('ecriture'),
+					close: async () => undefined
+				})
+			};
+		});
+
+		const draft = backup({ collections: { notes: [{ id: 'n1' }] }, files: [] }).as('ordre-test');
+		const original = draft.toBlob.bind(draft);
+		draft.toBlob = async () => {
+			ordre.push('blob');
+			return original();
+		};
+
+		await expect(draft.toDisk('a.zip')).resolves.toBe(true);
+		expect(ordre).toEqual(['dialogue', 'blob', 'ecriture']);
+	});
+
+	it('does not build the blob at all when the dialog is cancelled', async () => {
+		const ordre: string[] = [];
+		picker(() => {
+			throw new DOMException('cancelled', 'AbortError');
+		});
+		const draft = backup({ collections: { notes: [{ id: 'n1' }] }, files: [] }).as('ordre-test');
+		draft.toBlob = async () => {
+			ordre.push('blob');
+			return new Blob([]);
+		};
+
+		await expect(draft.toDisk('a.zip')).resolves.toBe(false);
+		expect(ordre).toEqual([]);
 	});
 });

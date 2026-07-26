@@ -63,13 +63,26 @@ export class BackupBuilder {
 	/** Save the backup to disk (File System Access API, else a download).
 	 *  Browser-only terminal; defaults to `<app>-<date>.zip`. False when the
 	 *  user closed the save dialog: nothing was written, so do not tell them
-	 *  they have a backup. */
+	 *  they have a backup.
+	 *
+	 *  Asks WHERE first, encrypts after. The save dialog needs the transient
+	 *  activation of the click that led here, and building an encrypted backup
+	 *  outlives it (Argon2id is deliberately slow): encrypting first made the
+	 *  browser refuse the dialog and silently download instead, turning a file
+	 *  the user chose into one they have to go and find. */
 	async toDisk(filename?: string): Promise<boolean> {
-		const blob = await this.toBlob();
 		const name =
 			filename ?? `${this.opts.app}-${new Date().toISOString().slice(0, 10)}${BACKUP_EXTENSION}`;
-		const { saveToDisk } = await import('./targets/local');
-		return saveToDisk(blob, name);
+		const { pickSaveHandle, writeToHandle, downloadBlob } = await import('./targets/local');
+		const cible = await pickSaveHandle(name);
+		if (cible === 'CANCELLED') return false;
+		const blob = await this.toBlob();
+		if (cible) {
+			await writeToHandle(cible.handle, blob);
+			return true;
+		}
+		downloadBlob(blob, name);
+		return true;
 	}
 }
 
