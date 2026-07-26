@@ -65,9 +65,13 @@ export function deriveStatus(input: StatusInput): StatusDescriptor {
 	}
 
 	if (input.targetKind === 'file-manual' && input.pendingDownload) {
+		// A warning, not information: what has been typed since the last export
+		// exists nowhere but this browser. 'info' rendered as a calm pill next to a
+		// button asking for a gesture - the colour said everything was fine while
+		// the button said otherwise.
 		return {
 			state: 'pending-download',
-			severity: 'info',
+			severity: 'warn',
 			actionable: true,
 			action: 'download',
 			labelKey: 'status.pendingDownload'

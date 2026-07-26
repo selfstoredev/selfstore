@@ -42,10 +42,15 @@ describe('deriveStatus', () => {
 		expect(s.action).toBe('choose-destination');
 	});
 
-	it('degraded file mode surfaces a pending download', () => {
+	it('degraded file mode surfaces a pending download, and warns', () => {
+		// The severity drives the colour of a pill. As 'info' it rendered calm next
+		// to a button asking for a gesture: the colour said all was well while the
+		// button said otherwise. What has been typed since the last export exists
+		// nowhere but this browser.
 		const s = deriveStatus({ ...base, targetKind: 'file-manual', pendingDownload: true });
 		expect(s.state).toBe('pending-download');
 		expect(s.action).toBe('download');
+		expect(s.severity).toBe('warn');
 	});
 
 	it('a connected, idle durable home is ok', () => {

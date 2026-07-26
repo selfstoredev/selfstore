@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach } from 'vitest';
-import { pickSaveHandle, saveToDisk } from './local';
+import { pickSaveHandle, saveToDisk, datedName } from './local';
 import { backup } from '../index';
 
 /**
@@ -112,5 +112,33 @@ describe('the order of the save dialog', () => {
 
 		await expect(draft.toDisk('a.zip')).resolves.toBe(false);
 		expect(ordre).toEqual([]);
+	});
+});
+
+/**
+ * The dated name exists for one reason: a download never replaces anything.
+ * The browser appends " (1)", " (2)" whatever we do, and no web API can stop
+ * it - so the pile may as well be readable.
+ */
+describe('datedName', () => {
+	const quand = new Date(2026, 6, 26, 18, 42);
+
+	it('stamps before the extension, to the minute', () => {
+		expect(datedName('fidalo.zip', quand)).toBe('fidalo-2026-07-26-18h42.zip');
+	});
+
+	it('pads so the names sort in the order they were written', () => {
+		// Without padding, "9h5" sorts after "10h30" and the pile stops being a
+		// timeline - which is the only thing it had going for it.
+		expect(datedName('a.zip', new Date(2026, 0, 3, 9, 5))).toBe('a-2026-01-03-09h05.zip');
+	});
+
+	it('handles a name without extension, and a dotfile', () => {
+		expect(datedName('sauvegarde', quand)).toBe('sauvegarde-2026-07-26-18h42');
+		expect(datedName('.hidden', quand)).toBe('.hidden-2026-07-26-18h42');
+	});
+
+	it('keeps a multi-dot name intact but for the last segment', () => {
+		expect(datedName('mon.cabinet.zip', quand)).toBe('mon.cabinet-2026-07-26-18h42.zip');
 	});
 });
