@@ -5,7 +5,7 @@
  * the facade, and the data staying alive across a reopen.
  */
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { selfstore, type SimpleStore } from './simple';
 import { memoryCache } from '../persistence/cache';
 import type { BackupTarget } from '../persistence/target';
@@ -241,6 +241,27 @@ describe('selfstore() - the simple store', () => {
 		const roundTripped = await restore(await store.exportBackup()).read();
 		expect(roundTripped.files).toHaveLength(1);
 		expect(roundTripped.files[0].name).toBe('photo.bin');
+	});
+
+	it('answers manual when the browser ships a file picker and refuses it', async () => {
+		// The presence check cannot tell a working picker from a decorative one,
+		// so connectFile asks the browser twice: once from what it exposes, once
+		// from how it behaved. Without the second question this call rejects, and
+		// creating a vault dies on an error the practitioner cannot act on.
+		vi.resetModules();
+		const picker = vi.fn().mockRejectedValue(new DOMException('', 'NotAllowedError'));
+		vi.stubGlobal('window', { showSaveFilePicker: picker });
+		const { selfstore: freshSelfstore } = await import('./simple');
+
+		const store = await freshSelfstore('picker-refused', { cache: memoryCache() });
+		try {
+			expect(await store.connectFile()).toBe('manual');
+			expect(picker).toHaveBeenCalled();
+			expect(store.state.targetKind).toBe('file-manual');
+		} finally {
+			store.dispose();
+			vi.unstubAllGlobals();
+		}
 	});
 
 	it('exposes the headless status and the typed error', async () => {

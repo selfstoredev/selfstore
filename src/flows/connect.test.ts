@@ -3,7 +3,7 @@
  * rule; the fixtures replay the situation that used to break it.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createLocalStore } from '../persistence/store';
 import type { CachedFile, KV, LocalCache } from '../persistence/cache';
 import type { BackupTarget } from '../persistence/target';
@@ -615,6 +615,51 @@ describe('connectFlow: degraded and form modes', () => {
 		const s = await until(flow, (x) => x.step === 'connected');
 		expect(s.outcome).toBe('manual');
 		expect(engine.state.targetKind).toBe('file-manual');
+	});
+
+	it('degrades the same way when the picker exists and refuses to open', async () => {
+		// A browser can ship the API and throw on call. Detection cannot see that;
+		// only the attempt can. The practitioner must still land somewhere that
+		// works, and never on an error message about their own browser.
+		vi.resetModules();
+		const picker = vi.fn().mockRejectedValue(new DOMException('', 'NotAllowedError'));
+		vi.stubGlobal('window', { showSaveFilePicker: picker });
+		const { connectFlow: freshConnectFlow } = await import('./connect');
+		const { host, engine } = makeHost();
+		await engine.init();
+
+		const flow = freshConnectFlow(host, { file: true });
+		flow.choose('file');
+
+		const s = await until(flow, (x) => x.step === 'connected');
+		// Called: the flow believed the browser and tried, which is the only way
+		// to reach the refusal. Without this the test would also pass on a stub
+		// that never applied, through the "API missing" path.
+		expect(picker).toHaveBeenCalled();
+		expect(s.outcome).toBe('manual');
+		expect(engine.state.targetKind).toBe('file-manual');
+		vi.unstubAllGlobals();
+	});
+
+	it('sends a cancelled picker back to the offer, not to download mode', async () => {
+		// Same null answer, opposite meaning: the file mode still works here, and
+		// deciding otherwise would take it away from every Chrome user who
+		// changed their mind once.
+		vi.resetModules();
+		vi.stubGlobal('window', {
+			showSaveFilePicker: vi.fn().mockRejectedValue(new DOMException('', 'AbortError'))
+		});
+		const { connectFlow: freshConnectFlow } = await import('./connect');
+		const { host, engine } = makeHost();
+		await engine.init();
+
+		const flow = freshConnectFlow(host, { file: true });
+		flow.choose('file');
+
+		const s = await until(flow, (x) => x.step === 'choose');
+		expect(s.error).toBeNull();
+		expect(engine.state.targetKind).not.toBe('file-manual');
+		vi.unstubAllGlobals();
 	});
 });
 

@@ -4,6 +4,33 @@ All notable changes to selfstore are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.6.2] - 2026-07-26
+
+### Fixed
+
+- A browser that ships the file picker and then refuses to open it no longer
+  produces an error the user cannot act on. Some browsers expose
+  `showSaveFilePicker` and throw on call unless a flag is turned on, so every
+  presence check returns a false positive: the host offered a file destination,
+  the click threw, and the connect flow reported a failure. Presence is not
+  capability, and the call is the only honest probe - so `isSupported()` now
+  answers false once a picker has refused, and both `connectFile()` and the
+  connect flow re-ask after a null answer, landing on the same
+  download-on-demand mode as a browser without the API. A cancelled dialog is
+  untouched: it still means the person changed their mind, not that the browser
+  cannot do it.
+- `openExisting()` no longer throws on a refused picker either. A permission
+  denied on one chosen file is kept apart from a refused picker: the first says
+  nothing about the browser, which has just proved that it opens.
+
+### Tests
+
+- The distinction is pinned on both paths: refused degrades to manual, cancelled
+  returns to the offer with no error. Each asserts the picker was actually
+  called, so it cannot pass through the "API missing" branch instead. First
+  tests on `connectFile()`, which had none. Coverage ratchet raised to
+  82.4 / 76.5 / 77.1 / 85.2.
+
 ## [1.6.1] - 2026-07-26
 
 ### Fixed

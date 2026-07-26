@@ -286,6 +286,22 @@ export function connectFlow(
 		return () => webdavConnect({ kv: host.kv, config });
 	}
 
+	/** No picker on this browser: download-on-demand instead of a dead button. */
+	function degradeToManual(kind: ConnectKind): void {
+		const gen = ++generation;
+		m.set({ step: 'authorizing', kind, busy: true, error: null });
+		void host.engine
+			.setManualFile()
+			.then(() => {
+				if (gen !== generation) return;
+				m.set({ step: 'connected', outcome: 'manual', busy: false });
+			})
+			.catch((e) => {
+				if (gen !== generation) return;
+				fail(e);
+			});
+	}
+
 	/** After the target is in hand: inspect, then route to password / conflict /
 	 *  attach. Everything here is network - deadline-bounded, generation-checked. */
 	async function inspectAndRoute(gen: number, t: BackupTarget): Promise<void> {
@@ -388,21 +404,9 @@ export function connectFlow(
 				(typeof targets.file === 'object' &&
 					(targets.file as { create?: unknown }).create !== undefined &&
 					typeof (targets.file as { create?: unknown }).create !== 'function');
-			if (kind === 'file' && variant === 'create' && builtinCreate && !fileIsSupported()) {
-				// No picker on this browser: degrade to download-on-demand instead of
-				// a dead button.
-				const gen = ++generation;
-				m.set({ step: 'authorizing', kind, busy: true, error: null });
-				void host.engine
-					.setManualFile()
-					.then(() => {
-						if (gen !== generation) return;
-						m.set({ step: 'connected', outcome: 'manual', busy: false });
-					})
-					.catch((e) => {
-						if (gen !== generation) return;
-						fail(e);
-					});
+			const canDegrade = kind === 'file' && variant === 'create' && builtinCreate;
+			if (canDegrade && !fileIsSupported()) {
+				degradeToManual(kind);
 				return;
 			}
 			const gen = ++generation;
@@ -413,6 +417,14 @@ export function connectFlow(
 				.then(async (t) => {
 					if (gen !== generation) return;
 					if (!t) {
+						// The picker was there, and refused: this browser has no file
+						// mode, we just could not know before asking. Same landing as
+						// a browser without the API - the offer must not send the
+						// practitioner back to a button that will refuse again.
+						if (canDegrade && !fileIsSupported()) {
+							degradeToManual(kind);
+							return;
+						}
 						// Drive/file/custom answer null for a cancelled popup or picker:
 						// not an error, no message. A FIXED webdav/s3 config answering
 						// null means the server did not: that one is a retryable error.

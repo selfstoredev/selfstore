@@ -38,9 +38,30 @@ export interface FileConnectOptions {
 	fileName: string;
 }
 
-/** True when the browser supports picking a re-writable file (Chromium). */
+/** Set once a picker that EXISTS has refused to open. Presence is not
+ *  capability: some browsers ship the methods and throw on call unless a flag
+ *  is turned on, so a host that trusts `'showSaveFilePicker' in window` offers
+ *  a file mode that can never work, and the button looks broken. The attempt is
+ *  the only honest probe there is - it costs one click, once. */
+let refused = false;
+
+/** True when the browser supports picking a re-writable file (Chromium), and
+ *  has not already refused to open one in this session. */
 export function isSupported(): boolean {
-	return typeof window !== 'undefined' && 'showSaveFilePicker' in window;
+	return !refused && typeof window !== 'undefined' && 'showSaveFilePicker' in window;
+}
+
+/** Run a picker. Cancelling and refusing both mean "no file", but only a
+ *  refusal says something about the browser - and it must not surface as an
+ *  error, or the host reports a fault where it should offer another way. */
+async function ask<T>(open: () => Promise<T>): Promise<T | null> {
+	try {
+		return await open();
+	} catch (e) {
+		if (e instanceof DOMException && e.name === 'AbortError') return null; // user cancelled
+		refused = true;
+		return null;
+	}
 }
 
 /** A revoked/denied file permission is a genuine loss of access: the store must
@@ -94,21 +115,20 @@ function fromHandle(handle: FileHandle, kv: KV): BackupTarget {
 }
 
 /** Prompt the user to choose/create the backup file. Persists the handle for
- *  next sessions. Returns the target, or null if cancelled. */
+ *  next sessions. Returns the target, or null if cancelled - or if the browser
+ *  refused to open a picker at all, which `isSupported()` then reports. */
 export async function connect(opts: FileConnectOptions): Promise<BackupTarget | null> {
 	const picker = (window as unknown as PickerWindow).showSaveFilePicker;
 	if (!picker) return null;
-	try {
-		const handle = await picker({
+	const handle = await ask(() =>
+		picker({
 			suggestedName: opts.fileName,
 			types: [{ description: 'Backup', accept: { 'application/zip': ['.zip'] } }]
-		});
-		await opts.kv.set(HANDLE_KEY, handle);
-		return fromHandle(handle, opts.kv);
-	} catch (e) {
-		if (e instanceof DOMException && e.name === 'AbortError') return null; // user cancelled
-		throw e;
-	}
+		})
+	);
+	if (!handle) return null;
+	await opts.kv.set(HANDLE_KEY, handle);
+	return fromHandle(handle, opts.kv);
 }
 
 /** Prompt the user to pick an EXISTING backup file and adopt it as the
@@ -118,19 +138,20 @@ export async function connect(opts: FileConnectOptions): Promise<BackupTarget | 
 export async function openExisting(opts: { kv: KV }): Promise<BackupTarget | null> {
 	const picker = (window as unknown as PickerWindow).showOpenFilePicker;
 	if (!picker) return null;
-	try {
-		const [handle] = await picker({
+	const picked = await ask(() =>
+		picker({
 			multiple: false,
 			types: [{ description: 'Backup', accept: { 'application/zip': ['.zip'] } }]
-		});
-		if (!handle) return null;
-		if ((await handle.requestPermission({ mode: 'readwrite' })) !== 'granted') return null;
-		await opts.kv.set(HANDLE_KEY, handle);
-		return fromHandle(handle, opts.kv);
-	} catch (e) {
-		if (e instanceof DOMException && e.name === 'AbortError') return null; // user cancelled
-		throw e;
-	}
+		})
+	);
+	const handle = picked?.[0];
+	if (!handle) return null;
+	// Outside `ask`: a permission refusal here is about THIS file, not about the
+	// browser. Marking the picker unsupported for it would strip the file mode
+	// away from a browser that has just proved it works.
+	if ((await handle.requestPermission({ mode: 'readwrite' })) !== 'granted') return null;
+	await opts.kv.set(HANDLE_KEY, handle);
+	return fromHandle(handle, opts.kv);
 }
 
 /** Rebuild the target from the handle persisted in a past session, or null. */

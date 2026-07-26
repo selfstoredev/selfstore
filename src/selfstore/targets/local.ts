@@ -78,10 +78,10 @@ export function downloadBlob(blob: Blob, filename: string): void {
  * that blob is an encrypted backup, prefer asking first: see pickSaveHandle.
  */
 export async function saveToDisk(blob: Blob, filename: string): Promise<boolean> {
-	const cible = await pickSaveHandle(filename);
-	if (cible === 'CANCELLED') return false;
-	if (cible) {
-		await writeToHandle(cible.handle, blob);
+	const picked = await pickSaveHandle(filename);
+	if (picked === 'CANCELLED') return false;
+	if (picked) {
+		await writeToHandle(picked.handle, blob);
 		return true;
 	}
 	downloadBlob(blob, filename);
