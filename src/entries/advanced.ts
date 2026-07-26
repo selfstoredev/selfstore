@@ -185,4 +185,4 @@ export type {
 } from '../persistence/targets/webdav';
 export type { S3Config, S3ConnectOptions } from '../persistence/targets/s3';
 export { gisDriveAuth } from '../persistence/targets/drive-auth-gis';
-export { saveToDisk, pickFromDisk } from '../selfstore/targets/local';
+export { saveToDisk, pickFromDisk, datedName } from '../selfstore/targets/local';

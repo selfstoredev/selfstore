@@ -84,8 +84,30 @@ export async function saveToDisk(blob: Blob, filename: string): Promise<boolean>
 		await writeToHandle(picked.handle, blob);
 		return true;
 	}
-	downloadBlob(blob, filename);
+	downloadBlob(blob, datedName(filename));
 	return true;
+}
+
+/**
+ * The same name, stamped to the minute.
+ *
+ * Used only on the download path, and the reasoning is worth stating because it
+ * looks backwards. Through a handle the app rewrites the SAME file, so the name
+ * must stay stable. A download never replaces anything: the browser appends
+ * " (1)", " (2)", and no web API can stop it. The pile forms either way - so it
+ * may as well be readable. A dated series says at a glance which one is the
+ * latest and lets the user step back to an earlier one; "fidalo (7).zip" says
+ * neither when, nor in what order.
+ */
+export function datedName(filename: string, when = new Date()): string {
+	const deux = (n: number) => String(n).padStart(2, '0');
+	const stamp =
+		`${when.getFullYear()}-${deux(when.getMonth() + 1)}-${deux(when.getDate())}` +
+		`-${deux(when.getHours())}h${deux(when.getMinutes())}`;
+	const dot = filename.lastIndexOf('.');
+	return dot <= 0
+		? `${filename}-${stamp}`
+		: `${filename.slice(0, dot)}-${stamp}${filename.slice(dot)}`;
 }
 
 /** Prompt the user to pick a backup file from disk. Resolves null if cancelled. */

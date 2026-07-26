@@ -4,6 +4,21 @@ All notable changes to selfstore are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.6.7] - 2026-07-26
+
+### Fixed
+
+- A backup waiting to be downloaded is a WARNING, not information. The severity
+  drives the colour of a pill, and `info` rendered calm next to a button asking
+  for a gesture: the colour said all was well while the button said otherwise.
+  What has been typed since the last export exists nowhere but that browser.
+- `saveToDisk()` dates the name when it falls back to a download. Through a
+  handle the app rewrites the same file, so the name stays stable; a download
+  never replaces anything and the browser appends " (1)", " (2)" whatever we do.
+  The pile forms either way - dated to the minute, it says which one is the
+  latest and lets the user step back. `datedName()` is exported for hosts that
+  build their own names.
+
 ## [1.6.6] - 2026-07-26
 
 ### Added
