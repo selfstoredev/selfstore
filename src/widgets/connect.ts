@@ -149,7 +149,7 @@ const FR: WidgetLabels = {
 	'connect.cancel': 'Annuler',
 	'connect.retry': 'Réessayer',
 	'connect.password.title': 'Cette sauvegarde est protégée',
-	'connect.password.hint': 'Entrez son mot de passe pour l’ouvrir.',
+	'connect.password.hint': "Entrez son mot de passe pour l'ouvrir.",
 	'connect.password.placeholder': 'Mot de passe',
 	'connect.password.wrong': 'Mot de passe incorrect. Réessayez.',
 	'connect.password.submit': 'Ouvrir',
@@ -157,7 +157,7 @@ const FR: WidgetLabels = {
 	'connect.password.hide': 'Masquer le mot de passe',
 	'connect.password.forgot': 'Mot de passe oublié ?',
 	'connect.password.forgot.warn':
-		'Sans le mot de passe, cette sauvegarde ne peut pas être ouverte. Vous pouvez repartir d’une sauvegarde vide : l’ancienne sera perdue définitivement.',
+		"Sans le mot de passe, cette sauvegarde ne peut pas être ouverte. Vous pouvez repartir d'une sauvegarde vide : l'ancienne sera perdue définitivement.",
 	'connect.password.forgot.confirm': 'Remplacer la sauvegarde',
 	'connect.password.forgot.back': 'Retour',
 	'connect.conflict.title': 'Cette destination contient déjà une sauvegarde',
