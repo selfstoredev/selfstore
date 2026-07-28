@@ -8,14 +8,19 @@
 import type { FlowHost, StoreLike } from '../flows/connect';
 import { FlowWidget, h, put, type WidgetLabels } from './base';
 
+// The browser is never named as the PLACE the data lives. It is not one: it
+// holds a working copy that a cleared profile takes with it. So the state with
+// no destination names what is MISSING - nothing has been saved out - instead
+// of describing the browser as an address, which reads reassuring and is not.
 const EN: WidgetLabels = {
 	'status.ephemeral': 'Nothing is saved',
-	'status.cacheOnly': 'Only on this device',
+	'status.cacheOnly': 'Never saved anywhere yet',
 	'status.saving': 'Saving...',
-	'status.saved': 'Saved',
+	'status.saved': 'Saved to {label}, at every change',
 	'status.needsAttention': 'Reconnect to continue',
 	'status.locked': 'Locked',
 	'status.pendingDownload': 'Changes to download',
+	'status.saved.placeless': 'Saved',
 	'status.action.choose-destination': 'Choose a destination',
 	'status.action.download': 'Download',
 	'status.action.reconnect': 'Reconnect',
@@ -26,12 +31,13 @@ const EN: WidgetLabels = {
 // sauvegarde". One verb, one meaning: Exporter is always the portable copy.
 const FR: WidgetLabels = {
 	'status.ephemeral': "Rien n'est enregistré",
-	'status.cacheOnly': 'Sur cet appareil seulement',
+	'status.cacheOnly': "Vos données n'ont jamais été enregistrées ailleurs",
 	'status.saving': 'Enregistrement...',
-	'status.saved': 'Sauvegarde à jour',
+	'status.saved': 'Enregistré dans {label}, à chaque changement',
 	'status.needsAttention': 'Accès à retrouver',
 	'status.locked': 'Sauvegarde verrouillée',
 	'status.pendingDownload': 'Modifications à exporter',
+	'status.saved.placeless': 'Sauvegarde à jour',
 	'status.action.choose-destination': 'Choisir une sauvegarde',
 	'status.action.download': 'Exporter',
 	'status.action.reconnect': "Retrouver l'accès",
@@ -115,7 +121,18 @@ export class SelfstoreStatusElement extends FlowWidget {
 		const host = this.host();
 		if (!host) return; // inert until wired
 		const { status, targetKind, label } = host.engine.state;
-		const text = this.t(status.labelKey);
+		// The destination's own name is offered to the sentence. A pack that uses
+		// {label} says where in one line; one that does not is unaffected, and the
+		// name still appears on the sub-line below. A target can be attached and
+		// still have no name to give, so a sentence built around the place has a
+		// placeless twin - otherwise it would render the placeholder itself.
+		const sansLieu = (cle: string): string => {
+			const jumelle = `${cle}.placeless`;
+			const copie = this.t(jumelle);
+			// Pas de jumelle declaree: la cle de base ne parle deja pas du lieu.
+			return copie === jumelle ? this.t(cle) : copie;
+		};
+		const text = label ? this.t(status.labelKey, { label }) : sansLieu(status.labelKey);
 		const dot = h('span', {
 			part: `status-dot sev-${status.severity}`,
 			'aria-hidden': 'true'

@@ -403,8 +403,20 @@ export abstract class FlowWidget extends HTMLElement {
 		return this.packs()[tag.slice(0, 2).toLowerCase()] ?? {};
 	}
 
-	protected t(key: string): string {
-		return this.overrides[key] ?? this.localized()[key] ?? this.defaults()[key] ?? key;
+	/**
+	 * The copy for a key, with `{placeholders}` filled in.
+	 *
+	 * A status that cannot name WHERE it saved has to be read twice: once for the
+	 * state, once for the destination on another line. Interpolation lets a pack
+	 * write one sentence instead - and lets each language put the place where its
+	 * own grammar wants it, which a fixed "state, then label" layout cannot.
+	 * A placeholder with no value is left as written rather than blanked, so a
+	 * missing variable shows up instead of producing a sentence with a hole.
+	 */
+	protected t(key: string, vars?: Record<string, string | null | undefined>): string {
+		const copy = this.overrides[key] ?? this.localized()[key] ?? this.defaults()[key] ?? key;
+		if (!vars) return copy;
+		return copy.replace(/\{(\w+)\}/g, (whole, name: string) => vars[name] ?? whole);
 	}
 
 	/** A heading an empty-string label removes: labels = { 'share.title': '' }

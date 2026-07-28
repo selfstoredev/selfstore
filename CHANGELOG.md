@@ -4,6 +4,31 @@ All notable changes to selfstore are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.7.0] - 2026-07-28
+
+### Added
+
+- Widget copy takes `{placeholders}`, filled from the state. A status that
+  cannot name WHERE it saved has to be read twice - the state on one line, the
+  destination on another - and that split was imposed by the widget, not by the
+  language: every pack was forced into the same "state, then label" order. A
+  pack can now write one sentence and put the place where its own grammar wants
+  it. A key built around a place carries a `.placeless` twin for the case where a
+  target is attached but has no name to give - declared only where it is
+  needed, since a key that never mentions a place already answers, so the placeholder itself
+  can never reach the screen; an unknown placeholder is left visible rather than
+  blanked, because a hole in a sentence reads as a bug nobody can name, while
+  the key names it.
+
+### Changed
+
+- The status no longer describes the browser as the PLACE the data lives. It is
+  not one: it holds a working copy that a cleared profile takes with it, so
+  "only on this device" reads as an address and reassures about something that
+  has no durability. The state with no destination now names what is MISSING -
+  nothing has been saved out yet - and the saved state says where, by name.
+  Both stay overridable per key, as all widget copy is.
+
 ## [1.6.9] - 2026-07-26
 
 ### Added
