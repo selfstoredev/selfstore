@@ -249,4 +249,56 @@ describe('selfstore-gate', () => {
 		expect(slots).toEqual(['brand', 'extra', 'footer']);
 		el.remove();
 	});
+
+	// The point of the shipped packs: a French page writes no labels at all.
+	describe('shipped translations', () => {
+		it('speaks the page language with nothing passed', () => {
+			document.documentElement.lang = 'fr';
+			const { engine } = fakeEngine();
+			const el = mount(engine);
+			expect(q(el, '[part~="gate-title"]')!.textContent).toBe('Où enregistrer vos données ?');
+			el.remove();
+			document.documentElement.lang = '';
+		});
+
+		it('takes the closest lang, so one subtree can differ from the page', () => {
+			document.documentElement.lang = 'en';
+			const box = document.createElement('div');
+			box.setAttribute('lang', 'fr-CA');
+			document.body.append(box);
+			const { engine } = fakeEngine();
+			const el = document.createElement('selfstore-gate') as SelfstoreGateElement;
+			box.append(el);
+			el.targets = { file: true };
+			el.store = { engine, kv: {} as FlowHost['kv'], backupName: 'x.zip' };
+			expect(q(el, '[part~="gate-title"]')!.textContent).toBe('Où enregistrer vos données ?');
+			box.remove();
+			document.documentElement.lang = '';
+		});
+
+		it('lets an override beat the pack, key by key', () => {
+			document.documentElement.lang = 'fr';
+			const { engine } = fakeEngine();
+			// Labels are set before the store opens the gate: the frame is built
+			// once, so a host words its screen at setup, not mid-journey.
+			const el = document.createElement('selfstore-gate') as SelfstoreGateElement;
+			document.body.append(el);
+			el.labels = { 'gate.title': 'Votre coffre' };
+			el.targets = { file: true };
+			el.store = { engine, kv: {} as FlowHost['kv'], backupName: 'x.zip' };
+			expect(q(el, '[part~="gate-title"]')!.textContent).toBe('Votre coffre');
+			expect(q(el, '[part~="gate-hint"]')!.textContent).toContain('chiffrées sur cet appareil');
+			el.remove();
+			document.documentElement.lang = '';
+		});
+
+		it('falls back to English for a language it does not ship', () => {
+			document.documentElement.lang = 'de';
+			const { engine } = fakeEngine();
+			const el = mount(engine);
+			expect(q(el, '[part~="gate-title"]')!.textContent).toBe('Where should your data live?');
+			el.remove();
+			document.documentElement.lang = '';
+		});
+	});
 });

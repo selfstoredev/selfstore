@@ -33,6 +33,24 @@ const EN: WidgetLabels = {
 	'error.targetUnavailable': 'The invitation could not be read. Try again in a moment.'
 };
 
+const FR: WidgetLabels = {
+	'join.previewing': "Lecture de l'invitation...",
+	'join.title': 'Vous êtes invité',
+	'join.from': 'Partagé par {from}',
+	'join.level.read': 'Vous pourrez consulter.',
+	'join.level.write': 'Vous pourrez consulter et modifier.',
+	'join.accept': 'Rejoindre',
+	'join.joining': 'Connexion en cours...',
+	'join.joined': "C'est fait. Les données partagées se synchronisent sur cet appareil.",
+	'join.mismatch':
+		"Cet appareil suit déjà un autre partage. Quittez-le d'abord, ou utilisez un autre profil.",
+	'join.noInvite': 'Cette invitation a déjà servi, ou elle vise un autre compte.',
+	'join.switchAccount': 'Utiliser un autre compte',
+	'join.retry': 'Réessayer',
+	'error.generic': "Cela n'a pas fonctionné. Vérifiez la connexion et réessayez.",
+	'error.targetUnavailable': "L'invitation n'a pas pu être lue. Réessayez dans un instant."
+};
+
 export class SelfstoreJoinElement extends FlowWidget {
 	static get observedAttributes(): string[] {
 		return ['link', 'variant'];
@@ -46,6 +64,10 @@ export class SelfstoreJoinElement extends FlowWidget {
 
 	protected defaults(): WidgetLabels {
 		return EN;
+	}
+
+	protected packs(): Record<string, WidgetLabels> {
+		return { fr: FR };
 	}
 
 	get engine(): JoinEngine | null {

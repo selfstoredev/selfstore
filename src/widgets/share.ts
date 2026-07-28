@@ -35,6 +35,27 @@ const EN: WidgetLabels = {
 	'error.targetUnavailable': 'The share service did not answer. Try again in a moment.'
 };
 
+const FR: WidgetLabels = {
+	'share.title': 'Partage',
+	'share.create.read': 'Créer un lien de lecture',
+	'share.create.write': 'Créer un lien de modification',
+	'share.creating': 'Création...',
+	'share.level.read': 'Peut consulter',
+	'share.level.write': 'Peut modifier',
+	'share.copy': 'Copier',
+	'share.copied': 'Copié',
+	'share.revoke': 'Révoquer',
+	'share.members': 'Personnes ayant accès',
+	'share.member.you': 'vous',
+	'share.member.owner': 'propriétaire',
+	'share.remove': 'Retirer',
+	'share.stop': 'Arrêter le partage',
+	'share.empty': "Personne d'autre n'a accès pour le moment.",
+	'share.stale': 'Connexion instable : cette vue est peut-être en retard.',
+	'error.generic': "Cela n'a pas fonctionné. Vérifiez la connexion et réessayez.",
+	'error.targetUnavailable': 'Le service de partage ne répond pas. Réessayez dans un instant.'
+};
+
 /** A destructive action, offered to confirmAction before it runs: a row's
  *  revoke/remove, or 'stop' - ending the whole share. */
 export type ShareAction = { type: 'revoke' | 'remove'; id: string } | { type: 'stop' };
@@ -63,6 +84,10 @@ export class SelfstoreShareElement extends FlowWidget {
 
 	protected defaults(): WidgetLabels {
 		return EN;
+	}
+
+	protected packs(): Record<string, WidgetLabels> {
+		return { fr: FR };
 	}
 
 	/** The app-side transport of links and memberships (see ShareEngine). */

@@ -42,6 +42,16 @@ const EN: WidgetLabels = {
 	'gate.defer.note': 'Data kept only in this browser is lost if its storage is cleared.'
 };
 
+const FR: WidgetLabels = {
+	'gate.title': 'Où enregistrer vos données ?',
+	'gate.hint':
+		'Elles sont chiffrées sur cet appareil. Choisissez une sauvegarde : tout y sera enregistré automatiquement.',
+	'gate.fine': '',
+	'gate.defer': 'Plus tard - garder sur cet appareil seulement',
+	'gate.defer.note':
+		'Sans sauvegarde, les données disparaissent si le stockage de cet appareil est vidé.'
+};
+
 /** The overlay itself. The card is the query container the base styles expect,
  *  so the connect cards inside still react to their own width. */
 const GATE_STYLES = `
@@ -111,6 +121,10 @@ export class SelfstoreGateElement extends FlowWidget {
 
 	protected defaults(): WidgetLabels {
 		return EN;
+	}
+
+	protected packs(): Record<string, WidgetLabels> {
+		return { fr: FR };
 	}
 
 	/** The simple store (anything exposing `flowHost`), or a hand-built FlowHost. */
