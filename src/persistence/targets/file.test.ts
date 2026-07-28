@@ -24,10 +24,13 @@ function memKv(): KV {
 }
 
 /** A fresh copy of the module: the refusal it learns is remembered for the
- *  whole session, so tests must not inherit each other's browser. */
-async function freshModule(win: Record<string, unknown>) {
+ *  whole session, so tests must not inherit each other's browser. `gesture`
+ *  says whether the call happens inside a live user activation - the default,
+ *  since every picker a host opens properly does. */
+async function freshModule(win: Record<string, unknown>, gesture = true) {
 	vi.resetModules();
 	vi.stubGlobal('window', win);
+	vi.stubGlobal('navigator', { userActivation: { isActive: gesture } });
 	return import('./file');
 }
 
@@ -61,9 +64,12 @@ describe('file target: presence is not capability', () => {
 		expect(file.isSupported()).toBe(true);
 	});
 
-	it('does not condemn the browser when one file denies permission', async () => {
-		// Refusing to grant readwrite on THIS file says nothing about the picker,
-		// which has just proved it opens.
+	it('keeps the file the user pointed at even when readwrite is refused', async () => {
+		// The open picker consumes the activation a permission prompt needs, so
+		// this answer can be 'prompt' without anyone having been asked. Dropping
+		// the file here was the whole "I pick my file and nothing happens" bug:
+		// the host went back to its own screen, silently, unchanged. The file is
+		// adopted; a write that cannot happen raises the store's reconnect gate.
 		const handle = {
 			name: 'backup.zip',
 			requestPermission: vi.fn().mockResolvedValue('denied')
@@ -73,8 +79,27 @@ describe('file target: presence is not capability', () => {
 			showOpenFilePicker: vi.fn().mockResolvedValue([handle])
 		});
 
-		expect(await file.openExisting({ kv: memKv() })).toBeNull();
+		const target = await file.openExisting({ kv: memKv() });
+
+		expect(target?.label).toBe('backup.zip');
+		// Refusing to grant readwrite on THIS file says nothing about the picker,
+		// which has just proved it opens.
 		expect(file.isSupported()).toBe(true);
+	});
+
+	it('adopts the file even when no permission prompt was possible at all', async () => {
+		const handle = {
+			name: 'backup.zip',
+			requestPermission: vi
+				.fn()
+				.mockRejectedValue(new DOMException('Must be handling a user gesture', 'NotAllowedError'))
+		};
+		const file = await freshModule({
+			showSaveFilePicker: vi.fn(),
+			showOpenFilePicker: vi.fn().mockResolvedValue([handle])
+		});
+
+		expect((await file.openExisting({ kv: memKv() }))?.label).toBe('backup.zip');
 	});
 
 	it('reports no support when opening an existing file is refused', async () => {
@@ -85,6 +110,30 @@ describe('file target: presence is not capability', () => {
 
 		expect(await file.openExisting({ kv: memKv() })).toBeNull();
 		expect(file.isSupported()).toBe(false);
+	});
+
+	it('does not condemn the browser for a picker called outside a gesture', async () => {
+		// The exception is indistinguishable from a browser that ships the picker
+		// and refuses it - so the only honest reading is the one that also asks
+		// whether the browser was allowed to answer. Read as a refusal, a single
+		// mistimed call sent every later save down the manual download path on a
+		// Chrome that can hold a file perfectly well.
+		const file = await freshModule(
+			{
+				showSaveFilePicker: vi
+					.fn()
+					.mockRejectedValue(
+						new DOMException(
+							'Must be handling a user gesture to show a file picker.',
+							'SecurityError'
+						)
+					)
+			},
+			false
+		);
+
+		expect(await file.connect({ kv: memKv(), fileName: 'backup.zip' })).toBeNull();
+		expect(file.isSupported()).toBe(true); // ask again, from a real click
 	});
 
 	it('remembers the picked file for the next session', async () => {
