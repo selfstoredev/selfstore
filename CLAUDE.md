@@ -40,8 +40,14 @@ produce false timeouts. A timeout there is an environment signal, not a bug.
 - Backups written by any released version must keep reading, or the format
   gets a new numbered generation with an explicit CHANGELOG entry.
 - Every failure a consumer can hit carries a stable error code with an i18n
-  label key; never throw bare Error from a public path. The library ships
-  no user-facing copy.
+  label key; never throw bare Error from a public path. The STORE ships no
+  user-facing copy: it exposes keys, the host words them.
+- The WIDGETS are the exception, and deliberately so: a drop-in screen that
+  needs a translation table before it can be shown is not drop-in. They ship
+  their own copy (EN defaults plus a pack per language, colocated with the
+  widget so one key can read differently in two widgets), pick the page's
+  language on their own, and let a host override any key. Adding a widget
+  string means adding it to every pack in the same file.
 - No dead code. knip fails on unused files, exports and dependencies.
 - No copy-paste above the jscpd threshold: extract or reuse.
 - Complexity budget: sonarjs caps cognitive complexity per function.

@@ -22,6 +22,22 @@ const EN: WidgetLabels = {
 	'status.action.unlock': 'Unlock'
 };
 
+// A pill states a condition, never a possession: "Sauvegarde à jour", not "Ma
+// sauvegarde". One verb, one meaning: Exporter is always the portable copy.
+const FR: WidgetLabels = {
+	'status.ephemeral': "Rien n'est enregistré",
+	'status.cacheOnly': 'Sur cet appareil seulement',
+	'status.saving': 'Enregistrement...',
+	'status.saved': 'Sauvegarde à jour',
+	'status.needsAttention': 'Accès à retrouver',
+	'status.locked': 'Sauvegarde verrouillée',
+	'status.pendingDownload': 'Modifications à exporter',
+	'status.action.choose-destination': 'Choisir une sauvegarde',
+	'status.action.download': 'Exporter',
+	'status.action.reconnect': "Retrouver l'accès",
+	'status.action.unlock': 'Déverrouiller'
+};
+
 export class SelfstoreStatusElement extends FlowWidget {
 	static get observedAttributes(): string[] {
 		return ['variant'];
@@ -33,6 +49,10 @@ export class SelfstoreStatusElement extends FlowWidget {
 
 	protected defaults(): WidgetLabels {
 		return EN;
+	}
+
+	protected packs(): Record<string, WidgetLabels> {
+		return { fr: FR };
 	}
 
 	/** The simple store (anything exposing `flowHost`), or a hand-built FlowHost. */

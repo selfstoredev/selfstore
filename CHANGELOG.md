@@ -4,6 +4,25 @@ All notable changes to selfstore are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.6.9] - 2026-07-26
+
+### Added
+
+- The widgets now carry their own translations. Until now they shipped English
+  copy and a `labels` map, so any non-English app had to hand-write a table of
+  every string before it could show a screen - a drop-in element that needs
+  a translation file first is not drop-in, and each consuming app ended up
+  maintaining (and drifting on) its own wording. Each widget now ships a pack
+  per language beside its English defaults, and picks the right one from the
+  page: the nearest `lang` attribute, else `<html lang>`, else the browser.
+  A French app writes nothing at all. French ships first; the resolution order
+  is `labels` override, then the page's pack, then English, then the key, so
+  an existing host that passes a full map keeps exactly the copy it had, and a
+  host that overrides three keys gets those three and translated copy for the
+  rest. Packs live next to the widget that uses them, so one key ('the
+  destination did not answer', 'the share service did not answer') can read
+  differently where it means something different.
+
 ## [1.6.8] - 2026-07-26
 
 ### Added

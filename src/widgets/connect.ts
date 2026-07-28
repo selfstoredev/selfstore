@@ -115,6 +115,73 @@ const EN: WidgetLabels = {
 	'error.badFormat': 'This file does not look like a readable backup.'
 };
 
+// The lexicon this pack holds to: the durable destination is "la sauvegarde",
+// the live copy is "cet appareil" (never a place the user can pick), the
+// portable file is an "export". One verb, one meaning. The act that loses
+// nothing opens with "Tout garder"; the ones that overwrite open with
+// "Remplacer", so the first word alone says whether something is lost.
+const FR: WidgetLabels = {
+	'connect.title': 'Où enregistrer vos données ?',
+	'connect.recommended': 'Recommandé',
+	'connect.drive': 'Google Drive',
+	'connect.drive.sub': 'Disponible sur tous vos appareils',
+	'connect.file': 'Un fichier sur cet appareil',
+	'connect.file.sub': 'Hors ligne, le fichier reste chez vous',
+	'connect.file.new': 'Nouvelle sauvegarde',
+	'connect.file.open': 'Ouvrir un fichier existant',
+	'connect.webdav': 'Mon serveur (WebDAV)',
+	'connect.webdav.sub': 'Nextcloud, ownCloud, le vôtre',
+	'connect.s3': 'Mon bucket (S3)',
+	'connect.s3.sub': 'Amazon S3, R2, B2, MinIO',
+	'connect.server': 'Mon serveur',
+	'connect.server.sub': 'WebDAV ou un bucket S3 que vous contrôlez',
+	'connect.tab.webdav': 'WebDAV',
+	'connect.tab.s3': 'S3',
+	'connect.s3.endpoint': "URL du point d'accès",
+	'connect.s3.region': 'Région',
+	'connect.s3.bucket': 'Bucket',
+	'connect.s3.key': 'Chemin du fichier',
+	'connect.s3.accessKeyId': "Identifiant de la clé d'accès",
+	'connect.s3.secret': 'Clé secrète',
+	'connect.s3.submit': 'Connecter',
+	'connect.connecting': 'Connexion en cours...',
+	'connect.connecting.drive': "Autorisez l'accès dans la fenêtre Google.",
+	'connect.cancel': 'Annuler',
+	'connect.retry': 'Réessayer',
+	'connect.password.title': 'Cette sauvegarde est protégée',
+	'connect.password.hint': 'Entrez son mot de passe pour l’ouvrir.',
+	'connect.password.placeholder': 'Mot de passe',
+	'connect.password.wrong': 'Mot de passe incorrect. Réessayez.',
+	'connect.password.submit': 'Ouvrir',
+	'connect.password.show': 'Afficher le mot de passe',
+	'connect.password.hide': 'Masquer le mot de passe',
+	'connect.password.forgot': 'Mot de passe oublié ?',
+	'connect.password.forgot.warn':
+		'Sans le mot de passe, cette sauvegarde ne peut pas être ouverte. Vous pouvez repartir d’une sauvegarde vide : l’ancienne sera perdue définitivement.',
+	'connect.password.forgot.confirm': 'Remplacer la sauvegarde',
+	'connect.password.forgot.back': 'Retour',
+	'connect.conflict.title': 'Cette destination contient déjà une sauvegarde',
+	'connect.conflict.merge': 'Tout garder',
+	'connect.conflict.merge.sub': 'Réunir la sauvegarde et les données de cet appareil',
+	'connect.conflict.resume': 'Utiliser la sauvegarde',
+	'connect.conflict.resume.sub': 'Cet appareil adopte la sauvegarde existante',
+	'connect.conflict.replace': 'Remplacer la sauvegarde',
+	'connect.conflict.replace.sub': 'Les données de cet appareil écrasent la sauvegarde',
+	'connect.webdav.url': 'URL du serveur',
+	'connect.webdav.user': 'Identifiant',
+	'connect.webdav.password': 'Mot de passe',
+	'connect.webdav.submit': 'Connecter',
+	'connect.webdav.signup': 'Créer un compte',
+	'connect.webdav.help.more': 'Comment faire ?',
+	'connect.done': 'Connecté. Vos données sont enregistrées.',
+	'connect.done.manual': 'Mode fichier : exportez après chaque changement.',
+	'error.generic': "Cela n'a pas fonctionné. Vérifiez la connexion et réessayez.",
+	'error.targetUnavailable': 'La destination ne répond pas. Réessayez dans un instant.',
+	'error.authExpired': 'Accès expiré : reconnectez-vous pour continuer.',
+	'error.decryptFailed': "Cette sauvegarde n'a pas pu être ouverte avec ce mot de passe.",
+	'error.badFormat': 'Ce fichier ne ressemble pas à une sauvegarde lisible.'
+};
+
 // Two glyphs for the password eye: an open eye when the value is hidden (click
 // to reveal), a struck-through eye when it is shown (click to hide). Plain
 // stroke SVG, currentColor, so they inherit the host's text color like any icon.
@@ -162,6 +229,10 @@ export class SelfstoreConnectElement extends FlowWidget {
 
 	protected defaults(): WidgetLabels {
 		return EN;
+	}
+
+	protected packs(): Record<string, WidgetLabels> {
+		return { fr: FR };
 	}
 
 	/** The simple store (anything exposing `flowHost`), or a hand-built FlowHost. */

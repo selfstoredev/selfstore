@@ -363,6 +363,11 @@ export abstract class FlowWidget extends HTMLElement {
 
 	/** The widget's EN default strings; subclasses provide theirs. */
 	protected abstract defaults(): WidgetLabels;
+	/** Translations shipped with the widget, by language subtag ('fr'). A widget
+	 *  without any stays English until the host passes `labels`. */
+	protected packs(): Record<string, WidgetLabels> {
+		return {};
+	}
 	/** Build the current view into the given container. */
 	protected abstract view(into: HTMLElement): void;
 
@@ -385,8 +390,21 @@ export abstract class FlowWidget extends HTMLElement {
 		this.rerender();
 	}
 
+	/** The shipped translation for the page's language, if the widget has one.
+	 *  An explicit `lang` on the element (or on any ancestor) wins over the
+	 *  document's, which wins over the browser's, so a host that already sets
+	 *  `<html lang>` gets translated copy without writing a single label. */
+	private localized(): WidgetLabels {
+		const tag =
+			this.closest('[lang]')?.getAttribute('lang') ||
+			document.documentElement.lang ||
+			navigator.language ||
+			'';
+		return this.packs()[tag.slice(0, 2).toLowerCase()] ?? {};
+	}
+
 	protected t(key: string): string {
-		return this.overrides[key] ?? this.defaults()[key] ?? key;
+		return this.overrides[key] ?? this.localized()[key] ?? this.defaults()[key] ?? key;
 	}
 
 	/** A heading an empty-string label removes: labels = { 'share.title': '' }
@@ -401,7 +419,8 @@ export abstract class FlowWidget extends HTMLElement {
 	 *  ('error.targetUnavailable', ...), with a generic fallback. */
 	protected errorText(labelKey: string | undefined): string {
 		if (labelKey) {
-			const specific = this.overrides[labelKey] ?? this.defaults()[labelKey];
+			const specific =
+				this.overrides[labelKey] ?? this.localized()[labelKey] ?? this.defaults()[labelKey];
 			if (specific) return specific;
 		}
 		return this.t('error.generic');

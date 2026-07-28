@@ -80,6 +80,66 @@ const EN: WidgetLabels = {
 	'error.generic': 'That did not work. Check the connection and try again.'
 };
 
+const FR: WidgetLabels = {
+	'backups.mine.heading': 'Sauvegardes',
+	'backups.mine.personal': 'Sauvegarde principale',
+	'backups.active': 'Active',
+	'backups.pill.encrypted': 'Chiffrée',
+	'backups.pill.plain': 'Non chiffrée',
+	'backups.pill.shared': 'Partagée',
+	'backups.pill.private': 'Non partagée',
+	'backups.modified': 'modifiée {when}',
+	'backups.replaceHint': "L'ouvrir remplace les données de cet appareil.",
+	'backups.loading': 'Ouverture...',
+	'backups.menu': 'Actions',
+	'backups.open': 'Ouvrir',
+	'backups.encrypt': 'Chiffrer',
+	'backups.share': 'Partager',
+	'backups.rename': 'Renommer',
+	'backups.delete': 'Supprimer',
+	'backups.new': '+ Nouvelle sauvegarde',
+	'backups.newTitle': 'Nouvelle sauvegarde',
+	'backups.startsBlank': 'Elle démarre vide.',
+	'backups.namePh': 'Son nom',
+	'backups.willBe': 'Fichier : {file}',
+	'backups.taken': 'Ce nom est déjà pris.',
+	'backups.create': 'Créer',
+	'backups.renameTitle': 'Renommer cette sauvegarde',
+	'backups.pwHint': 'Cette sauvegarde est protégée : entrez son mot de passe.',
+	'backups.pwShow': 'Afficher le mot de passe',
+	'backups.pwHide': 'Masquer le mot de passe',
+	'backups.cancel': 'Annuler',
+	'backups.shared.heading': 'Partagées avec moi',
+	'backups.shared.by': 'Partagée par {who}',
+	'backups.shared.leave': 'Quitter',
+	'backups.replica.add': 'Seconde sauvegarde',
+	'backups.replica.title': 'Seconde sauvegarde',
+	'backups.replica.intro':
+		'Le même fichier chiffré, écrit aussi à un second endroit. Si l’un tombe, l’autre reste.',
+	'backups.replica.dest.drive': 'Google Drive',
+	'backups.replica.dest.file': 'Un fichier sur cet appareil',
+	'backups.replica.dest.webdav': 'Un serveur WebDAV',
+	'backups.replica.dest.s3': 'Un bucket S3',
+	'backups.replica.card': 'Seconde sauvegarde - {label}',
+	'backups.replica.uptodate': 'À jour, {when}',
+	'backups.replica.pending': 'Première copie au prochain enregistrement',
+	'backups.replica.error': 'Injoignable - nouvel essai au prochain enregistrement',
+	'backups.replica.remove': 'Retirer',
+	'backups.replica.save': 'Ajouter la copie',
+	'backups.replica.webdav.url': 'URL du fichier sur le serveur (https://hote:8443/dav/fichier.zip)',
+	'backups.replica.webdav.help':
+		"L'URL complète du fichier de sauvegarde, port personnalisé compris. Le serveur doit autoriser cette application à le joindre (CORS) : certains hébergeurs ne le font pas et ne se connecteront pas depuis un navigateur.",
+	'backups.replica.webdav.user': 'Identifiant',
+	'backups.replica.webdav.password': 'Mot de passe',
+	'backups.replica.s3.endpoint': "URL du point d'accès",
+	'backups.replica.s3.region': 'Région',
+	'backups.replica.s3.bucket': 'Bucket',
+	'backups.replica.s3.key': 'Chemin du fichier',
+	'backups.replica.s3.accessKeyId': "Identifiant de la clé d'accès",
+	'backups.replica.s3.secret': 'Clé secrète',
+	'error.generic': "Cela n'a pas fonctionné. Vérifiez la connexion et réessayez."
+};
+
 /** A destructive gesture, offered to confirmAction before it runs. `delete`
  *  and `forget` carry the row; `leave` is a membership's removal (fileId =
  *  its wallet, null for a legacy unbound one) - the host performs the actual
@@ -151,6 +211,10 @@ export class SelfstoreBackupsElement extends FlowWidget {
 
 	protected defaults(): WidgetLabels {
 		return EN;
+	}
+
+	protected packs(): Record<string, WidgetLabels> {
+		return { fr: FR };
 	}
 
 	/** The headless manager this panel drives (see 'selfstore/backups'). */
