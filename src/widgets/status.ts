@@ -20,13 +20,7 @@ const EN: WidgetLabels = {
 	'status.needsAttention': 'Reconnect to continue',
 	'status.locked': 'Locked',
 	'status.pendingDownload': 'Changes to download',
-	'status.ephemeral.placeless': 'Nothing is saved',
-	'status.cacheOnly.placeless': 'Never saved anywhere yet',
-	'status.saving.placeless': 'Saving...',
 	'status.saved.placeless': 'Saved',
-	'status.needsAttention.placeless': 'Reconnect to continue',
-	'status.locked.placeless': 'Locked',
-	'status.pendingDownload.placeless': 'Changes to download',
 	'status.action.choose-destination': 'Choose a destination',
 	'status.action.download': 'Download',
 	'status.action.reconnect': 'Reconnect',
@@ -43,13 +37,7 @@ const FR: WidgetLabels = {
 	'status.needsAttention': 'Accès à retrouver',
 	'status.locked': 'Sauvegarde verrouillée',
 	'status.pendingDownload': 'Modifications à exporter',
-	'status.ephemeral.placeless': "Rien n'est enregistré",
-	'status.cacheOnly.placeless': "Vos données n'ont jamais été enregistrées ailleurs",
-	'status.saving.placeless': 'Enregistrement...',
 	'status.saved.placeless': 'Sauvegarde à jour',
-	'status.needsAttention.placeless': 'Accès à retrouver',
-	'status.locked.placeless': 'Sauvegarde verrouillée',
-	'status.pendingDownload.placeless': 'Modifications à exporter',
 	'status.action.choose-destination': 'Choisir une sauvegarde',
 	'status.action.download': 'Exporter',
 	'status.action.reconnect': "Retrouver l'accès",
@@ -138,9 +126,13 @@ export class SelfstoreStatusElement extends FlowWidget {
 		// name still appears on the sub-line below. A target can be attached and
 		// still have no name to give, so a sentence built around the place has a
 		// placeless twin - otherwise it would render the placeholder itself.
-		const text = label
-			? this.t(status.labelKey, { label })
-			: this.t(`${status.labelKey}.placeless`);
+		const sansLieu = (cle: string): string => {
+			const jumelle = `${cle}.placeless`;
+			const copie = this.t(jumelle);
+			// Pas de jumelle declaree: la cle de base ne parle deja pas du lieu.
+			return copie === jumelle ? this.t(cle) : copie;
+		};
+		const text = label ? this.t(status.labelKey, { label }) : sansLieu(status.labelKey);
 		const dot = h('span', {
 			part: `status-dot sev-${status.severity}`,
 			'aria-hidden': 'true'

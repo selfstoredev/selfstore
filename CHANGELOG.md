@@ -13,8 +13,9 @@ adheres to [Semantic Versioning](https://semver.org/).
   destination on another - and that split was imposed by the widget, not by the
   language: every pack was forced into the same "state, then label" order. A
   pack can now write one sentence and put the place where its own grammar wants
-  it. A sentence built around the place carries a `.placeless` twin for the case
-  where a target is attached but has no name to give, so the placeholder itself
+  it. A key built around a place carries a `.placeless` twin for the case where a
+  target is attached but has no name to give - declared only where it is
+  needed, since a key that never mentions a place already answers, so the placeholder itself
   can never reach the screen; an unknown placeholder is left visible rather than
   blanked, because a hole in a sentence reads as a bug nobody can name, while
   the key names it.
