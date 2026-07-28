@@ -115,7 +115,7 @@ const FR: WidgetLabels = {
 	'backups.replica.add': 'Seconde sauvegarde',
 	'backups.replica.title': 'Seconde sauvegarde',
 	'backups.replica.intro':
-		'Le même fichier chiffré, écrit aussi à un second endroit. Si l’un tombe, l’autre reste.',
+		"Le même fichier chiffré, écrit aussi à un second endroit. Si l'un tombe, l'autre reste.",
 	'backups.replica.dest.drive': 'Google Drive',
 	'backups.replica.dest.file': 'Un fichier sur cet appareil',
 	'backups.replica.dest.webdav': 'Un serveur WebDAV',
