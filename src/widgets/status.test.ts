@@ -120,4 +120,27 @@ describe('selfstore-status', () => {
 		expect(q(el, 'span[part~="status-dot"]')).not.toBeNull();
 		el.remove();
 	});
+
+	it('names the destination inside the sentence, and has a twin without it', () => {
+		// A status that cannot say WHERE has to be read twice: the state on one
+		// line, the place on another. The pack writes one sentence instead.
+		const { engine, set } = fakeEngine({ label: 'cabinet.zip', targetKind: 'file' });
+		const el = mount(engine);
+		expect(q(el, '[part="title"]')!.textContent).toBe('Saved to cabinet.zip, at every change');
+
+		// Attached, but with no name to give: the placeholder must never reach the
+		// screen, so the placeless twin answers instead.
+		set({ label: null });
+		expect(q(el, '[part="title"]')!.textContent).toBe('Saved');
+		el.remove();
+	});
+
+	it('leaves an unknown placeholder visible rather than blanking it', () => {
+		const { engine } = fakeEngine({ label: 'cabinet.zip', targetKind: 'file' });
+		const el = mount(engine);
+		el.labels = { 'status.saved': 'Saved to {label} by {who}' };
+		// A hole in a sentence reads as a bug the reader cannot name; the key does.
+		expect(q(el, '[part="title"]')!.textContent).toBe('Saved to cabinet.zip by {who}');
+		el.remove();
+	});
 });
