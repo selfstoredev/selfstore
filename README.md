@@ -26,6 +26,11 @@ host.
 Docs, guides, a live demo and honest comparisons with the alternatives:
 **[selfstore.dev](https://selfstore.dev)**.
 
+Or run the whole pitch in a browser tab, nothing installed:
+**[open the playground in StackBlitz](https://stackblitz.com/github/selfstoredev/selfstore/tree/main/examples/playground)**
+- notes that survive a reload, a real file on the disk as their home, and a
+genuine encrypted ZIP ([source](examples/playground)).
+
 ## Going further is one call each
 
 ```ts
