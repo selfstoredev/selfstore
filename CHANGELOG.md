@@ -4,6 +4,16 @@ All notable changes to selfstore are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.7.2] - 2026-07-29
+
+### Fixed
+
+- A published type no longer names a consumer application. The rationale for
+  dated download names illustrated its point with one, and that comment
+  travels: it is emitted into the shipped `.d.ts`, so every install carried the
+  name of an unrelated product. Documentation only - no API or behaviour
+  change.
+
 ## [1.7.1] - 2026-07-29
 
 ### Fixed
