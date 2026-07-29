@@ -53,6 +53,14 @@ export {
 	type SelfstoreErrorCode
 } from './selfstore';
 
+// --- Desktop shell (Tauri and the like): one call and `file` writes a path ---
+export {
+	useDesktopFiles,
+	hasDesktopFiles,
+	type DesktopFileBridge,
+	type DesktopDialogFilter
+} from './persistence/targets/desktop';
+
 // --- Google Drive auth in one line (Google Identity Services) ---
 export { gisDriveAuth } from './persistence/targets/drive-auth-gis';
 export type { DriveAuth } from './persistence/targets/drive';

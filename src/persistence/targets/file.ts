@@ -9,6 +9,7 @@
 import type { BackupTarget } from '../target';
 import type { KV } from '../cache';
 import { AuthExpiredError, SelfstoreError } from '../../selfstore';
+import * as desktop from './desktop';
 
 const HANDLE_KEY = 'fileHandle';
 
@@ -59,9 +60,17 @@ function insideGesture(): boolean {
 	return ua ? ua.isActive : true;
 }
 
-/** True when the browser supports picking a re-writable file (Chromium), and
- *  has not already refused to open one in this session. */
+/** True when a re-writable file can be picked: a registered desktop shell, or
+ *  a browser that ships the File System Access API (Chromium) and has not
+ *  already refused to open a picker in this session.
+ *
+ *  A desktop shell answers first and unconditionally. Inside a native webview
+ *  the browser probe is not merely negative, it is misleading: WebKit never
+ *  shipped the API, so the honest capability there is the shell's, and asking
+ *  the webview instead would degrade the file mode in the one environment where
+ *  writing a real file is easiest. */
 export function isSupported(): boolean {
+	if (desktop.hasDesktopFiles()) return true;
 	return !refused && typeof window !== 'undefined' && 'showSaveFilePicker' in window;
 }
 
@@ -71,6 +80,7 @@ export function isSupported(): boolean {
  *  refusal is shared with `isSupported` - a browser that refuses one picker
  *  refuses the family. */
 export function isOpenSupported(): boolean {
+	if (desktop.hasDesktopFiles()) return true;
 	return !refused && typeof window !== 'undefined' && 'showOpenFilePicker' in window;
 }
 
@@ -144,6 +154,7 @@ function fromHandle(handle: FileHandle, kv: KV): BackupTarget {
  *  next sessions. Returns the target, or null if cancelled - or if the browser
  *  refused to open a picker at all, which `isSupported()` then reports. */
 export async function connect(opts: FileConnectOptions): Promise<BackupTarget | null> {
+	if (desktop.hasDesktopFiles()) return desktop.connect(opts);
 	const picker = (window as unknown as PickerWindow).showSaveFilePicker;
 	if (!picker) return null;
 	const handle = await ask(() =>
@@ -162,6 +173,7 @@ export async function connect(opts: FileConnectOptions): Promise<BackupTarget | 
  *  conflict, resume). Tries to raise the grant to readwrite up front so the
  *  first save does not stall on a second prompt. Returns null if cancelled. */
 export async function openExisting(opts: { kv: KV }): Promise<BackupTarget | null> {
+	if (desktop.hasDesktopFiles()) return desktop.openExisting(opts);
 	const picker = (window as unknown as PickerWindow).showOpenFilePicker;
 	if (!picker) return null;
 	const picked = await ask(() =>
@@ -192,8 +204,11 @@ export async function openExisting(opts: { kv: KV }): Promise<BackupTarget | nul
 	return fromHandle(handle, opts.kv);
 }
 
-/** Rebuild the target from the handle persisted in a past session, or null. */
+/** Rebuild the target from what a past session persisted, or null. On a desktop
+ *  shell that is a path and it reconnects silently; in a browser it is a handle
+ *  and the first write may still ask for the permission back. */
 export async function fromSession(opts: { kv: KV }): Promise<BackupTarget | null> {
+	if (desktop.hasDesktopFiles()) return desktop.fromSession(opts);
 	const handle = await opts.kv.get<FileHandle>(HANDLE_KEY);
 	return handle ? fromHandle(handle, opts.kv) : null;
 }

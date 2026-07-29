@@ -14,8 +14,30 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
-_Nothing yet. Entries land here as they are merged; the release PR stamps them
-with a number and a date._
+### Added
+
+- The `file` destination now works inside a desktop shell. `useDesktopFiles()`
+  takes the shell's filesystem and dialog calls once at start-up, and every
+  `file` destination in the library then writes a real path instead of asking
+  the browser for a handle. With Tauri v2 that is the two plugin imports and one
+  call; nothing else in a host changes, and `file: true` keeps meaning what it
+  meant.
+
+  The problem it answers: the File System Access API is Chromium-only, and
+  inside a native webview it is usually absent altogether, since macOS and Linux
+  shells embed WebKit which never shipped it. So packaging a web app as a
+  desktop app used to _lose_ the file mode and fall back to download-on-demand,
+  in the one environment where writing a real file is easiest.
+
+  A path also outlives a handle. It survives a restart, an app update and a copy
+  of the profile directory, and it carries no permission that has to be granted
+  again, so a desktop app reopens on its file with nothing asked of the user
+  where the browser needs a click. Writes there are also never reported as a
+  lost grant: a full disk or an unplugged volume is transient, and raising the
+  reconnect gate would ask someone to re-pick a file that never moved.
+
+  No new runtime dependency: the shell's calls are injected, never imported, so
+  a web build carries none of this.
 
 ## [1.7.5] - 2026-07-29
 

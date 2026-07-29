@@ -617,6 +617,48 @@ describe('connectFlow: degraded and form modes', () => {
 		expect(engine.state.targetKind).toBe('file-manual');
 	});
 
+	it('does NOT degrade when a desktop shell can write the file', async () => {
+		// The mirror of the test above, and the whole point of the shell: packaging
+		// the app for the desktop must not cost the file mode. Node has no picker
+		// here either, so without the shell this lands on download-on-demand.
+		vi.resetModules();
+		const { connectFlow: freshConnectFlow } = await import('./connect');
+		const { useDesktopFiles } = await import('../persistence/targets/desktop');
+		const files = new Map<string, Uint8Array>();
+		useDesktopFiles({
+			async readFile(p) {
+				const b = files.get(p);
+				if (!b) throw new Error('missing');
+				return b;
+			},
+			async writeFile(p, d) {
+				files.set(p, d);
+			},
+			async stat() {
+				return { mtime: new Date(1) };
+			},
+			async exists(p) {
+				return files.has(p);
+			},
+			async save() {
+				return 'C:/chosen/app.zip';
+			},
+			async open() {
+				return 'C:/chosen/app.zip';
+			}
+		});
+		const { host, engine } = makeHost();
+		await engine.init();
+
+		const flow = freshConnectFlow(host, { file: true });
+		flow.choose('file');
+
+		const s = await until(flow, (x) => x.step === 'connected');
+		expect(s.outcome).not.toBe('manual');
+		expect(engine.state.targetKind).toBe('file');
+		useDesktopFiles(null);
+	});
+
 	it('degrades the same way when the picker exists and refuses to open', async () => {
 		// A browser can ship the API and throw on call. Detection cannot see that;
 		// only the attempt can. The practitioner must still land somewhere that
