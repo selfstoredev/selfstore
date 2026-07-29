@@ -14,6 +14,11 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+_Nothing yet. Entries land here as they are merged; the release PR stamps them
+with a number and a date._
+
+## [1.8.2] - 2026-07-29
+
 ### Fixed
 
 - Opening another app's backup is now refused and named for what it is, instead
