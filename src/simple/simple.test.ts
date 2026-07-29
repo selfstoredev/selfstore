@@ -264,6 +264,62 @@ describe('selfstore() - the simple store', () => {
 		}
 	});
 
+	it('re-examines a degraded file mode instead of inheriting it forever', async () => {
+		// 'file-manual' says something about the BROWSER, yet it was persisted like
+		// a property of the data and re-read on every boot without ever asking
+		// again. One session that could not open a picker then pinned
+		// download-only mode on a Chromium perfectly able to hold a file, and
+		// nothing the user could click brought automatic saving back.
+		const cache = memoryCache();
+
+		vi.resetModules();
+		vi.stubGlobal('window', {
+			showSaveFilePicker: vi.fn().mockRejectedValue(new DOMException('', 'NotAllowedError'))
+		});
+		const degraded = await (await import('./simple')).selfstore('re-examined', { cache });
+		expect(await degraded.connectFile()).toBe('manual');
+		expect(degraded.state.targetKind).toBe('file-manual');
+		degraded.dispose();
+		vi.unstubAllGlobals();
+
+		// Next session, same data, a browser that answers: the verdict is stale.
+		vi.resetModules();
+		vi.stubGlobal('window', { showSaveFilePicker: vi.fn() });
+		const capable = await (await import('./simple')).selfstore('re-examined', { cache });
+		try {
+			expect(capable.state.targetKind).toBe('device');
+		} finally {
+			capable.dispose();
+			vi.unstubAllGlobals();
+		}
+	});
+
+	it('keeps the degraded file mode where the picker is genuinely absent', async () => {
+		// The correction must not overshoot. Where the API does not exist,
+		// download-on-demand IS the mode, and clearing it would take away the one
+		// state that tells the host to ask the user to save for themselves.
+		const cache = memoryCache();
+
+		vi.resetModules();
+		vi.stubGlobal('window', {
+			showSaveFilePicker: vi.fn().mockRejectedValue(new DOMException('', 'NotAllowedError'))
+		});
+		const first = await (await import('./simple')).selfstore('still-degraded', { cache });
+		expect(await first.connectFile()).toBe('manual');
+		first.dispose();
+		vi.unstubAllGlobals();
+
+		vi.resetModules();
+		vi.stubGlobal('window', {}); // no File System Access API at all
+		const second = await (await import('./simple')).selfstore('still-degraded', { cache });
+		try {
+			expect(second.state.targetKind).toBe('file-manual');
+		} finally {
+			second.dispose();
+			vi.unstubAllGlobals();
+		}
+	});
+
 	it('exposes the headless status and the typed error', async () => {
 		const { store } = await makeStore();
 		expect(store.status.labelKey).toMatch(/^status\./);

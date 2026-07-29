@@ -14,8 +14,20 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
-_Nothing yet. Entries land here as they are merged; the release PR stamps them
-with a number and a date._
+### Fixed
+
+- The degraded download-only file mode no longer outlives the browser session
+  that caused it. `'file-manual'` records something about the BROWSER - that a
+  picker could not deliver a writable file - but it was persisted like a
+  property of the data and re-read on every boot without ever asking again. One
+  bad session was therefore permanent: a browser that ships the File System
+  Access API and refuses it once, a picker called a moment after its activation
+  lapsed, and the store stayed in download-on-demand mode on a Chromium
+  perfectly able to hold a file, with nothing a user could click to get
+  automatic saving back. A new session now re-examines the verdict: where a file
+  can be held, the stale claim is dropped and the host can offer a destination
+  again. Where the API is genuinely absent, nothing changes - that is not a
+  stale verdict, it is the mode.
 
 ## [1.8.0] - 2026-07-29
 

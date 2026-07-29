@@ -293,6 +293,22 @@ export async function selfstore<
 
 	await store.init();
 
+	// A degraded file mode is a verdict about the BROWSER, but it was persisted
+	// like a property of the data: every later session re-read the word without
+	// ever asking again. One session that could not open a picker - a browser
+	// that ships the API and refuses it, a call made a moment too late, a user on
+	// another browser that day - then pinned download-only mode forever, on a
+	// Chromium perfectly able to hold a file, with no way back.
+	//
+	// Nothing writes this word except a picker that could not deliver, so a
+	// browser that CAN deliver makes it stale. Re-examined here, in the layer
+	// that wrote it. Dropping to 'device' is the honest state: manual mode had
+	// already released the durable target, so there is nothing to detach - only
+	// a stale claim to stop repeating, and a destination the host can offer again.
+	if (store.state.targetKind === 'file-manual' && fileIsSupported()) {
+		await store.detachTarget();
+	}
+
 	// Auto-wired sync moments (Spring-Boot-style autoconfiguration): tab focus,
 	// network return, a slow interval, and save-on-hide. Opt out with
 	// { autoSync: false } to drive these yourself.
