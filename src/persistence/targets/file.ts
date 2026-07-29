@@ -8,7 +8,7 @@
 
 import type { BackupTarget } from '../target';
 import type { KV } from '../cache';
-import { AuthExpiredError, SelfstoreError } from '../../selfstore';
+import { AuthExpiredError, SelfstoreError, type SelfstoreErrorCode } from '../../selfstore';
 import * as desktop from './desktop';
 
 const HANDLE_KEY = 'fileHandle';
@@ -100,10 +100,27 @@ async function ask<T>(open: () => Promise<T>): Promise<T | null> {
 	}
 }
 
-/** A revoked/denied file permission is a genuine loss of access: the store must
- *  raise the reconnect gate (one click re-grants). Everything else is transient. */
-function isPermissionLoss(e: unknown): boolean {
-	return e instanceof DOMException && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
+/** Give a browser exception the stable code the target contract requires, so a
+ *  host reads WHICH kind of failure it hit instead of a DOMException name.
+ *
+ *  Untyped, everything the handle throws lands in the store's default branch -
+ *  "transient, the next save retries" - and that is the one reading always
+ *  wrong here: no amount of retrying re-grants a permission, and a file that
+ *  was deleted does not come back on its own. Both then loop forever while the
+ *  store keeps reporting the data as saved. */
+function asTargetError(e: unknown, transient: SelfstoreErrorCode, what: string): Error {
+	const name = e instanceof DOMException ? e.name : '';
+	// Revoked or denied: only a user gesture re-grants it, which is exactly what
+	// the reconnect gate asks for.
+	if (name === 'NotAllowedError' || name === 'SecurityError') {
+		return new AuthExpiredError('File permission was revoked.');
+	}
+	// Deleted, renamed, or on a volume that is no longer mounted. Permanent as
+	// far as this handle goes: reconnecting means pointing at a file again.
+	if (name === 'NotFoundError') {
+		return new SelfstoreError('TARGET_GONE', `${what}: the backup file is no longer there.`);
+	}
+	return new SelfstoreError(transient, `${what}: ${String(e)}`);
 }
 
 function fromHandle(handle: FileHandle, kv: KV): BackupTarget {
@@ -116,10 +133,7 @@ function fromHandle(handle: FileHandle, kv: KV): BackupTarget {
 				await writable.write(blob);
 				await writable.close();
 			} catch (e) {
-				if (isPermissionLoss(e)) {
-					throw new AuthExpiredError('File permission was revoked.');
-				}
-				throw new SelfstoreError('TARGET_WRITE_FAILED', `File write failed: ${String(e)}`);
+				throw asTargetError(e, 'TARGET_WRITE_FAILED', 'File write failed');
 			}
 			try {
 				// The file's new mtime = OUR write's version marker (shared-disk case).
@@ -129,7 +143,14 @@ function fromHandle(handle: FileHandle, kv: KV): BackupTarget {
 			}
 		},
 		async load(): Promise<Blob | null> {
-			return handle.getFile();
+			// A read that fails is NOT a destination that is empty: returning null
+			// here would tell the store "no backup there", and the connect that
+			// follows would overwrite the file this read merely failed to open.
+			try {
+				return await handle.getFile();
+			} catch (e) {
+				throw asTargetError(e, 'TARGET_UNAVAILABLE', 'File read failed');
+			}
 		},
 		async stat(): Promise<string | null> {
 			try {

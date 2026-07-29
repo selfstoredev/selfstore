@@ -14,8 +14,21 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
-_Nothing yet. Entries land here as they are merged; the release PR stamps them
-with a number and a date._
+### Fixed
+
+- A failed read or write on the browser `file` destination now carries a stable
+  error code, like every other destination already did. It threw the browser's
+  own `DOMException`, which has no code, so the store's classification put all
+  of them in the same default branch: transient, keep retrying. That reading is
+  the one that is never true here. A permission the user revoked came back as
+  "momentarily unreachable" instead of raising the one-click reconnect gate that
+  is the only thing able to re-grant it; and a backup file that had been deleted,
+  renamed or left on an unmounted volume was retried forever while the store went
+  on reporting the data as saved, because the local write had already succeeded.
+  A lost permission is now `AUTH_EXPIRED`, a file that is no longer there is
+  `TARGET_GONE`, and anything else stays the retryable code it should always have
+  been. `stat()` is deliberately unchanged: a marker nobody can read is still
+  "cannot tell", not a failure.
 
 ## [1.8.1] - 2026-07-29
 

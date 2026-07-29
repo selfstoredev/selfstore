@@ -148,3 +148,107 @@ describe('file target: presence is not capability', () => {
 		expect(await file.fromSession({ kv })).not.toBeNull();
 	});
 });
+
+/**
+ * What the store is allowed to conclude from a failed read or write. The target
+ * contract (see target.ts) says a throw without a code reads as transient, so an
+ * untyped DOMException means "momentarily unreachable, the next save retries" -
+ * for a permission no retry can re-grant, and for a file no retry brings back.
+ */
+describe('file target: a failure carries the code that says what to do', () => {
+	/** The target a past session left behind, built on a handle we control. */
+	async function targetOn(handle: Record<string, unknown>) {
+		const file = await freshModule({ showSaveFilePicker: vi.fn() });
+		const kv = memKv();
+		await kv.set('fileHandle', handle);
+		const target = await file.fromSession({ kv });
+		if (!target) throw new Error('no target');
+		return target;
+	}
+
+	const dom = (name: string) => new DOMException('', name);
+
+	it('reports a revoked write permission as a genuine loss of access', async () => {
+		const target = await targetOn({
+			name: 'backup.zip',
+			createWritable: vi.fn().mockRejectedValue(dom('NotAllowedError'))
+		});
+
+		await expect(target.save(new Blob(['x']))).rejects.toMatchObject({ code: 'AUTH_EXPIRED' });
+	});
+
+	it('reports a deleted file as permanently gone, not as a write to retry', async () => {
+		// The trap this closes: TARGET_WRITE_FAILED is retried silently forever,
+		// and the store has already bumped lastSavedAt - so the app goes on saying
+		// "saved" about a file that no longer exists.
+		const target = await targetOn({
+			name: 'backup.zip',
+			createWritable: vi.fn().mockRejectedValue(dom('NotFoundError'))
+		});
+
+		await expect(target.save(new Blob(['x']))).rejects.toMatchObject({ code: 'TARGET_GONE' });
+	});
+
+	it('keeps an ordinary write failure retryable', async () => {
+		const target = await targetOn({
+			name: 'backup.zip',
+			createWritable: vi.fn().mockRejectedValue(dom('QuotaExceededError'))
+		});
+
+		await expect(target.save(new Blob(['x']))).rejects.toMatchObject({
+			code: 'TARGET_WRITE_FAILED'
+		});
+	});
+
+	it('reports a revoked read permission as a loss of access, not a network blip', async () => {
+		// Only a user gesture re-grants it: read as transient, the store waits for
+		// a retry that can never succeed instead of raising the one-click gate.
+		const target = await targetOn({
+			name: 'backup.zip',
+			getFile: vi.fn().mockRejectedValue(dom('NotAllowedError'))
+		});
+
+		await expect(target.load()).rejects.toMatchObject({ code: 'AUTH_EXPIRED' });
+	});
+
+	it('reports a file that is no longer there as gone when reading it', async () => {
+		const target = await targetOn({
+			name: 'backup.zip',
+			getFile: vi.fn().mockRejectedValue(dom('NotFoundError'))
+		});
+
+		await expect(target.load()).rejects.toMatchObject({ code: 'TARGET_GONE' });
+	});
+
+	it('never lets a bare browser exception reach the host from a read', async () => {
+		const target = await targetOn({
+			name: 'backup.zip',
+			getFile: vi.fn().mockRejectedValue(dom('InvalidStateError'))
+		});
+
+		await expect(target.load()).rejects.toMatchObject({ code: 'TARGET_UNAVAILABLE' });
+	});
+
+	it('still reads the file back as the version marker after a good write', async () => {
+		const writable = { write: vi.fn(), close: vi.fn() };
+		const target = await targetOn({
+			name: 'backup.zip',
+			createWritable: vi.fn().mockResolvedValue(writable),
+			getFile: vi.fn().mockResolvedValue({ lastModified: 1234 })
+		});
+
+		expect(await target.save(new Blob(['x']))).toBe('1234');
+		expect(writable.close).toHaveBeenCalled();
+	});
+
+	it('still answers "cannot tell" from stat rather than throwing', async () => {
+		// stat() is deliberately the exception: a marker nobody could read is not
+		// a failure to report, it is a fall-through to a full load.
+		const target = await targetOn({
+			name: 'backup.zip',
+			getFile: vi.fn().mockRejectedValue(dom('NotAllowedError'))
+		});
+
+		expect(await target.stat?.()).toBeNull();
+	});
+});
