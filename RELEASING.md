@@ -18,24 +18,30 @@ Everything below is about the package. The paragraph above is about your data.
 
 ## What earns which number
 
-**The default is patch.** Move the last digit unless there is a reason not to.
+**Patch, unless an app breaks.** Move the last digit. That is the rule, not the
+default with exceptions.
 
 | Bump | When |
 | --- | --- |
 | **major** | An existing app stops compiling, or behaves differently without changing a line. |
-| **minor** | A milestone worth announcing: a new entry point, a widget, a capability someone would upgrade *for*. |
-| **patch** | Everything else, including a fix, a performance change, a correction to the `.d.ts` - and an added function or option. |
+| **minor** | Almost never. Reserved for what no reader could take for a routine release - a new container generation, a different way of using the library altogether. A new entry point is not one. A new widget is not one. |
+| **patch** | Everything else, without an exception to look for: a fix, a performance change, a `.d.ts` correction, an added function, an added option, a new subpath entry, a new widget. |
 
-This used to read "minor: new API surface", and that criterion is what pushed
-1.6 to 1.8 in three days: almost every release adds surface, so the minor
-climbed continuously and the patch digit never moved. A version number is a
-signal about how much has changed. When it moves at the same speed whatever
-happens, it stops carrying one.
+This has been narrowed twice, and both times for the same reason. It first read
+"minor: new API surface", which pushed 1.6 to 1.8 in three days - almost every
+release adds surface, so the minor climbed continuously and the patch digit
+never moved. It then read "would a reader upgrade *for* this", which was still a
+judgement call made release by release, and judgement calls in a hurry all land
+on the same side: 1.8 arrived the same week.
 
-So the question is not "did anything get added" but "would a reader of the
-changelog upgrade *for* this". One more option on an existing widget is a
-patch. A new subpath entry, or a capability the library did not have, is a
-minor.
+A version number is a signal about how much has changed. When it moves at the
+same speed whatever happens, it stops carrying one. What something is worth
+installing for belongs in the CHANGELOG entry, which says it in prose and in
+detail; the digit cannot say it and should stop trying.
+
+So: **the second digit stays put.** If a release feels too big for a patch, that
+feeling is a sign the entry needs writing better, not that the number needs
+moving.
 
 Two consequences worth stating, because they are where semver usually gets
 bent:
