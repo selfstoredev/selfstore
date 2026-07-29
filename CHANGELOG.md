@@ -2,7 +2,20 @@
 
 All notable changes to selfstore are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
-adheres to [Semantic Versioning](https://semver.org/).
+adheres to [Semantic Versioning](https://semver.org/). What each number means
+and when one is published: [RELEASING.md](RELEASING.md).
+
+The `0.x` line was the exploration, published while the API was still moving,
+and it is no longer on npm. **1.0.0 (23 July 2026) is the first release meant to
+be depended on.** The minors since are additive - each names what it added, and
+none moved anything that already worked. Backups written by any version stay
+readable by every later one; that rule holds across majors and is what the
+version number is not asking you to trust.
+
+## [Unreleased]
+
+_Nothing yet. Entries land here as they are merged; the release PR stamps them
+with a number and a date._
 
 ## [1.7.2] - 2026-07-29
 

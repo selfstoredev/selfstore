@@ -33,6 +33,14 @@ green CI, squash merge). A release is a tag cut from `main` (`vX.Y.Z`, with
 a matching CHANGELOG section and GitHub Release), followed by the npm
 publish - there is no develop or release branch.
 
+Merging does **not** publish. Your PR carries its CHANGELOG entry under
+`## [Unreleased]`, with no version number and no date - the release PR stamps
+those later, batching whatever has accumulated. Green CI is a precondition for a
+release, never a reason for one.
+
+What earns a major, a minor and a patch, and why nothing is ever unpublished:
+[RELEASING.md](RELEASING.md).
+
 ## Commit style
 
 Conventional commits (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`,

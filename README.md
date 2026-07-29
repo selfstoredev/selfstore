@@ -362,6 +362,24 @@ always branch on `err.code`, never parse error messages; treat
 design); an empty password means "not encrypted"; collection names starting
 with `__` are reserved.
 
+## Stability
+
+The number on the package is not what you are trusting - the file is.
+
+**A backup written by any version of selfstore stays readable by every later
+version.** The test suite enforces it, and it holds across majors, not just
+minors. The format is [specified](./SPEC.md) and readable without this library
+at all, including from Python, so leaving is documented rather than promised.
+
+For the package itself: semver, with a major reserved for a change that stops
+an app compiling or alters what it already does - a new default counts. Releases
+are deliberate and batched, not one per merge. The rules, and what the version
+history reads like, are in [RELEASING.md](./RELEASING.md).
+
+Published versions are never unpublished. A superseded one stays installable;
+the tool for a release that should not be used is `npm deprecate`, and the tool
+for a broken one is the next release.
+
 ## Install
 
 ```sh
