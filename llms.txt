@@ -40,7 +40,7 @@ collaborative editing (use a CRDT library), or Node-side storage.
 - 'selfstore/widgets' - the journeys as drop-in web components:
   defineSelfstoreWidgets() registers <selfstore-connect>, <selfstore-gate>,
   <selfstore-share>, <selfstore-join>, <selfstore-status>,
-  <selfstore-backups>. Framework-free
+  <selfstore-backups>, <selfstore-destination>. Framework-free
   custom elements over the flows; theme via
   --selfstore-* CSS custom properties and ::part() selectors; reword/localize
   via the `labels` property (partial map over EN defaults); listen to
@@ -52,7 +52,18 @@ collaborative editing (use a CRDT library), or Node-side storage.
   (opens itself while status.action === 'choose-destination', shuts once the
   store has a durable home, event 'selfstore-gate-deferred' when the user
   stays device-only) with armed / deferrable / deferred props, brand|extra|
-  footer slots, and gate.connect for the child; share renders ONE link per level (a level shows its live
+  footer slots, and gate.connect for the child; destination is the gate's
+  counterpart once a home exists - it names the destination kind, the account
+  holding it (account prop, e.g. driveTarget.account()) and whether it is
+  password-protected, composes <selfstore-status> for the state line, and RUNS
+  the gestures the engine owns rather than emitting them: export a copy
+  (exportBlob + save dialog, false = nothing written, markDownloaded only on a
+  real write) and stop saving here (detachTarget, behind confirmAction, local
+  data untouched); given `targets` it runs the connect journey in place to
+  change destination, and without them that button is absent rather than dead.
+  Loading a copy BACK is the one gesture it cannot run - the library holds no
+  records, the app's apply does - so it emits
+  'selfstore-destination-action' { action: 'restore' }; share renders ONE link per level (a level shows its live
   link or a create button, nothing to name) with knobs levels / with-create /
   with-members / confirmAction (veto over revoke/remove/stop) / qrProvider
   (url to image, no dependency), and an engine exposing revokeAll() adds a

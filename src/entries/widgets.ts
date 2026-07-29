@@ -17,6 +17,7 @@ export { SelfstoreJoinElement } from '../widgets/join';
 export { SelfstoreStatusElement } from '../widgets/status';
 export { SelfstoreBackupsElement, type BackupsAction } from '../widgets/backups';
 export { SelfstoreGateElement } from '../widgets/gate';
+export { SelfstoreDestinationElement, type DestinationAction } from '../widgets/destination';
 export { FlowWidget, type WidgetLabels } from '../widgets/base';
 
 import { SelfstoreConnectElement } from '../widgets/connect';
@@ -25,11 +26,12 @@ import { SelfstoreJoinElement } from '../widgets/join';
 import { SelfstoreStatusElement } from '../widgets/status';
 import { SelfstoreBackupsElement } from '../widgets/backups';
 import { SelfstoreGateElement } from '../widgets/gate';
+import { SelfstoreDestinationElement } from '../widgets/destination';
 
 /** Register the elements as <PREFIX-connect>, <PREFIX-share>, <PREFIX-join>,
- *  <PREFIX-status>, <PREFIX-backups> and <PREFIX-gate> (default prefix
- *  'selfstore'). Safe to call twice; throws in environments without custom
- *  elements (browser code only). */
+ *  <PREFIX-status>, <PREFIX-backups>, <PREFIX-gate> and
+ *  <PREFIX-destination> (default prefix 'selfstore'). Safe to call twice;
+ *  throws in environments without custom elements (browser code only). */
 export function defineSelfstoreWidgets(prefix = 'selfstore'): void {
 	const define = (name: string, ctor: CustomElementConstructor): void => {
 		if (!customElements.get(name)) customElements.define(name, ctor);
@@ -40,6 +42,8 @@ export function defineSelfstoreWidgets(prefix = 'selfstore'): void {
 	define(`${prefix}-status`, SelfstoreStatusElement);
 	define(`${prefix}-backups`, SelfstoreBackupsElement);
 	// The gate builds its own connect child and reads the prefix back off its
-	// own tag name, so a custom prefix keeps the pair together.
+	// own tag name, so a custom prefix keeps the pair together. The destination
+	// panel composes both connect and status the same way.
 	define(`${prefix}-gate`, SelfstoreGateElement);
+	define(`${prefix}-destination`, SelfstoreDestinationElement);
 }
