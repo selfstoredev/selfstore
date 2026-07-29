@@ -6,7 +6,7 @@
 // action; what it means (open settings, run reconnect) is the host's call.
 
 import type { FlowHost, StoreLike } from '../flows/connect';
-import { FlowWidget, h, put, type WidgetLabels } from './base';
+import { FlowWidget, h, hostOf, put, type WidgetLabels } from './base';
 
 // The browser is never named as the PLACE the data lives. It is not one: it
 // holds a working copy that a cleared profile takes with it. So the state with
@@ -103,19 +103,11 @@ export class SelfstoreStatusElement extends FlowWidget {
 	}
 
 	private host(): FlowHost | null {
-		const s = this.#store;
-		if (!s) return null;
-		return 'flowHost' in s ? s.flowHost : s;
+		return hostOf(this.#store);
 	}
 
 	private wire(): void {
-		if (!this.isConnected) return;
-		this.unsub?.();
-		this.unsub = null;
-		const host = this.host();
-		if (!host) return;
-		this.unsub = host.engine.subscribe(() => this.rerender());
-		this.rerender();
+		this.follow(this.host());
 	}
 
 	protected view(into: HTMLElement): void {

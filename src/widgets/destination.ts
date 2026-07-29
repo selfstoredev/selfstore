@@ -28,7 +28,7 @@
 import type { ConnectKind, ConnectTargets, FlowHost, StoreLike } from '../flows/connect';
 import type { SelfstoreConnectElement } from './connect';
 import { datedName, saveToDisk } from '../selfstore/targets/local';
-import { FlowWidget, h, put, type WidgetLabels } from './base';
+import { FlowWidget, h, hostOf, put, type WidgetLabels } from './base';
 
 /** What the panel is about to do, for the host's veto. */
 export interface DestinationAction {
@@ -179,19 +179,11 @@ export class SelfstoreDestinationElement extends FlowWidget {
 	}
 
 	private host(): FlowHost | null {
-		const s = this.#store;
-		if (!s) return null;
-		return 'flowHost' in s ? s.flowHost : s;
+		return hostOf(this.#store);
 	}
 
 	private wire(): void {
-		if (!this.isConnected) return;
-		this.unsub?.();
-		this.unsub = null;
-		const host = this.host();
-		if (!host) return;
-		this.unsub = host.engine.subscribe(() => this.rerender());
-		this.rerender();
+		this.follow(this.host());
 	}
 
 	/** Run a gesture, keeping the panel honest while it is in flight. */

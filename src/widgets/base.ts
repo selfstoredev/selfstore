@@ -6,8 +6,18 @@
 // wired: assign the properties, the widget builds its flow and renders; they
 // clean up on disconnect and expose the flow for programmatic control.
 
+import type { FlowHost, StoreLike } from '../flows/connect';
+
 /** Flat key -> string map; widgets merge a partial override over EN defaults. */
 export type WidgetLabels = Record<string, string>;
+
+/** The ports behind whatever a caller passed as "the store": the simple facade
+ *  carries them on `flowHost`, a hand-built host IS them. Every widget that
+ *  reads the engine needs this line, so it lives once. */
+export function hostOf(store: StoreLike | null | undefined): FlowHost | null {
+	if (!store) return null;
+	return 'flowHost' in store ? store.flowHost : store;
+}
 
 /** Structural theme, applied inside every widget's shadow root. Neutral by
  *  design: it borrows the host font and text color, and every visual decision
@@ -405,6 +415,17 @@ export abstract class FlowWidget extends HTMLElement {
 	}
 	/** Build the current view into the given container. */
 	protected abstract view(into: HTMLElement): void;
+
+	/** Follow an engine: rerender on every notification, replacing any previous
+	 *  subscription. A no-op before connection and on a null host, so a host may
+	 *  assign the store from a reactive effect that runs more than once. */
+	protected follow(host: FlowHost | null): void {
+		this.unsub?.();
+		this.unsub = null;
+		if (!this.isConnected || !host) return;
+		this.unsub = host.engine.subscribe(() => this.rerender());
+		this.rerender();
+	}
 
 	constructor() {
 		super();
