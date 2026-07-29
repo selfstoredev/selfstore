@@ -124,7 +124,7 @@ describe('datedName', () => {
 	const quand = new Date(2026, 6, 26, 18, 42);
 
 	it('stamps before the extension, to the minute', () => {
-		expect(datedName('fidalo.zip', quand)).toBe('fidalo-2026-07-26-18h42.zip');
+		expect(datedName('backup.zip', quand)).toBe('backup-2026-07-26-18h42.zip');
 	});
 
 	it('pads so the names sort in the order they were written', () => {

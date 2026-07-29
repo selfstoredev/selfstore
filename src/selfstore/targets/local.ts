@@ -96,7 +96,7 @@ export async function saveToDisk(blob: Blob, filename: string): Promise<boolean>
  * must stay stable. A download never replaces anything: the browser appends
  * " (1)", " (2)", and no web API can stop it. The pile forms either way - so it
  * may as well be readable. A dated series says at a glance which one is the
- * latest and lets the user step back to an earlier one; "fidalo (7).zip" says
+ * latest and lets the user step back to an earlier one; "backup (7).zip" says
  * neither when, nor in what order.
  */
 export function datedName(filename: string, when = new Date()): string {
