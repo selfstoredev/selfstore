@@ -1,3 +1,4 @@
+import { defaultIcons } from './icons';
 /**
  * <selfstore-connect>: the "where does my data live" journey, ready to drop
  * in. A thin skin over connectFlow - every ordering and failure rule lives in
@@ -598,7 +599,9 @@ export class SelfstoreConnectElement extends FlowWidget {
 	}
 
 	private destCard(kind: ConnectKind): HTMLElement {
-		const icon = this.#icons[kind];
+		// A host icon wins; the shipped glyph only fills a card that would
+		// otherwise render bare.
+		const icon = this.#icons[kind] ?? defaultIcons[kind];
 		const head = icon ? h('img', { part: 'icon', src: icon, alt: '' }) : null;
 		const title = h(
 			'div',
