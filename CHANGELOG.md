@@ -16,6 +16,20 @@ version number is not asking you to trust.
 
 ### Fixed
 
+- Opening another app's backup is now refused and named for what it is, instead
+  of prompting for a password. Every backup has always carried its writing app's
+  id in the cleartext header; nothing read it. So picking the wrong file taught
+  the user their password "does not work" on a file that was never this app's to
+  open - and the `deferUnlock` journey went further and silently adopted the
+  foreign file as the app's home. The connect flow and the simple store now
+  refuse before any password is asked (`FOREIGN_BACKUP`, worded by the widgets
+  in every shipped language), and `attachTarget` refuses at the deepest level in
+  both directions: `merge`/`replace-local` would pour foreign records into the
+  app, `replace-remote`/`wipe` would destroy the other app's backup. A header
+  that cannot be read accuses no one: corrupt or unrelated files keep behaving
+  exactly as before, and `inspectTarget` now reports the writing app so hosts
+  can word the refusal themselves.
+
 - A failed read or write on the browser `file` destination now carries a stable
   error code, like every other destination already did. It threw the browser's
   own `DOMException`, which has no code, so the store's classification put all

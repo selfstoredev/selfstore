@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { selfstore, type SimpleStore } from './simple';
 import { memoryCache } from '../persistence/cache';
 import type { BackupTarget } from '../persistence/target';
-import { restore } from '../selfstore';
+import { backup, restore } from '../selfstore';
 
 interface Todo {
 	id: string;
@@ -325,5 +325,24 @@ describe('selfstore() - the simple store', () => {
 		expect(store.status.labelKey).toMatch(/^status\./);
 		expect(store.error).toBeNull();
 		expect(store.advanced.state).toBe(store.state); // same instance, no copy
+	});
+});
+
+describe('foreign backups', () => {
+	it("refuses another app's backup before asking for its password", async () => {
+		// Order is the point: the backup is encrypted and no password was given,
+		// so without the guard this threw PASSWORD_REQUIRED and the app asked the
+		// user for a password to a file that was never this app's to open.
+		const { store } = await makeStore();
+		const foreign = await backup({ collections: { notes: [{ id: 'n1' }] }, files: [] })
+			.as('other-app')
+			.encryptedWith('their-password')
+			.toBlob();
+		const t = fakeTarget(foreign);
+
+		await expect(store.connectTarget(t.target)).rejects.toMatchObject({
+			code: 'FOREIGN_BACKUP'
+		});
+		expect(store.state.targetKind).toBe('device');
 	});
 });

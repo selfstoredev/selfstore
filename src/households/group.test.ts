@@ -405,7 +405,9 @@ describe('capability-link household share (mirror model)', () => {
 		// Reboot the admin device: fresh store on the same wallet, fresh engine
 		// on the same kv - restore() must re-arm without any user gesture.
 		admin.store.dispose();
-		const re = makeStore('hh-boot-admin-2');
+		// Same app id on purpose: a rebooted device is the SAME app, and the
+		// foreign-backup guard rightly refuses a file claimed by another one.
+		const re = makeStore('hh-boot-admin');
 		await re.store.init();
 		await re.store.attachTarget(world.target('boot-admin-wallet'), { strategy: 'replace-local' });
 		const g2 = createHouseholdGroup({
@@ -611,7 +613,7 @@ describe('capability-link household share (mirror model)', () => {
 		expect(await g1.join()).toBe('joined');
 		first.store.dispose();
 
-		const re = makeStore('hh-scope-r-bob-2');
+		const re = makeStore('hh-scope-r-bob'); // same app: a reboot keeps its id
 		await re.store.init();
 		attached.id = 'scope-r-other';
 		await re.store.attachTarget(world.target('scope-r-other'), { strategy: 'replace-remote' });

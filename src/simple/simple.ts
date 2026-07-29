@@ -351,6 +351,15 @@ export async function selfstore<
 	): Promise<ConnectOutcome> {
 		const info = await store.inspectTarget(target);
 		if (info.hasBackup) {
+			// Another app's backup is refused BEFORE the password question: asking
+			// first teaches the user their password "does not work" on a file that
+			// was never this app's to open.
+			if (info.app !== null && info.app !== store.app) {
+				throw new SelfstoreError(
+					'FOREIGN_BACKUP',
+					`This destination holds a backup written by app "${info.app}", not "${store.app}". Open it in its own application, or pick another file.`
+				);
+			}
 			// Fail before attaching: an encrypted backup without its password would
 			// otherwise attach locked, which is a support case, not an outcome.
 			if (info.encrypted && !opts.password) {

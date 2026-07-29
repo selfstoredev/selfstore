@@ -137,9 +137,10 @@ async function manager(
 	world: World,
 	opts: { hostOverrides?: Partial<BackupsHost>; name?: string } = {}
 ): Promise<{ m: BackupsManager; store: LocalStore; kv: KV; appState: AppState }> {
-	const { store, kv, appState } = makeStore(
-		opts.name ?? `backups-${Math.floor(Math.random() * 1e9)}`
-	);
+	// The World's fixture blobs are stamped `.as('backups-test')`, and the store
+	// refuses a backup whose header names another app - so the store must BE that
+	// app. Cache isolation comes from memoryCache(), never from a unique name.
+	const { store, kv, appState } = makeStore(opts.name ?? 'backups-test');
 	await store.init();
 	const m = createBackupsManager({
 		store,

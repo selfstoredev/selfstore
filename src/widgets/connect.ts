@@ -113,7 +113,9 @@ const EN: WidgetLabels = {
 	'error.targetUnavailable': 'The destination did not answer. Try again in a moment.',
 	'error.authExpired': 'Access expired: reconnect to continue.',
 	'error.decryptFailed': 'This backup could not be opened with that password.',
-	'error.badFormat': 'This file does not look like a readable backup.'
+	'error.badFormat': 'This file does not look like a readable backup.',
+	'error.foreignBackup':
+		'This backup belongs to a different app. Open it in the app that created it.'
 };
 
 // The lexicon this pack holds to: the durable destination is "la sauvegarde",
@@ -180,7 +182,9 @@ const FR: WidgetLabels = {
 	'error.targetUnavailable': 'La destination ne répond pas. Réessayez dans un instant.',
 	'error.authExpired': 'Accès expiré : reconnectez-vous pour continuer.',
 	'error.decryptFailed': "Cette sauvegarde n'a pas pu être ouverte avec ce mot de passe.",
-	'error.badFormat': 'Ce fichier ne ressemble pas à une sauvegarde lisible.'
+	'error.badFormat': 'Ce fichier ne ressemble pas à une sauvegarde lisible.',
+	'error.foreignBackup':
+		"Cette sauvegarde appartient à une autre application. Ouvrez-la dans l'application qui l'a créée."
 };
 
 // Two glyphs for the password eye: an open eye when the value is hidden (click

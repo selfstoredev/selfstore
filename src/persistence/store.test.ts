@@ -13,6 +13,7 @@ import { createLocalStore } from './store';
 import type { LocalCache, KV, CachedFile } from './cache';
 import type { BackupTarget } from './target';
 import {
+	backup,
 	importSnapshot,
 	inspect,
 	errorLabelKey,
@@ -1462,5 +1463,63 @@ describe('store.init boot deadline', () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+});
+
+describe("foreign backups: another app's file is never adopted or destroyed", () => {
+	const foreignBlob = () =>
+		backup({ collections: { notes: [{ id: 'n1' }] }, files: [] })
+			.as('another-app')
+			.toBlob();
+
+	it('inspectTarget names the app that wrote the backup', async () => {
+		const { store } = makeStore();
+		await store.init();
+		const t = fakeTarget();
+		await t.target.save(await foreignBlob());
+
+		const info = await store.inspectTarget(t.target);
+
+		expect(info.app).toBe('another-app');
+	});
+
+	it('refuses to merge with a foreign backup, before any password business', async () => {
+		const { store } = makeStore({ todos: [{ id: 'a' }] });
+		await store.init();
+		const t = fakeTarget();
+		await t.target.save(await foreignBlob());
+
+		await expect(store.attachTarget(t.target)).rejects.toMatchObject({
+			code: 'FOREIGN_BACKUP'
+		});
+		expect(store.state.targetKind).toBe('device'); // nothing about the store changed
+	});
+
+	it('refuses to overwrite a foreign backup, even with replace-remote', async () => {
+		// The destructive direction: replace-remote never read the remote before
+		// this guard, so a wrong pick destroyed the other app's backup outright.
+		const { store } = makeStore({ todos: [{ id: 'a' }] });
+		await store.init();
+		const t = fakeTarget();
+		const original = await foreignBlob();
+		await t.target.save(original);
+
+		await expect(
+			store.attachTarget(t.target, { strategy: 'replace-remote' })
+		).rejects.toMatchObject({ code: 'FOREIGN_BACKUP' });
+		expect(t.remote).toBe(original); // the other app's backup is intact
+	});
+
+	it('still overwrites a file whose header cannot be read', async () => {
+		// "Cannot tell" must not block what worked before the guard existed:
+		// pointing replace-remote at a corrupt or unrelated file keeps working.
+		const { store } = makeStore({ todos: [{ id: 'a' }] });
+		await store.init();
+		const t = fakeTarget();
+		await t.target.save(new Blob([new Uint8Array([1, 2, 3, 4])]));
+
+		await store.attachTarget(t.target, { strategy: 'replace-remote' });
+
+		expect(store.state.targetKind).toBe('drive');
 	});
 });

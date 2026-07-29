@@ -222,6 +222,9 @@ export interface LocalStoreOptions {
 }
 
 export interface LocalStore {
+	/** The app id this store was created with. What the flows compare a
+	 *  backup's header against before asking anything of the user. */
+	readonly app: string;
 	readonly state: LocalStoreState;
 	subscribe(fn: () => void): () => void;
 
@@ -239,10 +242,12 @@ export interface LocalStore {
 	 *  locally, or null when already up to date. */
 	syncNow(): Promise<SyncJournalEntry | null>;
 
-	/** Inspect a target for an existing backup, without changing any state. */
+	/** Inspect a target for an existing backup, without changing any state.
+	 *  `app` is the id the backup's header claims wrote it - null when there is
+	 *  no backup or the header does not say. */
 	inspectTarget(
 		target: BackupTarget
-	): Promise<{ hasBackup: boolean; date: string | null; encrypted: boolean }>;
+	): Promise<{ hasBackup: boolean; date: string | null; encrypted: boolean; app: string | null }>;
 	/** Attach a durable home. `strategy` reconciles with what is already on the
 	 *  target: 'merge' (default, multi-device), 'replace-local' (load the
 	 *  target into the app) or 'replace-remote' (overwrite the target).
@@ -567,6 +572,24 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 	// A prefetched blob past this age is dropped: the connect journey (pick a
 	// resolution, maybe type a password) is seconds, not minutes.
 	const PREFETCH_TTL_MS = 60_000;
+
+	/** The app id named by the destination's current backup, or null when there
+	 *  is no backup or its header cannot be read. Never throws: this feeds the
+	 *  foreign-backup guard, and "cannot tell" must not block anything that
+	 *  worked before the guard existed. Reuses the connect journey's prefetched
+	 *  download when it is for the same target (without consuming it), so the
+	 *  guard usually costs no extra fetch. A stale prefetch is still good here:
+	 *  a file's owning app does not change between two writes of that same app. */
+	async function remoteAppOf(target: BackupTarget): Promise<string | null> {
+		try {
+			const blob =
+				prefetched && prefetched.target === target ? prefetched.blob : await target.load();
+			if (!blob || blob.size === 0) return null;
+			return (await inspect(blob)).app ?? null;
+		} catch {
+			return null;
+		}
+	}
 
 	// Peers: other members' published copies of this store, attached read-only
 	// (see attachPeer). Distinct from the multi-tab machinery above, which
@@ -1869,6 +1892,8 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 	stateSnapshot = buildState();
 
 	return {
+		app,
+
 		get state(): LocalStoreState {
 			return stateSnapshot;
 		},
@@ -2083,6 +2108,21 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 			// departing target finishes first, so it can neither resurrect that
 			// backup's data over a wipe nor leak it into the new home.
 			return serialize(async () => {
+				// Never adopt or destroy another app's backup. 'merge' and
+				// 'replace-local' would pour foreign records into this app;
+				// 'replace-remote' and `wipe` would overwrite a backup that belongs
+				// to a different application. The header's app field is
+				// unauthenticated, so this is a seatbelt against picking the wrong
+				// file, not a defence against forgery - and a file whose header
+				// cannot be read accuses no one (unreadable stays overwritable,
+				// exactly as before this guard).
+				const remoteApp = await remoteAppOf(target);
+				if (remoteApp !== null && remoteApp !== app) {
+					throw new SelfstoreError(
+						'FOREIGN_BACKUP',
+						`attachTarget(): the destination holds a backup written by app "${remoteApp}", not "${app}". Open it in its own application, or pick another file.`
+					);
+				}
 				// Verify the signed manifest first, against the admin key the app
 				// pinned at join: the store is the verification gate, so a forged
 				// membership rejects (SIGNATURE_INVALID) before anything changes.
@@ -2172,7 +2212,8 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 			// metadata + empty content), and zero bytes cannot be data anyone
 			// could lose. Only a NON-empty file that fails to parse propagates -
 			// that one may be someone's backup.
-			if (!blob || blob.size === 0) return { hasBackup: false, date: null, encrypted: false };
+			if (!blob || blob.size === 0)
+				return { hasBackup: false, date: null, encrypted: false, app: null };
 			// Remember this download (with the remote's current marker) so the attach
 			// that typically follows reuses it instead of fetching the same file again.
 			// A Blob is re-readable, so inspecting it here does not spend it.
@@ -2187,7 +2228,10 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 			return {
 				hasBackup: true,
 				date: header.createdAt ?? null,
-				encrypted: header.encryption !== 'none'
+				encrypted: header.encryption !== 'none',
+				// Required by the format since generation 1, but a hand-made file may
+				// omit it: absent reads as "cannot tell", never as an accusation.
+				app: header.app ?? null
 			};
 		},
 
