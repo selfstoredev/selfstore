@@ -112,7 +112,7 @@ describe('selfstore-destination', () => {
 
 		// The engine's own export ran - the host was never asked for it.
 		expect(calls.exported).toBe(1);
-		expect(written.length).toBe(1);
+		expect(written).toHaveLength(1);
 		expect(calls.marked).toBe(1);
 		expect(text(el)).toContain('The copy is written');
 	});
