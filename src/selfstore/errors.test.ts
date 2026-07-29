@@ -10,6 +10,7 @@ const EXPECTED: Record<SelfstoreErrorCode, string> = {
 	DECRYPT_FAILED: 'error.decryptFailed',
 	TOO_LARGE: 'error.tooLarge',
 	VERIFY_FAILED: 'error.verifyFailed',
+	FOREIGN_BACKUP: 'error.foreignBackup',
 	AUTH_EXPIRED: 'error.authExpired',
 	TARGET_UNAVAILABLE: 'error.targetUnavailable',
 	TARGET_WRITE_FAILED: 'error.targetWriteFailed',

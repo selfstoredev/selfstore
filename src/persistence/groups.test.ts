@@ -349,7 +349,9 @@ describe('passwordless group', () => {
 		const { signed, members } = await makeGroup(['alice', 'bob']);
 		const [alice] = members;
 
-		const rebooted = makeStore();
+		// A fresh session of the SAME app: it must carry the same app id, or the
+		// foreign-backup guard rightly refuses the file it wrote last session.
+		const rebooted = makeStore({}, { app: alice.store.app });
 		await rebooted.store.init();
 		await rebooted.store.attachTarget(alice.t.target, {
 			group: { identity: alice.identity, admin: alice.identity.sigPub, manifest: signed },

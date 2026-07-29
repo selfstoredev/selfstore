@@ -18,3 +18,6 @@ coverage/
 # Python reference reader bytecode
 __pycache__/
 *.pyc
+
+# Session tooling (worktrees created by coding agents): never lint, never commit
+.claude/

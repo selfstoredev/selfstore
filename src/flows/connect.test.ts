@@ -720,3 +720,46 @@ describe('connectFlow: from the simple store', () => {
 		store.dispose();
 	});
 });
+
+describe('connectFlow: a backup from another app', () => {
+	const foreign = () =>
+		backup(snapOf({ notes: [{ id: 'n1' }] }))
+			.as('other-app')
+			.encryptedWith('their-password')
+			.toBlob();
+
+	it('refuses before the password step, named as what it is', async () => {
+		// The lived bug: pick the wrong file and the journey asked for a password,
+		// teaching the user theirs "does not work" on a file that was never this
+		// app's to open. The header names its writer in cleartext; use it.
+		const { host, engine } = makeHost();
+		await engine.init();
+		const t = fakeTarget(await foreign());
+		const flow = connectFlow(host, { drive: async () => t.target });
+		const steps: string[] = [];
+		flow.subscribe(() => steps.push(flow.snapshot.step));
+
+		flow.choose('drive');
+		const s = await until(flow, (x) => x.step === 'error');
+
+		expect(s.error?.code).toBe('FOREIGN_BACKUP');
+		expect(s.error?.labelKey).toBe('error.foreignBackup');
+		expect(steps).not.toContain('password');
+		expect(engine.state.targetKind).toBe('device'); // nothing adopted
+	});
+
+	it('deferUnlock does not silently adopt it either', async () => {
+		// Worse than the password ask: with deferUnlock the flow attached the
+		// foreign file as this app's home before anyone proved anything.
+		const { host, engine } = makeHost();
+		await engine.init();
+		const t = fakeTarget(await foreign());
+		const flow = connectFlow(host, { drive: async () => t.target }, { deferUnlock: true });
+
+		flow.choose('drive');
+		const s = await until(flow, (x) => x.step === 'error');
+
+		expect(s.error?.code).toBe('FOREIGN_BACKUP');
+		expect(engine.state.targetKind).toBe('device');
+	});
+});

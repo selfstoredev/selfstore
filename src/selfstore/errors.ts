@@ -10,6 +10,7 @@ export type SelfstoreErrorCode =
 	| 'DECRYPT_FAILED' // wrong password, or tampered/corrupt ciphertext
 	| 'TOO_LARGE' // archive entry exceeds the size guard (zip-bomb defence)
 	| 'VERIFY_FAILED' // a freshly written backup did not read back as expected: do not announce it
+	| 'FOREIGN_BACKUP' // the backup names another app in its header: refused before any password is asked
 	// durable targets / store lifecycle
 	| 'AUTH_EXPIRED' // access genuinely lost: only a user gesture (reconnect) fixes it
 	| 'TARGET_UNAVAILABLE' // transient: offline, cold start, 5xx - retry later

@@ -316,6 +316,25 @@ export function connectFlow(
 			await attach(gen, 'replace-remote', 'started');
 			return;
 		}
+		if (info.app !== null && info.app !== host.engine.app) {
+			// Another app's backup: say so NOW, before the password step. Asking
+			// first taught the user their password "does not work" on a file that
+			// was never this app's to open - and deferUnlock went further and
+			// silently adopted the foreign file as this app's home. The header
+			// names its app in cleartext precisely so a wrong pick can be named
+			// for what it is; a header that does not say accuses no one.
+			m.set({
+				step: 'error',
+				busy: false,
+				error: toStoreError(
+					new SelfstoreError(
+						'FOREIGN_BACKUP',
+						`This backup was written by "${info.app}", not "${host.engine.app}". Open it in its own application.`
+					)
+				)
+			});
+			return;
+		}
 		if (info.encrypted) {
 			if (options.deferUnlock) {
 				// The host owns the unlock surface: adopt the backup as it stands.
