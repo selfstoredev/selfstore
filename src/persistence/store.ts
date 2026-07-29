@@ -628,11 +628,59 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 	// another serialized one (that would self-deadlock the chain and the lock).
 	let chain: Promise<unknown> = Promise.resolve();
 	function serialize<T>(fn: () => Promise<T>): Promise<T> {
-		const exec = locks ? (): Promise<T> => locks.request(lockName, fn) as Promise<T> : fn;
+		const exec = locks ? (): Promise<T> => underLock(fn) : fn;
 		const run = chain.then(exec, exec);
 		chain = run.catch(() => undefined);
 		return run;
 	}
+
+	/**
+	 * Run under the cross-tab lock - but never wait for it forever.
+	 *
+	 * A Web Lock is held by a CLIENT, and a client that stops running does not
+	 * necessarily give it back: Firefox keeps the locks of a page it has frozen
+	 * into its back/forward cache, where Chrome refuses to freeze a page that
+	 * holds one. So a second tab, left open in the background, can hold
+	 * `selfstore:<app>` for good. Every serialized flow in this tab then queued
+	 * behind a lock that would never come - no throw, no timeout, no signal of
+	 * any kind. Saving stopped, and every gesture wired to a store call became a
+	 * button that does nothing at all, which is the one failure a user cannot
+	 * even report.
+	 *
+	 * So the wait is bounded, and going ahead is the answer. Without the lock two
+	 * tabs may interleave on the shared cache - which is what the merge engine is
+	 * for, and it is what already happens between two devices - whereas waiting
+	 * is a store that never writes again. A degradation beats a dead app, and it
+	 * is reported rather than silent.
+	 */
+	async function underLock<T>(fn: () => Promise<T>): Promise<T> {
+		const giveUp = new AbortController();
+		const timer = setTimeout(() => giveUp.abort(), LOCK_WAIT_MS);
+		// Whether `fn` ever started: past that point the timer is irrelevant, and
+		// an abort that fires late must never be read as "the lock never came" -
+		// that would run the flow a SECOND time, over its own result.
+		let ran = false;
+		try {
+			return (await locks!.request(lockName, { signal: giveUp.signal }, () => {
+				ran = true;
+				clearTimeout(timer);
+				return fn();
+			})) as T;
+		} catch (e) {
+			clearTimeout(timer);
+			if (ran || !giveUp.signal.aborted) throw e;
+			lastError = transient('Another tab is holding the store; continuing without it.');
+			logger.warn(`[selfstore] cross-tab lock "${lockName}" unavailable, proceeding without it`);
+			notify();
+			return fn();
+		}
+	}
+
+	// How long a tab waits for the cross-tab lock before going ahead without it.
+	// Long enough to sit out a legitimately slow flow in another tab (a network
+	// save runs under the same lock), short enough that a held-for-good lock
+	// costs one pause rather than the rest of the session.
+	const LOCK_WAIT_MS = 10_000;
 
 	// Auto-lock: drop the in-memory password after inactivity, so an unattended
 	// (e.g. shared) machine does not keep an encrypted backup unlocked
