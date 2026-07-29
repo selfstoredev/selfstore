@@ -21,6 +21,7 @@ import { AuthExpiredError, SelfstoreError, isAuthExpired } from '../../selfstore
 export const FILE_ID_KEY = 'driveFileId';
 const DRIVE_UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
 const DRIVE_FILES = 'https://www.googleapis.com/drive/v3/files';
+const DRIVE_ABOUT = 'https://www.googleapis.com/drive/v3/about';
 
 /** A hung request must not spin forever behind a dead connection - the very
  *  "long moment trying to connect" a stuck backup shows. A deadline turns the
@@ -321,6 +322,42 @@ export async function findOrCreateOwnFile(
 	const existing = await findExistingFile(token, [opts.fileName]);
 	if (existing) return { fileId: existing, created: false };
 	return { fileId: await createFile(token, opts.fileName), created: true };
+}
+
+/** Who a destination is held by, as far as it will say. */
+export interface DriveAccount {
+	/** The account's address, when Drive reports one. */
+	email: string | null;
+	/** Its display name, when Drive reports one. */
+	name: string | null;
+}
+
+/** Which Google account the current session belongs to.
+ *
+ *  A destination named "Google Drive" is not an address: several accounts look
+ *  alike, and a user who connected the wrong one has no way to tell from a
+ *  brand name alone. This is the one call that lets a surface say WHICH.
+ *
+ *  Cheap (one metadata poke, allowed by the `drive.file` scope) but not free:
+ *  the answer only changes when the session does, so a caller should ask on
+ *  connect and on reconnect - not on every render. A destination that will not
+ *  say answers nulls rather than throwing; a genuinely lost session throws
+ *  AuthExpiredError like every other call here. */
+export async function account(opts: { auth: DriveAuth }): Promise<DriveAccount> {
+	const fields = encodeURIComponent('user(emailAddress,displayName)');
+	const r = await driveFetch(opts.auth, (token) =>
+		fetch(`${DRIVE_ABOUT}?fields=${fields}`, {
+			headers: { Authorization: `Bearer ${token}` },
+			signal: AbortSignal.timeout(META_DEADLINE_MS)
+		})
+	);
+	if (r.status === 401) throw new AuthExpiredError('Drive rejected the token (401).');
+	if (!r.ok) throw new SelfstoreError('TARGET_UNAVAILABLE', `Drive about failed: ${r.status}`);
+	const data: { user?: { emailAddress?: string; displayName?: string } } = await r.json();
+	return {
+		email: data.user?.emailAddress ?? null,
+		name: data.user?.displayName ?? null
+	};
 }
 
 /** One row of `listBackups()`: what Drive reports about a file the app can

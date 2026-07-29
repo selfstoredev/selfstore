@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
+	account,
 	fromSession,
 	listBackups,
 	createBackup,
@@ -215,6 +216,54 @@ describe('drive target - a failed read never passes for an empty file', () => {
 
 		await expect(target!.load()).rejects.toMatchObject({ code: 'AUTH_EXPIRED' });
 		expect(auth.forceRefreshes).toBe(1); // the stale-token refresh was tried first
+	});
+});
+
+describe('account() - which account holds the backups', () => {
+	it('names the connected account, asking for nothing but the user field', async () => {
+		const auth = stalableAuth();
+		const urls: string[] = [];
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (url: string) => {
+				urls.push(url);
+				return new Response(
+					JSON.stringify({ user: { emailAddress: 'someone@example.com', displayName: 'Someone' } }),
+					{ status: 200 }
+				);
+			})
+		);
+
+		expect(await account({ auth })).toEqual({ email: 'someone@example.com', name: 'Someone' });
+		// Scope discipline: the about call must not ask for storage quotas or any
+		// other field, so nothing is read that the surface does not display.
+		expect(urls[0]).toContain('/drive/v3/about');
+		expect(urls[0]).toContain('user(emailAddress%2CdisplayName)');
+	});
+
+	it('a destination that will not say answers nulls rather than throwing', async () => {
+		const auth = stalableAuth();
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response(JSON.stringify({}), { status: 200 }))
+		);
+
+		expect(await account({ auth })).toEqual({ email: null, name: null });
+	});
+
+	it('a lost session is AUTH_EXPIRED, a broken one is transient', async () => {
+		const auth = stalableAuth();
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response(null, { status: 401 }))
+		);
+		await expect(account({ auth })).rejects.toMatchObject({ code: 'AUTH_EXPIRED' });
+
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response(null, { status: 503 }))
+		);
+		await expect(account({ auth })).rejects.toMatchObject({ code: 'TARGET_UNAVAILABLE' });
 	});
 });
 

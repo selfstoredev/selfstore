@@ -14,8 +14,25 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
-_Nothing yet. Entries land here as they are merged; the release PR stamps them
-with a number and a date._
+### Added
+
+- `driveBackupsHost()` in `selfstore/backups`: the `BackupsHost` port already
+  wired over the Drive destination. Every operation the port asks for was
+  already exported - list, open-by-id, create, rename, delete, find-or-create
+  the personal file - so the only thing standing between an app and
+  `<selfstore-backups>` was an adapter, and each app wrote its own. Mounting
+  the backups list is now three lines, and the three details that adapter has
+  to get right are settled once: `open()` binds a FIXED file id (a connect
+  would re-resolve by name and merge two isolated backups), the active id lives
+  under the same kv key the connect path reads (or a reload adopts a different
+  file than the one on screen), and a lapsed session asks for consent instead
+  of raising the reconnect gate.
+- `driveTarget.account()` (and the `DriveAccount` type): which Google account
+  the current session belongs to. A destination named "Google Drive" is not an
+  address - several accounts look alike, and a user who connected the wrong one
+  had no way to tell from a brand name. One metadata call, `user` field only,
+  allowed by the `drive.file` scope; a destination that will not say answers
+  nulls rather than throwing.
 
 ## [1.8.2] - 2026-07-29
 
