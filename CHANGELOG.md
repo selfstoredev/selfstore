@@ -14,6 +14,11 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+_Nothing yet. Entries land here as they are merged; the release PR stamps them
+with a number and a date._
+
+## [1.7.5] - 2026-07-29
+
 ### Added
 
 - The connect cards draw a glyph per destination on their own. `icons` was the
