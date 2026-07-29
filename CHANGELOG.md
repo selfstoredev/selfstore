@@ -4,6 +4,25 @@ All notable changes to selfstore are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.7.3] - 2026-07-29
+
+### Fixed
+
+- A cross-tab lock nobody releases no longer freezes a tab for good. The
+  serialized flows (save, pull, forget, detach) run under a Web Lock so two
+  tabs never interleave on the shared cache - and a Web Lock belongs to a
+  CLIENT, which does not necessarily hand it back when it stops running:
+  Firefox keeps the locks of a page it has frozen into its back/forward cache,
+  where Chrome refuses to freeze a page holding one. A second tab left open in
+  the background could therefore hold `selfstore:<app>` forever, and every flow
+  in the live tab queued behind a lock that would never come - no throw, no
+  timeout, no signal of any kind. Saving stopped, and every gesture wired to a
+  store call became a button that does nothing at all. The wait is now bounded:
+  past it the flow goes ahead without the lock, which risks two tabs
+  interleaving - what the merge engine is for, and what already happens between
+  two devices - rather than a store that never writes again. The bypass is
+  reported through `state.lastError` instead of passing in silence.
+
 ## [1.7.2] - 2026-07-29
 
 ### Fixed
