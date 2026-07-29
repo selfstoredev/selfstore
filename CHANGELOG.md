@@ -36,10 +36,6 @@ with a number and a date._
   two devices - rather than a store that never writes again. The bypass is
   reported through `state.lastError` instead of passing in silence.
 
-## [1.7.3] - 2026-07-29
-
-### Fixed
-
 - A property set on a widget BEFORE its class is defined now reaches the
   accessor instead of shadowing it for good. `el.store = handle` on a
   not-yet-defined element writes an own property on the instance; once the
