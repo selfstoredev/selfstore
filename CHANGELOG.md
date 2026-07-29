@@ -17,6 +17,20 @@ version number is not asking you to trust.
 _Nothing yet. Entries land here as they are merged; the release PR stamps them
 with a number and a date._
 
+## [1.7.4] - 2026-07-29
+
+### Fixed
+
+- A property set on a widget BEFORE its class is defined now reaches the
+  accessor instead of shadowing it for good. `el.store = handle` on a
+  not-yet-defined element writes an own property on the instance; once the
+  class is defined that own property answers first, the setter never runs, and
+  the widget sits there - shut, or open and empty - without a word in the
+  console. Every host that loads `defineSelfstoreWidgets()` lazily hits this: a
+  dynamic import, a framework effect, a script at the end of the body. Each
+  widget now hands those properties back on connect, so hosts no longer need a
+  "widgets are defined" flag to gate their assignments.
+
 ## [1.7.3] - 2026-07-29
 
 ### Fixed
@@ -35,16 +49,6 @@ with a number and a date._
   interleaving - what the merge engine is for, and what already happens between
   two devices - rather than a store that never writes again. The bypass is
   reported through `state.lastError` instead of passing in silence.
-
-- A property set on a widget BEFORE its class is defined now reaches the
-  accessor instead of shadowing it for good. `el.store = handle` on a
-  not-yet-defined element writes an own property on the instance; once the
-  class is defined that own property answers first, the setter never runs, and
-  the widget sits there - shut, or open and empty - without a word in the
-  console. Every host that loads `defineSelfstoreWidgets()` lazily hits this: a
-  dynamic import, a framework effect, a script at the end of the body. Each
-  widget now hands those properties back on connect, so hosts no longer need a
-  "widgets are defined" flag to gate their assignments.
 
 ## [1.7.2] - 2026-07-29
 
