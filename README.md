@@ -31,7 +31,7 @@ Docs, guides, a live demo and honest comparisons with the alternatives:
 ```ts
 // Multi-device sync: connect a destination the USER owns.
 await store.connectDrive(gisDriveAuth({ clientId }));  // Google Drive
-await store.connectFile();                             // a file on disk (Chromium)
+await store.connectFile();                             // a file on disk (Chromium, or any desktop shell)
 await store.connectWebdav({ url, username, password: appPassword }); // Nextcloud & friends
 
 // End-to-end encryption of everything that leaves the device.
@@ -49,6 +49,28 @@ now lives there), `'cancelled'` (the user closed the picker), or `'manual'`
 (no File System Access; offer `downloadBackup()` instead). If the destination
 holds an encrypted backup and no password was given, the call throws
 `PASSWORD_REQUIRED` BEFORE touching anything, so you can prompt and retry.
+
+### Packaging as a desktop app
+
+The File System Access API is Chromium-only, and inside a native webview it is
+usually absent altogether: macOS and Linux shells embed WebKit, which never
+shipped it. So wrapping a web app as a desktop app would _lose_ the file mode,
+in the environment where writing a real file is easiest. Hand the shell's own
+calls over once and it comes back, on a real path:
+
+```ts
+import { readFile, writeFile, stat, exists } from '@tauri-apps/plugin-fs';
+import { save, open } from '@tauri-apps/plugin-dialog';
+import { useDesktopFiles } from 'selfstore';
+
+useDesktopFiles({ readFile, writeFile, stat, exists, save, open });
+```
+
+That is the whole integration. `connectFile()`, `file: true` in the connect
+flow and the widgets all keep meaning what they meant; they just write a path.
+The path outlives the session, so the app reopens on its file with nothing
+asked of the user, where the browser needs a click to re-grant. The calls are
+injected rather than imported, so a web build carries no desktop dependency.
 
 ## The one rule
 
