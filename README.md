@@ -124,7 +124,7 @@ release, so keep a `default` branch in exhaustive switches.
 ## Backup files, on their own
 
 The backup is a real ZIP, specified independently of this library
-([SPEC.md](./SPEC.md), with a ~120-line Python reference reader and canonical
+([SPEC.md](./SPEC.md), with a small Python reference reader and canonical
 test vectors): unencrypted it opens in any archive tool; encrypted it is still
 a valid ZIP holding the AES-256-GCM ciphertext, the cleartext parameters and a
 readme - never a mystery blob. Working with backup FILES needs no store:
