@@ -59,9 +59,12 @@ const EN: WidgetLabels = {
 // One verb per gesture, and the precious thing is never the object of the verb:
 // "ne plus enregistrer ici" says what stops, where "detacher cette sauvegarde"
 // would read as taking the backup away.
+//
+// A pack carries only what READS differently: `t()` falls back to the EN
+// defaults, so a key repeated word for word (a brand name) would just be a
+// second place to keep it in step.
 const FR: WidgetLabels = {
 	'destination.heading': 'Où vos données sont enregistrées',
-	'destination.kind.drive': 'Google Drive',
 	'destination.kind.file': 'Un fichier sur cet appareil',
 	'destination.kind.webdav': 'Votre serveur',
 	'destination.kind.s3': 'Votre bucket',
