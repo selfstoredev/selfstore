@@ -64,12 +64,20 @@ produce false timeouts. A timeout there is an environment signal, not a bug.
 
 - GitHub flow: `main` is the only long-lived branch and stays releasable.
   Every change is a small PR into `main`, squash-merged with a green CI.
-- A release is a `vX.Y.Z` tag cut from `main` (release.yml dispatch, notes
-  from the CHANGELOG section). The version bump and the dated CHANGELOG
-  section travel IN the feature PR, not in a commit of their own.
-- Publishing to npm is then a second, deliberate step: publish.yml runs on a
-  published release, or on demand with the tag. It never rides along with a
-  merge.
+- The CHANGELOG entry travels IN the feature PR, under `## [Unreleased]` -
+  written while the reasoning is fresh, by whoever has it. The version number
+  and the date are NOT in that PR.
+- A release is a separate, deliberate PR that stamps `[Unreleased]` with a
+  number and a date, bumps `package.json`, and is followed by a `vX.Y.Z` tag
+  (release.yml dispatch, notes from that section).
+- Merging does not publish, and green CI is a precondition for a release, never
+  a reason for one. At most one release a day unless the second repairs the
+  first. Entries accumulate under `[Unreleased]` in between; that is the normal
+  state of `main`, not a backlog to clear.
+- Publishing to npm is then a third step: publish.yml runs on a published
+  release, or on demand with the tag. It never rides along with a merge.
+- Nothing is ever unpublished: a burned version number cannot be reused, and a
+  lockfile somewhere pins that exact one. See RELEASING.md.
 - Conventional commits, English, pure ASCII. Author is always
   Florian Mousseau <florian.mousseau@gmail.com>; no AI mention, no co-author
   trailer, no tool branding anywhere (commits, branches, PRs).
