@@ -1,0 +1,16 @@
+{
+	"name": "selfstore-playground",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "vite",
+		"build": "vite build"
+	},
+	"dependencies": {
+		"selfstore": "^1.8.1"
+	},
+	"devDependencies": {
+		"typescript": "^7.0.2",
+		"vite": "^8.1.5"
+	}
+}

@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>selfstore playground</title>
+		<style>
+			:root {
+				--selfstore-accent: #a8490a;
+				--selfstore-accent-contrast: #fff;
+				--selfstore-radius: 10px;
+				color-scheme: light dark;
+			}
+			@media (prefers-color-scheme: dark) {
+				:root {
+					--selfstore-accent: #f59e0b;
+					--selfstore-accent-contrast: #1c1305;
+				}
+			}
+			body {
+				margin: 0;
+				padding: 1.5rem;
+				max-width: 34rem;
+				font:
+					16px/1.6 system-ui,
+					sans-serif;
+			}
+			h1 {
+				font-size: 1.3rem;
+				margin: 0 0 0.2rem;
+			}
+			p.lead {
+				margin: 0 0 1.4rem;
+				opacity: 0.72;
+			}
+			textarea {
+				width: 100%;
+				box-sizing: border-box;
+				font: inherit;
+				padding: 0.7rem 0.85rem;
+				border-radius: 10px;
+				border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+				background: transparent;
+				color: inherit;
+			}
+			.row {
+				display: flex;
+				gap: 0.6rem;
+				flex-wrap: wrap;
+				margin: 0.9rem 0 1.6rem;
+			}
+			button {
+				font: inherit;
+				padding: 0.5rem 1rem;
+				border-radius: 10px;
+				border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+				background: transparent;
+				color: inherit;
+				cursor: pointer;
+			}
+			button.primary {
+				background: var(--selfstore-accent);
+				border-color: var(--selfstore-accent);
+				color: var(--selfstore-accent-contrast);
+				font-weight: 600;
+			}
+			hr {
+				border: 0;
+				border-top: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+				margin: 1.8rem 0;
+			}
+			small {
+				opacity: 0.7;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>Your notes, saved without a server</h1>
+		<p class="lead">
+			Type below and reload the page. Nothing was sent anywhere: this page has no backend.
+		</p>
+
+		<selfstore-status id="status"></selfstore-status>
+
+		<textarea id="notes" rows="6" aria-label="Notes" placeholder="Type anything..."></textarea>
+
+		<div class="row">
+			<button class="primary" id="save-to-file">Keep it in a file on my disk</button>
+			<button id="download">Download an encrypted backup</button>
+		</div>
+
+		<small id="note"></small>
+
+		<hr />
+
+		<p>
+			<small>
+				Everything above runs the real <code>selfstore</code> package from npm, against real
+				IndexedDB, in this tab.
+			</small>
+		</p>
+
+		<script type="module" src="/main.ts"></script>
+	</body>
+</html>
