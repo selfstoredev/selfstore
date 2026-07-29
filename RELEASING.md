@@ -18,11 +18,24 @@ Everything below is about the package. The paragraph above is about your data.
 
 ## What earns which number
 
+**The default is patch.** Move the last digit unless there is a reason not to.
+
 | Bump | When |
 | --- | --- |
 | **major** | An existing app stops compiling, or behaves differently without changing a line. |
-| **minor** | New API surface: a function, an option, a widget, an entry point. Nothing existing moves. |
-| **patch** | A fix, a performance change, or a correction to what ships in the `.d.ts`. |
+| **minor** | A milestone worth announcing: a new entry point, a widget, a capability someone would upgrade *for*. |
+| **patch** | Everything else, including a fix, a performance change, a correction to the `.d.ts` - and an added function or option. |
+
+This used to read "minor: new API surface", and that criterion is what pushed
+1.6 to 1.8 in three days: almost every release adds surface, so the minor
+climbed continuously and the patch digit never moved. A version number is a
+signal about how much has changed. When it moves at the same speed whatever
+happens, it stops carrying one.
+
+So the question is not "did anything get added" but "would a reader of the
+changelog upgrade *for* this". One more option on an existing widget is a
+patch. A new subpath entry, or a capability the library did not have, is a
+minor.
 
 Two consequences worth stating, because they are where semver usually gets
 bent:
