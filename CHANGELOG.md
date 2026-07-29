@@ -14,8 +14,18 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
-_Nothing yet. Entries land here as they are merged; the release PR stamps them
-with a number and a date._
+### Added
+
+- The connect cards draw a glyph per destination on their own. `icons` was the
+  host's job and nothing filled it, so a drop-in screen rendered bare cards and
+  every consuming app answered the same way: two image files of its own, copied
+  from app to app and drifting. The glyphs are inlined as data URIs, because a
+  library that promises the data stays put cannot fetch an image from a third
+  party to draw its own screen. They are deliberately NEUTRAL drawings, not
+  brand marks: redistributing a provider's trademark inside a public package is
+  a different question from an application displaying it to name an integration
+  it offers, and a host that has cleared that right still passes its own logo
+  through `icons`, which wins.
 
 ## [1.7.4] - 2026-07-29
 

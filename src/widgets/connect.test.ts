@@ -7,6 +7,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { defaultIcons } from './icons';
 import { createLocalStore } from '../persistence/store';
 import type { CachedFile, KV, LocalCache } from '../persistence/cache';
 import type { BackupTarget } from '../persistence/target';
@@ -321,7 +322,7 @@ describe('selfstore-connect: choosing', () => {
 		el.remove();
 	});
 
-	it('renders a per-destination icon when one is set, and nothing otherwise', async () => {
+	it('renders the host icon where it has one, the shipped glyph elsewhere', async () => {
 		const { host } = makeHost();
 		const el = mount();
 		el.store = host;
@@ -332,7 +333,11 @@ describe('selfstore-connect: choosing', () => {
 		const driveIcon = q(el, '[data-kind="drive"] img[part~="icon"]');
 		expect(driveIcon).not.toBeNull();
 		expect(driveIcon!.getAttribute('src')).toBe('data:image/png;base64,iVBORw0KGgo=');
-		expect(q(el, '[data-kind="file"] img[part~="icon"]')).toBeNull();
+		// No card renders bare any more: the kind the host said nothing about
+		// falls back to the glyph the library ships.
+		const fileIcon = q(el, '[data-kind="file"] img[part~="icon"]');
+		expect(fileIcon).not.toBeNull();
+		expect(fileIcon!.getAttribute('src')).toBe(defaultIcons.file);
 		el.remove();
 	});
 
