@@ -178,6 +178,7 @@ export class SelfstoreShareElement extends FlowWidget {
 	}
 
 	connectedCallback(): void {
+		super.connectedCallback();
 		this.wire();
 	}
 

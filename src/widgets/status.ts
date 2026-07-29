@@ -97,6 +97,7 @@ export class SelfstoreStatusElement extends FlowWidget {
 	}
 
 	connectedCallback(): void {
+		super.connectedCallback();
 		if (this.hasAttribute('variant')) this.variant = this.getAttribute('variant') as 'row' | 'dot';
 		this.wire();
 	}

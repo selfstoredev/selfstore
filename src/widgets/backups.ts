@@ -332,6 +332,7 @@ export class SelfstoreBackupsElement extends FlowWidget {
 	}
 
 	connectedCallback(): void {
+		super.connectedCallback();
 		this.wire();
 	}
 
