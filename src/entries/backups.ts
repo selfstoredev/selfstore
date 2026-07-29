@@ -10,7 +10,13 @@
  * rules derive named files from the canonical name, and every failure
  * surfaces as a stable code - the host app maps codes to its own copy and
  * wraps `subscribe` in its own reactivity.
+ *
+ * `driveBackupsHost({ auth, kv, fileName })` is that port already wired over
+ * the Drive destination, so an app that keeps its backups there writes none of
+ * it: the manager (and `<selfstore-backups>` with it) is three lines away.
  */
+
+export { driveBackupsHost, type DriveBackupsHostOptions } from '../backups/drive-host';
 
 export {
 	createBackupsManager,

@@ -125,6 +125,7 @@ import {
 	createBackup as driveCreateBackup,
 	deleteBackup as driveDeleteBackup,
 	renameBackup as driveRenameBackup,
+	account as driveAccount,
 	FILE_ID_KEY as DRIVE_FILE_ID_KEY
 } from '../persistence/targets/drive';
 
@@ -162,7 +163,8 @@ export const s3Target = {
  *  file, adopt it as this device's backup, find-or-create the user's own file)
  *  and the backup-management ops (list the app's files with dates, create a
  *  named empty backup, rename one, delete one for good) - the raw pieces a "my
- *  backups" panel builds on. */
+ *  backups" panel builds on. `account()` names WHICH Google account holds them,
+ *  because a brand name is not an address. */
 export const driveTarget = {
 	connect: driveConnect,
 	fromSession: driveFromSession,
@@ -173,11 +175,17 @@ export const driveTarget = {
 	createBackup: driveCreateBackup,
 	deleteBackup: driveDeleteBackup,
 	renameBackup: driveRenameBackup,
+	account: driveAccount,
 	FILE_ID_KEY: DRIVE_FILE_ID_KEY
 };
 
 export type { FileConnectOptions } from '../persistence/targets/file';
-export type { DriveAuth, DriveOptions, DriveBackupInfo } from '../persistence/targets/drive';
+export type {
+	DriveAuth,
+	DriveOptions,
+	DriveBackupInfo,
+	DriveAccount
+} from '../persistence/targets/drive';
 export type {
 	WebdavConfig,
 	WebdavConnectOptions,
