@@ -45,6 +45,20 @@ export interface FileConnectOptions {
  *  the only honest probe there is - it costs one click, once. */
 let refused = false;
 
+/** Was the call made inside a live user gesture?
+ *
+ * A picker REQUIRES transient activation, and a call made without one throws
+ * the same DOMException as a browser that ships the picker and refuses it. Read
+ * as a refusal, one mistimed call condemns the file mode for the whole session:
+ * the host then falls back to manual downloads on a Chrome that was never
+ * asked properly. A throw only teaches us about the browser when the browser
+ * was actually allowed to answer. Undefined support (no userActivation) reads
+ * as "cannot tell" - and cannot-tell must not accuse. */
+function insideGesture(): boolean {
+	const ua = typeof navigator !== 'undefined' ? navigator.userActivation : undefined;
+	return ua ? ua.isActive : true;
+}
+
 /** True when the browser supports picking a re-writable file (Chromium), and
  *  has not already refused to open one in this session. */
 export function isSupported(): boolean {
@@ -64,11 +78,14 @@ export function isOpenSupported(): boolean {
  *  refusal says something about the browser - and it must not surface as an
  *  error, or the host reports a fault where it should offer another way. */
 async function ask<T>(open: () => Promise<T>): Promise<T | null> {
+	const asked = insideGesture();
 	try {
 		return await open();
 	} catch (e) {
 		if (e instanceof DOMException && e.name === 'AbortError') return null; // user cancelled
-		refused = true;
+		// Outside a gesture the browser refused the CALL, not the feature: keep
+		// the file mode intact so the host can ask again from a real click.
+		refused = asked;
 		return null;
 	}
 }
@@ -142,8 +159,8 @@ export async function connect(opts: FileConnectOptions): Promise<BackupTarget | 
 
 /** Prompt the user to pick an EXISTING backup file and adopt it as the
  *  destination (the connect journey then reads it like any backup: password,
- *  conflict, resume). Asks for readwrite up front so the first save does not
- *  stall on a second permission prompt. Returns null if cancelled. */
+ *  conflict, resume). Tries to raise the grant to readwrite up front so the
+ *  first save does not stall on a second prompt. Returns null if cancelled. */
 export async function openExisting(opts: { kv: KV }): Promise<BackupTarget | null> {
 	const picker = (window as unknown as PickerWindow).showOpenFilePicker;
 	if (!picker) return null;
@@ -155,10 +172,22 @@ export async function openExisting(opts: { kv: KV }): Promise<BackupTarget | nul
 	);
 	const handle = picked?.[0];
 	if (!handle) return null;
-	// Outside `ask`: a permission refusal here is about THIS file, not about the
-	// browser. Marking the picker unsupported for it would strip the file mode
-	// away from a browser that has just proved it works.
-	if ((await handle.requestPermission({ mode: 'readwrite' })) !== 'granted') return null;
+	// The upgrade to readwrite is a COURTESY, not a condition. It can fail for a
+	// reason that has nothing to do with the file - the open picker consumes the
+	// transient activation a permission prompt needs, so a browser may answer
+	// 'prompt' without ever asking anyone. Throwing the picked file away then
+	// dropped the host back on its own screen with nothing said and nothing
+	// changed: the user pointed at their file and the app appeared to ignore it.
+	// So we adopt it either way. Reading works on the grant the picker gave, and
+	// a write that cannot happen raises the store's own reconnect gate, whose
+	// one click re-asks from inside a real gesture - the only place it can work.
+	// Outside `ask`: a refusal here is about THIS file, never about the picker,
+	// which has just proved it opens.
+	try {
+		await handle.requestPermission({ mode: 'readwrite' });
+	} catch {
+		/* no prompt was possible: the reconnect gesture will ask for real */
+	}
 	await opts.kv.set(HANDLE_KEY, handle);
 	return fromHandle(handle, opts.kv);
 }

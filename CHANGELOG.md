@@ -4,6 +4,31 @@ All notable changes to selfstore are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.7.1] - 2026-07-29
+
+### Fixed
+
+- A file picker called outside a user gesture no longer condemns the browser.
+  A picker REQUIRES transient activation, and a call made without one throws
+  exactly what a browser that ships the picker and refuses it throws - so the
+  refusal was recorded against the browser, for the whole session. One
+  mistimed call then sent every later save down the manual-download path on a
+  Chrome that holds files perfectly well, and nothing ever revised that verdict.
+  A throw only says something about the browser when the browser was allowed to
+  answer, so the verdict is now conditioned on there having been an activation
+  to spend.
+- Adopting an existing backup file no longer discards the file when the
+  readwrite grant is refused. Raising the grant up front is a courtesy - it
+  spares a second prompt on the first save - but it was treated as a condition,
+  and it can fail for a reason that has nothing to do with the file: the open
+  picker consumes the very activation a permission prompt needs, so a browser
+  can answer 'prompt' without ever asking anyone. The journey then read the
+  refusal as "no file" and returned to the choice screen silently, which is how
+  pointing at your own backup came to look like the app ignoring the click. The
+  file is adopted either way: reading works on the grant the picker gave, and a
+  write that cannot happen raises the store's own reconnect gate, whose one
+  click re-asks from inside a real gesture - the only place it can work.
+
 ## [1.7.0] - 2026-07-28
 
 ### Added
