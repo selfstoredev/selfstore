@@ -354,6 +354,41 @@ export function h<K extends keyof HTMLElementTagNameMap>(
 
 /** The common shell: shadow root + styles, label merging, focus-preserving
  *  re-render, event emission, subscription cleanup. */
+/**
+ * Hand back the properties a host set BEFORE the element's class existed.
+ *
+ * `el.store = handle` on a not-yet-defined element writes an OWN property on
+ * the instance. Once the class is defined, that own property shadows the
+ * accessor for good: the setter never runs, the widget never learns it has a
+ * store, and it sits there - shut, or open and empty - without a word in the
+ * console. Every host that loads `defineSelfstoreWidgets()` lazily hits this
+ * (a dynamic import, a framework effect, a script at the end of the body),
+ * and the symptom points nowhere near the cause.
+ *
+ * So on connect: delete each own property that a prototype accessor was meant
+ * to answer, and set it again through the accessor. Only those - the widget's
+ * own fields are not on the prototype, so they are left alone.
+ *
+ * Deliberately a plain function, not a method: happy-dom calls
+ * connectedCallback without swapping the prototype, so `this` may not carry
+ * the class's methods there. As a function it is a harmless no-op in that
+ * case instead of a crash, and does the real work in a browser.
+ *
+ * Deliberately called from connectedCallback rather than the constructor: on
+ * an upgrade the base constructor runs BEFORE the subclass field
+ * initializers, which would wipe whatever the setter had just stored.
+ */
+export function upgradeOwnProperties(el: HTMLElement): void {
+	const proto = Object.getPrototypeOf(el) as object;
+	const bag = el as unknown as Record<string, unknown>;
+	for (const name of Object.getOwnPropertyNames(el)) {
+		if (!(name in proto)) continue;
+		const value = bag[name];
+		delete bag[name];
+		bag[name] = value;
+	}
+}
+
 export abstract class FlowWidget extends HTMLElement {
 	protected root: ShadowRoot;
 	private styleEl: HTMLStyleElement;
@@ -436,6 +471,13 @@ export abstract class FlowWidget extends HTMLElement {
 			if (specific) return specific;
 		}
 		return this.t('error.generic');
+	}
+
+	/** Hands back whatever the host set before this class existed, then the
+	 *  subclass reads its attributes and wires itself. Subclasses override this
+	 *  and call `super.connectedCallback()` FIRST, for that reason. */
+	connectedCallback(): void {
+		upgradeOwnProperties(this);
 	}
 
 	protected emit(name: string, detail?: unknown): void {

@@ -329,6 +329,7 @@ export class SelfstoreConnectElement extends FlowWidget {
 	}
 
 	connectedCallback(): void {
+		super.connectedCallback();
 		if (this.#recommended === null && this.hasAttribute('recommended')) {
 			this.recommended = this.getAttribute('recommended') as ConnectKind;
 		}

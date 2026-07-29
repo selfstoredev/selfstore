@@ -245,6 +245,7 @@ export class SelfstoreGateElement extends FlowWidget {
 	}
 
 	connectedCallback(): void {
+		super.connectedCallback();
 		if (this.hasAttribute('armed')) this.armed = this.getAttribute('armed') !== 'false';
 		if (this.hasAttribute('deferrable')) {
 			this.deferrable = this.getAttribute('deferrable') !== 'false';

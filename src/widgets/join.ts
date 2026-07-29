@@ -119,6 +119,7 @@ export class SelfstoreJoinElement extends FlowWidget {
 	}
 
 	connectedCallback(): void {
+		super.connectedCallback();
 		if (!this.#link && this.hasAttribute('link')) this.#link = this.getAttribute('link');
 		if (this.hasAttribute('variant')) {
 			this.#variant = this.getAttribute('variant') === 'banner' ? 'banner' : 'card';
