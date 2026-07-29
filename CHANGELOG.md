@@ -14,8 +14,30 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
-_Nothing yet. Entries land here as they are merged; the release PR stamps them
-with a number and a date._
+### Added
+
+- `<selfstore-destination>`, the gate's counterpart. The gate asks where the
+  data should live; this panel states the answer and carries the gestures that
+  act on it. It names the destination, the account holding it (`account`, e.g.
+  what `driveTarget.account()` returned - a brand name is not an address) and
+  whether it is password-protected, and it composes `<selfstore-status>` for the
+  state line so one state is never worded twice.
+
+  It **runs** what the engine owns rather than emitting intentions: exporting a
+  copy (a closed save dialog claims nothing and clears no nudge) and stopping
+  the destination (`detachTarget`, behind the host's `confirmAction`, local data
+  untouched). Given `targets` it runs the connect journey in place to change
+  destination; without them that button is absent rather than dead. A panel that
+  only emitted would have left the same two hundred lines in every app, which is
+  the code this widget exists to delete.
+
+  One gesture it cannot run, and the reason is structural rather than a design
+  choice: **loading a copy back**. The library holds no records - the app's
+  `apply` does, and the engine exposes `exportBlob()` and no import - so that
+  one is emitted as `selfstore-destination-action` with `{ action: 'restore' }`
+  and the host runs its own import. Two things stay the host's on purpose: the
+  words (every label overridable, a pack per language) and the veto on what is
+  destructive.
 
 ## [1.8.3] - 2026-07-29
 
