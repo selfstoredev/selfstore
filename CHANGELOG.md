@@ -14,8 +14,28 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
-_Nothing yet. Entries land here as they are merged; the release PR stamps them
-with a number and a date._
+### Added
+
+- **`<selfstore-storage>`: the whole storage journey in one element.** Mount
+  it, assign the store, and that is the integration - it shows the first-run
+  screen while there is no home and the destination panel once there is,
+  deriving the destinations, the "reopen my backup" card and the account from
+  the store itself.
+
+  The pieces already existed; assembling them did not, and the assembly is
+  exactly where consumers went wrong - showing the gate while the store was
+  still loading, building destinations by hand from the session the store had
+  just built, deriving the resume card from data the library was holding. An app
+  that mounts this element cannot make any of them. It composes rather than
+  redraws: the gate and the panel remain mountable separately, with every knob
+  they already had, and `targets` / `manager` / `confirmAction` / `deferrable`
+  / `recommended` pass straight through.
+
+- **`store.destinations()`**: what a simple store can offer - Drive first when
+  the app configured it, a file always. The rule (no client id, no Drive card)
+  and the order were being rediscovered by every consumer, from the very session
+  the store had built for itself. An app wanting a different offer still writes
+  its own object.
 
 ## [1.8.8] - 2026-07-30
 

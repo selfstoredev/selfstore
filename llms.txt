@@ -40,7 +40,13 @@ collaborative editing (use a CRDT library), or Node-side storage.
 - 'selfstore/widgets' - the journeys as drop-in web components:
   defineSelfstoreWidgets() registers <selfstore-connect>, <selfstore-gate>,
   <selfstore-share>, <selfstore-join>, <selfstore-status>,
-  <selfstore-backups>, <selfstore-destination>. Framework-free
+  <selfstore-backups>, <selfstore-destination>, <selfstore-storage>.
+  START WITH <selfstore-storage>: assign .store and the whole journey is wired -
+  it shows the gate while there is no home and the destination panel once there
+  is, taking destinations (store.destinations()), the resume card
+  (store.resumeOffer()) and the account (store.account) from the store itself;
+  targets / manager / confirmAction / deferrable / recommended pass through to
+  the composed widgets. Framework-free
   custom elements over the flows; theme via
   --selfstore-* CSS custom properties and ::part() selectors; reword/localize
   via the `labels` property (partial map over EN defaults); listen to

@@ -31,7 +31,7 @@ import {
 import type { BackupTarget } from '../persistence/target';
 import type { StatusDescriptor } from '../persistence/status';
 import type { SyncConfig } from '../sync';
-import type { ResumeOffer } from '../flows/connect';
+import type { ConnectTargets, ResumeOffer } from '../flows/connect';
 import type { Snapshot, SnapshotFile } from '../selfstore/types';
 import { SelfstoreError } from '../selfstore/errors';
 import { restore, type PasswordPolicy } from '../selfstore';
@@ -225,6 +225,18 @@ export interface SimpleStore<
 	 *  ahead of the plain destinations, instead of re-deriving a decision the
 	 *  library already has on file. Null when there is nothing to resume. */
 	resumeOffer(): ResumeOffer | null;
+
+	/**
+	 * The destinations this store can offer, ready for a connect flow or widget:
+	 * Drive first when the app configured it, a file always.
+	 *
+	 * Consumers were assembling this by hand from the very session the store
+	 * built - and the order and the "no client id means no Drive card" rule were
+	 * rediscovered each time. An app wanting a different offer (a WebDAV server,
+	 * its own target) still writes its own object; this is the default, not a
+	 * ceiling.
+	 */
+	destinations(): ConnectTargets;
 }
 
 /** The id field a collection's records are keyed by: `sync.ids` may remap it;
@@ -611,6 +623,12 @@ export async function selfstore<
 
 		get account(): string | null {
 			return rememberedDriveAccount(app) ?? null;
+		},
+
+		destinations(): ConnectTargets {
+			// Drive first when there is one: it is the answer that follows a user
+			// from device to device. A file always, for whoever wants no account.
+			return driveAuth ? { drive: driveAuth, file: true } : { file: true };
 		},
 
 		resumeOffer(): ResumeOffer | null {
