@@ -18,6 +18,7 @@ export { SelfstoreStatusElement } from '../widgets/status';
 export { SelfstoreBackupsElement, type BackupsAction } from '../widgets/backups';
 export { SelfstoreGateElement } from '../widgets/gate';
 export { SelfstoreDestinationElement, type DestinationAction } from '../widgets/destination';
+export { SelfstoreStorageElement } from '../widgets/storage';
 export { FlowWidget, type WidgetLabels } from '../widgets/base';
 
 import { SelfstoreConnectElement } from '../widgets/connect';
@@ -27,6 +28,7 @@ import { SelfstoreStatusElement } from '../widgets/status';
 import { SelfstoreBackupsElement } from '../widgets/backups';
 import { SelfstoreGateElement } from '../widgets/gate';
 import { SelfstoreDestinationElement } from '../widgets/destination';
+import { SelfstoreStorageElement } from '../widgets/storage';
 
 /** Register the elements as <PREFIX-connect>, <PREFIX-share>, <PREFIX-join>,
  *  <PREFIX-status>, <PREFIX-backups>, <PREFIX-gate> and
@@ -46,4 +48,7 @@ export function defineSelfstoreWidgets(prefix = 'selfstore'): void {
 	// panel composes both connect and status the same way.
 	define(`${prefix}-gate`, SelfstoreGateElement);
 	define(`${prefix}-destination`, SelfstoreDestinationElement);
+	// The whole journey in one tag: it composes the gate and the panel above,
+	// choosing between them from the engine's own status.
+	define(`${prefix}-storage`, SelfstoreStorageElement);
 }
