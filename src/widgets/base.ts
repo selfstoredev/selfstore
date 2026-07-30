@@ -467,6 +467,46 @@ export abstract class FlowWidget extends HTMLElement {
 	/** Build the current view into the given container. */
 	protected abstract view(into: HTMLElement): void;
 
+	#store: StoreLike | null = null;
+	#icons: Record<string, string> = {};
+
+	/**
+	 * The store this widget reads: the simple facade (anything exposing
+	 * `flowHost`) or a hand-built FlowHost. Idempotent, so a host may assign it
+	 * from a reactive effect that runs more than once.
+	 *
+	 * Every widget over a store had written this same pair, plus the host lookup
+	 * and the glyph map beside it - the same fifteen lines in six files, each one
+	 * a place where a fix could land in five.
+	 */
+	get store(): StoreLike | null {
+		return this.#store;
+	}
+	set store(v: StoreLike | null) {
+		if (v === this.#store) return;
+		this.#store = v;
+		this.storeChanged();
+		this.follow(this.hostOf());
+	}
+
+	/** Called before the widget follows a newly assigned store, for one that has
+	 *  its own view state to drop (a journey in progress belongs to the old one). */
+	protected storeChanged(): void {}
+
+	/** The ports behind the current store, or null while it is unwired. */
+	protected hostOf(): FlowHost | null {
+		return hostOf(this.#store);
+	}
+
+	/** Optional glyph per destination kind, same contract in every widget. */
+	get icons(): Record<string, string> {
+		return this.#icons;
+	}
+	set icons(v: Record<string, string> | null) {
+		this.#icons = v ?? {};
+		this.rerender();
+	}
+
 	/** Follow an engine: rerender on every notification, replacing any previous
 	 *  subscription. A no-op before connection and on a null host, so a host may
 	 *  assign the store from a reactive effect that runs more than once. */
