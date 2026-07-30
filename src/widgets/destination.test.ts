@@ -202,27 +202,29 @@ describe('selfstore-destination', () => {
 		expect(parts.some((p) => p.includes('destination-detach'))).toBe(true);
 	});
 
-	it('offers no way to change destination when there is nothing to change to', () => {
+	it('offers no way to change backup when there is nothing to change to', () => {
 		const el = mount(fakeEngine());
-		expect(byText(el, 'Change destination')).toBeUndefined(); // absent, not dead
+		expect(byText(el, 'Change backup')).toBeUndefined(); // absent, not dead
 
 		el.targets = { file: true };
-		expect(byText(el, 'Change destination')).toBeDefined();
+		expect(byText(el, 'Change backup')).toBeDefined();
 	});
 
-	it('runs the library connect journey in place, and comes back from it', async () => {
-		const el = mount(fakeEngine());
+	it('changes backup by letting the destination go, not by connecting in place', async () => {
+		// One journey for one decision. The panel used to run a second connect
+		// inside itself, so changing backup worked one way from the page and
+		// another from the header - and only the header's could be reached from
+		// anywhere in the app. Detaching hands it to the first-run screen, which
+		// is the same screen either way.
+		const engine = fakeEngine();
+		const el = mount(engine);
 		el.targets = { file: true };
 
-		byText(el, 'Change destination')!.click();
+		byText(el, 'Change backup')!.click();
 		await settle();
-		const connect = el.shadowRoot!.querySelector('selfstore-connect');
-		expect(connect).not.toBeNull(); // the tested journey, not a second one
 
-		connect!.dispatchEvent(new CustomEvent('selfstore-cancelled', { bubbles: true }));
-		await settle();
+		expect(engine.calls.detached).toBe(1);
 		expect(el.shadowRoot!.querySelector('selfstore-connect')).toBeNull();
-		expect(text(el)).toContain('Google Drive');
 	});
 
 	it('speaks the page language without a single label from the host', () => {

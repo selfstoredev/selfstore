@@ -139,14 +139,27 @@ const ACCOUNT_STYLES = `
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
+/* A menu item is a plain line of text, not a link: underlined blue links in a
+   menu read as four different destinations to weigh, which is exactly the
+   feeling this menu exists to remove. */
 [part~='account-item'] {
 	text-align: start;
-	padding: 0.4rem 0.6rem;
+	padding: 0.5rem 0.55rem;
+	border: none;
+	background: none;
 	border-radius: calc(var(--_radius) * 0.75);
+	font: inherit;
+	font-size: 0.8125rem;
 	text-decoration: none;
 	color: inherit;
+	cursor: pointer;
+	white-space: nowrap;
 }
 [part~='account-item']:hover { background: color-mix(in srgb, currentColor 7%, transparent); }
+/* Letting a destination go is the one gesture here that takes something away:
+   it wears the colour every other screen uses for that, and nothing else does. */
+[part~='account-change'] { color: var(--_danger); }
+[part~='account-change']:hover { background: color-mix(in srgb, var(--_danger) 10%, transparent); }
 [part~='account-sep'] { height: 1px; background: var(--_border); margin: 0.2rem 0.3rem; }
 `;
 
@@ -358,7 +371,7 @@ export class SelfstoreAccountElement extends FlowWidget {
 					h(
 						'button',
 						{
-							part: 'link account-item',
+							part: 'account-item',
 							type: 'button',
 							role: 'menuitem',
 							onclick: () => this.settings()
@@ -368,7 +381,7 @@ export class SelfstoreAccountElement extends FlowWidget {
 					h(
 						'button',
 						{
-							part: 'link account-item account-change',
+							part: 'account-item account-change',
 							type: 'button',
 							role: 'menuitem',
 							onclick: () => void this.change()
