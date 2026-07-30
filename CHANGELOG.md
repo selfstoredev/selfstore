@@ -14,8 +14,29 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
-_Nothing yet. Entries land here as they are merged; the release PR stamps them
-with a number and a date._
+### Added
+
+- **`<selfstore-account>`**: the storage control for an app's header - a
+  trigger naming where the data goes, and a menu holding exactly two
+  decisions: open the settings (the host owns the route; the element emits
+  `selfstore-account-settings`) and change backup. It is deliberately short.
+  `<selfstore-destination>` offers four gestures, which is right for a settings
+  page and wrong for a menu: a header opening onto "export a copy / restore a
+  copy / change backup / stop saving here" asks the user to arbitrate between
+  four irreversible-looking words before knowing what any of them does.
+  Changing backup detaches and stops there, so the first-run screen already on
+  the page runs the journey - one connect flow, whether it is the first day or
+  a change of mind. The card states who holds the backup and _when_ it was last
+  written ("Saved 3 minutes ago", from `Intl` in the page's language, refreshed
+  while the menu is open); anything needing attention is handed to
+  `<selfstore-status>`, which owns both that wording and the button resolving
+  it, rather than being worded a second time.
+
+### Changed
+
+- The destination names (`destination.kind.*`) now live in one module both the
+  panel and the header control read. Two screens of one app naming the same
+  target differently, each correct on its own, is how a lexicon drifts.
 
 ## [1.8.10] - 2026-07-30
 

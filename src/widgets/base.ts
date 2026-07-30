@@ -349,6 +349,20 @@ button[part~='menu-item-danger'] { color: var(--_danger); }
 type Child = Node | string | null | undefined;
 
 /** Append children to an element, skipping null/undefined (conditional bits). */
+/**
+ * The sibling element under the same prefix: widgets are registered together,
+ * so <app-destination> composes <app-connect> without being told which prefix
+ * it was registered under.
+ *
+ * `self` is the caller's own suffix ('destination'), `name` the sibling's
+ * ('connect'). An element registered under no known prefix falls back to the
+ * library's own tags rather than guessing.
+ */
+export function siblingTag(own: string, self: string, name: string): string {
+	const suffix = `-${self}`;
+	return own.endsWith(suffix) ? `${own.slice(0, -suffix.length)}-${name}` : `selfstore-${name}`;
+}
+
 export function put(el: HTMLElement, ...children: Child[]): void {
 	for (const c of children) {
 		if (c == null) continue;
@@ -464,17 +478,23 @@ export abstract class FlowWidget extends HTMLElement {
 		this.rerender();
 	}
 
-	/** The shipped translation for the page's language, if the widget has one.
-	 *  An explicit `lang` on the element (or on any ancestor) wins over the
-	 *  document's, which wins over the browser's, so a host that already sets
-	 *  `<html lang>` gets translated copy without writing a single label. */
-	private localized(): WidgetLabels {
-		const tag =
+	/** The language this widget speaks. An explicit `lang` on the element (or on
+	 *  any ancestor) wins over the document's, which wins over the browser's, so
+	 *  a host that already sets `<html lang>` gets translated copy without
+	 *  writing a single label. Also what to hand `Intl` when a widget formats a
+	 *  date or a duration itself. */
+	protected langTag(): string {
+		return (
 			this.closest('[lang]')?.getAttribute('lang') ||
 			document.documentElement.lang ||
 			navigator.language ||
-			'';
-		return this.packs()[tag.slice(0, 2).toLowerCase()] ?? {};
+			'en'
+		);
+	}
+
+	/** The shipped translation for the page's language, if the widget has one. */
+	private localized(): WidgetLabels {
+		return this.packs()[this.langTag().slice(0, 2).toLowerCase()] ?? {};
 	}
 
 	/**

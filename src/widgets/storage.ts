@@ -25,20 +25,13 @@ import type { ConnectTargets, FlowHost, StoreLike } from '../flows/connect';
 import type { BackupsManager } from '../backups/manager';
 import type { ConnectKind } from '../flows/connect';
 import type { DestinationAction } from './destination';
-import { FlowWidget, hostOf, put, type WidgetLabels } from './base';
+import { FlowWidget, hostOf, put, siblingTag, type WidgetLabels } from './base';
 
 /** What a simple store answers about its own destinations, when it is one. */
 interface StoreWithOffers {
 	destinations?: () => ConnectTargets;
 	resumeOffer?: () => unknown;
 	account?: string | null;
-}
-
-/** The sibling elements under the same prefix - registered together, so
- *  <app-storage> composes <app-gate> and <app-destination> unprompted. */
-function siblingTag(own: string, name: string): string {
-	const suffix = '-storage';
-	return own.endsWith(suffix) ? `${own.slice(0, -suffix.length)}-${name}` : `selfstore-${name}`;
 }
 
 export class SelfstoreStorageElement extends FlowWidget {
@@ -163,7 +156,7 @@ export class SelfstoreStorageElement extends FlowWidget {
 		const wanted = !ready || status.action === 'choose-destination' ? 'gate' : 'destination';
 
 		if (this.#childKind !== wanted || !this.#child) {
-			this.#child = document.createElement(siblingTag(this.localName, wanted));
+			this.#child = document.createElement(siblingTag(this.localName, 'storage', wanted));
 			this.#childKind = wanted;
 		}
 		const el = this.#child as HTMLElement & Record<string, unknown>;
@@ -186,7 +179,7 @@ export class SelfstoreStorageElement extends FlowWidget {
 
 		const list =
 			wanted === 'destination' && this.#manager
-				? Object.assign(document.createElement(siblingTag(this.localName, 'backups')), {
+				? Object.assign(document.createElement(siblingTag(this.localName, 'storage', 'backups')), {
 						labels: this.labels,
 						manager: this.#manager
 					})

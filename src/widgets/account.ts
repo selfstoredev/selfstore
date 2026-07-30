@@ -1,0 +1,357 @@
+/**
+ * <selfstore-account>: the storage control in an app's chrome.
+ *
+ *   document.querySelector('selfstore-account').store = store;
+ *
+ * A trigger that states where the data is going, and a short menu that answers
+ * the two questions a header should answer: WHO holds my backup and when was
+ * it last written, and how do I change my mind.
+ *
+ * Why it is short. The panel (<selfstore-destination>) offers four gestures,
+ * which is right for a settings page and wrong for a menu: a header that opens
+ * onto "export a copy / restore a copy / change backup / stop saving here"
+ * asks the user to arbitrate between four irreversible-looking words before
+ * they know what any of them does. So this element keeps exactly two - go to
+ * the settings, where the panel lives, or change backup - and hands the rest
+ * to the page the host already has.
+ *
+ * "Change backup" detaches, and stops there. It does not run a connect journey
+ * of its own: an app that mounts <selfstore-gate> (or <selfstore-storage>)
+ * already has the first-run screen, and a store with no destination is exactly
+ * what that screen is for. One journey, reached the same way whether it is the
+ * first day or a change of mind.
+ */
+
+import type { ConnectKind, FlowHost, StoreLike } from '../flows/connect';
+import type { DestinationAction } from './destination';
+import { FlowWidget, h, hostOf, put, siblingTag, type WidgetLabels } from './base';
+import { EN as KIND_EN, FR as KIND_FR } from './kinds';
+
+const EN: WidgetLabels = {
+	...KIND_EN,
+	'account.open': 'Storage',
+	'account.settings': 'Settings',
+	'account.change': 'Change backup',
+	'account.saved': 'Saved {when}',
+	'account.justNow': 'just now'
+};
+
+// "Changer de sauvegarde" is the same words as the panel's, on purpose: the
+// two controls run the same journey, so they must not read as two.
+const FR: WidgetLabels = {
+	...KIND_FR,
+	'account.open': 'Sauvegarde',
+	'account.settings': 'Paramètres',
+	'account.change': 'Changer de sauvegarde',
+	'account.saved': 'Enregistré {when}',
+	'account.justNow': "à l'instant"
+};
+
+const ACCOUNT_STYLES = `
+:host { position: relative; display: inline-block; }
+[part~='account-trigger'] {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	max-width: 22rem;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+[part~='account-dot'] {
+	width: 0.5rem;
+	height: 0.5rem;
+	border-radius: 50%;
+	background: currentColor;
+	flex: none;
+}
+[part~='account-menu'] {
+	position: absolute;
+	right: 0;
+	top: calc(100% + 0.4rem);
+	z-index: 20;
+	min-width: min(20rem, calc(100vw - 2rem));
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+	text-align: start;
+}
+[part~='account-card'] {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.6rem;
+	width: 100%;
+}
+[part~='account-logo'] { width: 1.5rem; height: 1.5rem; flex: none; }
+[part~='account-text'] { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+[part~='account-title'] { font-weight: 600; }
+[part~='account-mail'], [part~='account-line'] { font-size: 0.875rem; opacity: 0.75; }
+[part~='account-sep'] { height: 1px; background: currentColor; opacity: 0.15; margin: 0.25rem 0; }
+`;
+
+/** How long a "saved just now" stays true, and the beat at which the open menu
+ *  re-reads its own clock. A line that says "just now" ten minutes later is
+ *  the same lie as a status that never updates. */
+const TICK_MS = 30_000;
+
+export class SelfstoreAccountElement extends FlowWidget {
+	#store: StoreLike | null = null;
+	#icons: Partial<Record<ConnectKind, string>> = {};
+	#confirm: ((a: DestinationAction) => boolean | Promise<boolean>) | null = null;
+	#open = false;
+	#timer: ReturnType<typeof setInterval> | null = null;
+	#away: ((e: Event) => void) | null = null;
+
+	protected defaults(): WidgetLabels {
+		return EN;
+	}
+
+	protected packs(): Record<string, WidgetLabels> {
+		return { fr: FR };
+	}
+
+	constructor() {
+		super();
+		this.root.append(h('style', {}, ACCOUNT_STYLES));
+	}
+
+	/** The simple store (anything exposing `flowHost`), or a hand-built FlowHost.
+	 *  A simple store also answers `account` on its own, so nothing else is
+	 *  needed to name who holds the backup. */
+	get store(): StoreLike | null {
+		return this.#store;
+	}
+	set store(v: StoreLike | null) {
+		if (v === this.#store) return;
+		this.#store = v;
+		this.follow(hostOf(v));
+	}
+
+	/** Who holds the backup ("someone@example.com"). Absent: whatever the store
+	 *  knows. A brand name is not an address, and several accounts look alike. */
+	#account: string | null = null;
+	get account(): string | null {
+		return this.#account ?? (this.#store as { account?: string | null } | null)?.account ?? null;
+	}
+	set account(v: string | null) {
+		this.#account = v || null;
+		this.rerender();
+	}
+
+	/** Optional glyph per destination kind, same contract as the connect cards. */
+	get icons(): Partial<Record<ConnectKind, string>> {
+		return this.#icons;
+	}
+	set icons(v: Partial<Record<ConnectKind, string>> | null) {
+		this.#icons = v ?? {};
+		this.rerender();
+	}
+
+	/** Veto on changing backup, which leaves the app with no destination until
+	 *  the user picks one. Returns false (or throws) to stop. */
+	get confirmAction(): ((a: DestinationAction) => boolean | Promise<boolean>) | null {
+		return this.#confirm;
+	}
+	set confirmAction(fn: ((a: DestinationAction) => boolean | Promise<boolean>) | null) {
+		this.#confirm = fn;
+	}
+
+	/** Whether the menu is on screen. Settable, so a host can close it from its
+	 *  own router after the settings item navigated away. */
+	get open(): boolean {
+		return this.#open;
+	}
+	set open(v: boolean) {
+		if (v === this.#open) return;
+		this.#open = v;
+		this.watch();
+		this.rerender();
+	}
+
+	connectedCallback(): void {
+		super.connectedCallback();
+		this.follow(hostOf(this.#store));
+	}
+
+	disconnectedCallback(): void {
+		this.unsub?.();
+		this.unsub = null;
+		this.#open = false;
+		this.watch();
+	}
+
+	/** While the menu is open: a clock for the relative time, and the two ways
+	 *  out that make it a menu rather than a page - a click anywhere else, and
+	 *  Escape. `pointerdown` and not `click`, so the gesture that closes it does
+	 *  not also land on whatever was under the menu. Shadow DOM retargets the
+	 *  event, so what is asked is the composed path, never `e.target`. */
+	private watch(): void {
+		if (this.#timer) clearInterval(this.#timer);
+		this.#timer = null;
+		if (this.#away) {
+			document.removeEventListener('pointerdown', this.#away, true);
+			document.removeEventListener('keydown', this.#away, true);
+			this.#away = null;
+		}
+		if (!this.#open || !this.isConnected) return;
+		this.#timer = setInterval(() => this.rerender(), TICK_MS);
+		this.#away = (e: Event): void => {
+			if (e instanceof KeyboardEvent) {
+				if (e.key === 'Escape') this.open = false;
+				return;
+			}
+			if (!e.composedPath().includes(this)) this.open = false;
+		};
+		document.addEventListener('pointerdown', this.#away, true);
+		document.addEventListener('keydown', this.#away, true);
+	}
+
+	/** The destination's name. An unknown kind (a host's own target) has no
+	 *  shipped name: its own label is a better answer than the raw key. */
+	private named(host: FlowHost): string {
+		const { targetKind, label } = host.engine.state;
+		const kind = this.t(`destination.kind.${targetKind}`);
+		return kind === `destination.kind.${targetKind}` ? (label ?? targetKind) : kind;
+	}
+
+	/** "just now", "3 minutes ago", "yesterday" - in the page's language, from
+	 *  Intl rather than from five label keys per language. */
+	private when(ts: number): string {
+		const mins = Math.floor((Date.now() - ts) / 60_000);
+		if (mins < 1) return this.t('account.justNow');
+		const rtf = new Intl.RelativeTimeFormat(this.langTag(), { numeric: 'auto' });
+		if (mins < 60) return rtf.format(-mins, 'minute');
+		const hours = Math.floor(mins / 60);
+		if (hours < 24) return rtf.format(-hours, 'hour');
+		return new Date(ts).toLocaleDateString(this.langTag());
+	}
+
+	/**
+	 * The one line under the account. A plain "saved" is the only state this
+	 * element words itself, because it is the only one with nothing to do about
+	 * it - and the only one where WHEN is the whole information. Everything else
+	 * (reconnect, unlock, changes to download) belongs to <selfstore-status>,
+	 * which owns both the wording and the button that resolves it.
+	 */
+	private line(host: FlowHost): HTMLElement {
+		const { status, lastSavedAt } = host.engine.state;
+		if (status.state === 'saved' && lastSavedAt && !('status.saved' in this.labels))
+			return h(
+				'span',
+				{ part: 'account-line' },
+				this.t('account.saved', { when: this.when(lastSavedAt) })
+			);
+		const el = document.createElement(
+			siblingTag(this.localName, 'account', 'status')
+		) as HTMLElement & {
+			store?: StoreLike | null;
+			labels?: WidgetLabels;
+			icons?: Partial<Record<ConnectKind, string>>;
+		};
+		el.setAttribute('variant', 'row');
+		el.labels = this.labels;
+		el.icons = this.#icons;
+		el.store = this.#store;
+		return el;
+	}
+
+	/** Ask for the settings. The host owns the route, so this only says that it
+	 *  was asked - and closes, because a menu that stays open behind a page
+	 *  transition reads as a failed click. */
+	private settings(): void {
+		this.open = false;
+		this.emit('selfstore-account-settings');
+	}
+
+	/** Change backup: detach, and let the first-run screen take it from there.
+	 *  The data stays; only the destination is let go. */
+	private async change(): Promise<void> {
+		const host = hostOf(this.#store);
+		if (!host) return;
+		this.open = false;
+		const label = host.engine.state.label;
+		// A throwing hook reads as "no": changing backup is a decision, and an
+		// undecided answer must not be taken for a yes.
+		try {
+			if (this.#confirm && !(await this.#confirm({ type: 'detach', label }))) return;
+		} catch {
+			return;
+		}
+		await host.engine.detachTarget();
+	}
+
+	private card(host: FlowHost): HTMLElement {
+		const { targetKind } = host.engine.state;
+		const icon = this.#icons[targetKind as ConnectKind];
+		const mail = this.account;
+		return h(
+			'button',
+			{
+				part: 'card account-card',
+				type: 'button',
+				role: 'menuitem',
+				title: this.t('account.settings'),
+				onclick: () => this.settings()
+			},
+			icon ? h('img', { part: 'account-logo', src: icon, alt: '' }) : null,
+			h(
+				'span',
+				{ part: 'account-text' },
+				h('span', { part: 'account-title' }, this.named(host)),
+				mail ? h('span', { part: 'account-mail' }, mail) : null,
+				this.line(host)
+			)
+		);
+	}
+
+	protected view(into: HTMLElement): void {
+		const host = hostOf(this.#store);
+		if (!host) return; // inert until wired
+		const { status } = host.engine.state;
+		const trigger = h(
+			'button',
+			{
+				part: `account-trigger ${status.severity}`,
+				type: 'button',
+				'aria-haspopup': 'menu',
+				'aria-expanded': String(this.#open),
+				'aria-label': this.t('account.open'),
+				onclick: () => (this.open = !this.#open)
+			},
+			h('span', { part: `account-dot ${status.severity}` }),
+			h('span', {}, this.named(host))
+		);
+		put(
+			into,
+			trigger,
+			this.#open
+				? h(
+						'div',
+						{ part: 'card account-menu', role: 'menu' },
+						this.card(host),
+						h('div', { part: 'account-sep' }),
+						h(
+							'button',
+							{
+								part: 'link account-item',
+								type: 'button',
+								role: 'menuitem',
+								onclick: () => this.settings()
+							},
+							this.t('account.settings')
+						),
+						h(
+							'button',
+							{
+								part: 'link account-item account-change',
+								type: 'button',
+								role: 'menuitem',
+								onclick: () => void this.change()
+							},
+							this.t('account.change')
+						)
+					)
+				: null
+		);
+	}
+}
