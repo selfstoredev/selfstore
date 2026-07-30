@@ -121,7 +121,23 @@ img[part~='icon'] {
 	background: color-mix(in srgb, var(--_accent) 10%, transparent);
 }
 [part~='status-ok'] { background: color-mix(in srgb, var(--_ok) 12%, transparent); }
+[part~='status-warn'] { background: color-mix(in srgb, var(--_warn) 12%, transparent); }
 [part~='status-error'] { background: color-mix(in srgb, var(--_danger) 12%, transparent); }
+/* The state, said in one glyph before the sentence is read: a saved backup is a
+   tick, anything asking for a gesture is a mark. It carries the severity color
+   the dot would have carried, and reads at a glance from across the page. */
+span[part~='status-glyph'] {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.5em;
+	height: 1.5em;
+	border-radius: 50%;
+	flex-shrink: 0;
+	font-size: 0.85em;
+	font-weight: 700;
+	background: color-mix(in srgb, currentColor 15%, transparent);
+}
 [part='spinner'] {
 	width: 0.7em; height: 0.7em; flex-shrink: 0;
 	border-radius: 50%;
@@ -514,6 +530,22 @@ export abstract class FlowWidget extends HTMLElement {
 		const copy = this.overrides[key] ?? this.localized()[key] ?? this.defaults()[key] ?? key;
 		if (!vars) return copy;
 		return copy.replace(/\{(\w+)\}/g, (whole, name: string) => vars[name] ?? whole);
+	}
+
+	/**
+	 * "just now", "3 minutes ago", "yesterday" - in the widget's language, from
+	 * Intl rather than from five label keys per language. The word for the first
+	 * minute is passed in: it is the one part Intl says badly ("this minute"),
+	 * and each widget words it in its own register.
+	 */
+	protected since(ts: number, justNow: string): string {
+		const mins = Math.floor((Date.now() - ts) / 60_000);
+		if (mins < 1) return justNow;
+		const rtf = new Intl.RelativeTimeFormat(this.langTag(), { numeric: 'auto' });
+		if (mins < 60) return rtf.format(-mins, 'minute');
+		const hours = Math.floor(mins / 60);
+		if (hours < 24) return rtf.format(-hours, 'hour');
+		return new Date(ts).toLocaleDateString(this.langTag());
 	}
 
 	/** A heading an empty-string label removes: labels = { 'share.title': '' }

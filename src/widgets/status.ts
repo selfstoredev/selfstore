@@ -7,12 +7,15 @@
 
 import type { FlowHost, StoreLike } from '../flows/connect';
 import { FlowWidget, h, hostOf, put, type WidgetLabels } from './base';
+import { EN as KIND_EN, FR as KIND_FR } from './kinds';
 
 // The browser is never named as the PLACE the data lives. It is not one: it
 // holds a working copy that a cleared profile takes with it. So the state with
 // no destination names what is MISSING - nothing has been saved out - instead
 // of describing the browser as an address, which reads reassuring and is not.
 const EN: WidgetLabels = {
+	...KIND_EN,
+	'status.justNow': 'just now',
 	'status.ephemeral': 'Nothing is saved',
 	'status.cacheOnly': 'Never saved anywhere yet',
 	'status.saving': 'Saving...',
@@ -30,6 +33,8 @@ const EN: WidgetLabels = {
 // A pill states a condition, never a possession: "Sauvegarde à jour", not "Ma
 // sauvegarde". One verb, one meaning: Exporter is always the portable copy.
 const FR: WidgetLabels = {
+	...KIND_FR,
+	'status.justNow': "a l'instant",
 	'status.ephemeral': "Rien n'est enregistré",
 	'status.cacheOnly': "Vos données n'ont jamais été enregistrées ailleurs",
 	'status.saving': 'Enregistrement...',
@@ -125,6 +130,7 @@ export class SelfstoreStatusElement extends FlowWidget {
 			// Pas de jumelle declaree: la cle de base ne parle deja pas du lieu.
 			return copie === jumelle ? this.t(cle) : copie;
 		};
+		const { lastSavedAt } = host.engine.state;
 		const text = label ? this.t(status.labelKey, { label }) : sansLieu(status.labelKey);
 		const dot = h('span', {
 			part: `status-dot sev-${status.severity}`,
@@ -147,22 +153,50 @@ export class SelfstoreStatusElement extends FlowWidget {
 			return;
 		}
 
+		// The box states the situation before it is read: the severity tints it,
+		// and a glyph says which of the four it is. A dot alone made "saved" and
+		// "reconnect to continue" look like the same notice in two colors.
+		const TINT: Record<string, string> = {
+			ok: 'status-ok',
+			warn: 'status-warn',
+			danger: 'status-error',
+			info: ''
+		};
+		const GLYPH: Record<string, string> = { ok: '✓', warn: '!', danger: '!', info: '' };
+		const glyph = GLYPH[status.severity];
 		const icon = this.#icons[targetKind];
+		// The sub-line answers "where, and when" the way a settings page does:
+		// "Google Drive, 2 minutes ago". The DESTINATION is named there, not the
+		// backup file, so the title above stops repeating a name it already gave -
+		// which is why it takes its placeless twin whenever this line is present.
 		const where = this.t(`status.where.${targetKind}`);
-		// `status.where.<kind>` is a host-provided label; the raw key means "not
-		// provided" - fall back to the target's own label (file name, server).
-		const sub = where !== `status.where.${targetKind}` ? where : (label ?? '');
+		const kindName = this.t(`destination.kind.${targetKind}`);
+		// A file IS its name, so its name is the place. A service is named by the
+		// service - "quitalo.zip" would be the backup file INSIDE it, which says
+		// nothing about where the data went; which account it is belongs to the
+		// panel's card, next to the address.
+		const named = kindName === `destination.kind.${targetKind}` ? null : kindName;
+		const own = targetKind === 'drive' ? null : label;
+		const place = where !== `status.where.${targetKind}` ? where : (own ?? named ?? label ?? '');
+		const when = lastSavedAt ? this.since(lastSavedAt, this.t('status.justNow')) : '';
+		const sub = [place, status.state === 'saved' ? when : ''].filter(Boolean).join(', ');
+		// The place is on the line below now, so the sentence above stops naming it.
+		const title = sub ? sansLieu(status.labelKey) : text;
 		put(
 			into,
 			h(
 				'div',
-				{ part: 'row status-row' },
-				dot,
+				{ part: `status row status-row ${TINT[status.severity] ?? ''}` },
+				// The severity colors the glyph, not the box: tinting the whole line
+				// turns a title into a warning about itself.
+				glyph
+					? h('span', { part: `status-glyph sev-${status.severity}`, 'aria-hidden': 'true' }, glyph)
+					: dot,
 				icon ? h('img', { part: 'icon', src: icon, alt: '' }) : null,
 				h(
 					'div',
 					{},
-					h('div', { part: 'title' }, text),
+					h('div', { part: 'title' }, title),
 					sub ? h('div', { part: 'sub' }, sub) : null
 				),
 				status.actionable && status.action

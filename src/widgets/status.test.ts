@@ -121,15 +121,24 @@ describe('selfstore-status', () => {
 		el.remove();
 	});
 
-	it('names the destination in the sentence, and survives having no name', () => {
+	it('names the destination in the sentence when no line below does', () => {
 		// A status that cannot say WHERE has to be read twice: the state on one
-		// line, the place on another. The pack writes one sentence instead.
+		// line, the place on another. The pack writes one sentence instead - and
+		// the sentence gives the place up the moment the line below carries it,
+		// rather than naming the same backup twice in three lines.
 		const { engine, set } = fakeEngine({ label: 'cabinet.zip', targetKind: 'file' });
 		const el = mount(engine);
-		expect(q(el, '[part="title"]')!.textContent).toBe('Saved to cabinet.zip, at every change');
+		expect(q(el, '[part="sub"]')!.textContent).toContain('cabinet.zip');
+		expect(q(el, '[part="title"]')!.textContent).toBe('Saved');
+
+		el.variant = 'dot';
+		expect(q(el, 'button')!.getAttribute('aria-label')).toBe(
+			'Saved to cabinet.zip, at every change'
+		);
+		el.variant = 'row';
 
 		// A hole in a sentence reads as a bug nobody can name; the key names it.
-		el.labels = { 'status.saved': 'Saved to {label} by {who}' };
+		el.labels = { 'status.saved': 'Saved to {label} by {who}', 'status.where.file': '' };
 		expect(q(el, '[part="title"]')!.textContent).toBe('Saved to cabinet.zip by {who}');
 
 		// Attached, but with no name to give: the placeholder must never reach the

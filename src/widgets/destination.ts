@@ -42,6 +42,9 @@ const EN: WidgetLabels = {
 	...KIND_EN,
 	'destination.heading': 'Where your data is kept',
 	'destination.encrypted': 'Password-protected',
+	'destination.active': 'Active',
+	'destination.reach.drive': 'On all your devices',
+	'destination.reach.file': '',
 	'destination.export': 'Export a copy',
 	'destination.exported': 'The copy is written.',
 	'destination.exportCancelled': 'Nothing was written.',
@@ -64,6 +67,9 @@ const FR: WidgetLabels = {
 	...KIND_FR,
 	'destination.heading': 'Où vos données sont enregistrées',
 	'destination.encrypted': 'Protégée par un mot de passe',
+	'destination.active': 'Active',
+	'destination.reach.drive': 'Sur tous vos appareils',
+	'destination.reach.file': '',
 	'destination.export': 'Exporter une copie',
 	'destination.exported': 'La copie est écrite.',
 	'destination.exportCancelled': "Rien n'a été écrit.",
@@ -266,9 +272,10 @@ export class SelfstoreDestinationElement extends FlowWidget {
 		// An unknown kind (a host's own target) has no shipped name: its own label
 		// is a better answer than the raw key.
 		const title = kind === `destination.kind.${targetKind}` ? (label ?? targetKind) : kind;
-		const sub = [this.#account, label && label !== title ? label : null]
-			.filter(Boolean)
-			.join(' · ');
+		// Who holds it. An address identifies a destination better than the backup
+		// file inside it does, so the file name gives way when there is one - it is
+		// on the status line above either way.
+		const sub = this.#account || (label && label !== title ? label : null);
 		const icon = this.#icons[targetKind as ConnectKind];
 		const status = document.createElement(
 			siblingTag(this.localName, 'destination', 'status')
@@ -298,8 +305,19 @@ export class SelfstoreDestinationElement extends FlowWidget {
 			);
 		};
 
+		// Where this backup reaches, which is the whole reason one destination is
+		// picked over another - and the one thing the destination's own name does
+		// not say. Unknown kinds simply have no line.
+		const durable = targetKind !== 'device' && targetKind !== 'ephemeral';
+		const reach = this.t(`destination.reach.${targetKind}`);
+		const line = [sub, reach === `destination.reach.${targetKind}` ? null : reach]
+			.filter(Boolean)
+			.join(' · ');
 		put(
 			into,
+			// The situation first, then what holds it: a panel that opens on a card
+			// makes the reader work out from the name whether anything is wrong.
+			status,
 			this.heading('destination-heading', 'destination.heading'),
 			h(
 				'div',
@@ -308,12 +326,22 @@ export class SelfstoreDestinationElement extends FlowWidget {
 				h(
 					'div',
 					{},
-					h('div', { part: 'title' }, title),
-					sub ? h('div', { part: 'sub' }, sub) : null,
-					encrypted ? h('div', { part: 'sub' }, this.t('destination.encrypted')) : null
+					h(
+						'div',
+						{ part: 'title' },
+						title,
+						// Only where there IS a backup: "Active" over the device-only
+						// state would badge the absence of one as a live destination.
+						durable
+							? h('span', { part: 'tag destination-active' }, this.t('destination.active'))
+							: null,
+						encrypted
+							? h('span', { part: 'tag destination-encrypted' }, this.t('destination.encrypted'))
+							: null
+					),
+					line ? h('div', { part: 'sub' }, line) : null
 				)
 			),
-			status,
 			h(
 				'div',
 				{ part: 'destination-actions' },

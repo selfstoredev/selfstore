@@ -489,3 +489,58 @@ describe('store.backups() - the last thing an app assembled by hand', () => {
 		expect(await store.backups()).toBeNull();
 	});
 });
+
+describe('a connection learns whose it is, even with no connect to learn from', () => {
+	it('names the account on the first token it hands out', async () => {
+		// The case that had no name on it: a backup attached in an earlier
+		// session (or before the library learned accounts at all). Nothing calls
+		// connectDrive here - the store restores the destination at boot and the
+		// engine asks for a token to converge, which is the moment the address
+		// can be learned for free. Asking at start-up instead would need a token
+		// with no user gesture behind it, and that opens a popup the browser
+		// blocks.
+		vi.stubGlobal('localStorage', memLocalStorage());
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (url: string) => driveReply(String(url), 'owner@example.com'))
+		);
+		const cache = memoryCache();
+		await cache.kv.set('targetKind', 'drive');
+		await cache.kv.set('driveFileId', 'file-1');
+		const auth = { token: async () => 'tok', reconnect: async () => true, forget: async () => {} };
+
+		const store = await selfstore('restored-drive', { cache, drive: auth });
+		open.push(store as unknown as SimpleStore<Schema>);
+		await new Promise((r) => setTimeout(r, 0));
+
+		expect(store.state.targetKind).toBe('drive');
+		expect(store.account).toBe('owner@example.com');
+		// And with it, the offer to reopen that backup becomes recognisable.
+		expect(store.resumeOffer()?.detail).toBe('owner@example.com');
+		vi.unstubAllGlobals();
+	});
+
+	it('asks once, then never again', async () => {
+		vi.stubGlobal('localStorage', memLocalStorage());
+		const fetched = vi.fn(async (url: string) => driveReply(String(url), 'owner@example.com'));
+		vi.stubGlobal('fetch', fetched);
+		const cache = memoryCache();
+		await cache.kv.set('targetKind', 'drive');
+		await cache.kv.set('driveFileId', 'file-1');
+		const auth = { token: async () => 'tok', reconnect: async () => true, forget: async () => {} };
+
+		const store = await selfstore('asks-once', { cache, drive: auth });
+		open.push(store as unknown as SimpleStore<Schema>);
+		await new Promise((r) => setTimeout(r, 0));
+		const first = fetched.mock.calls.filter((c) => String(c[0]).includes('/about')).length;
+
+		await store.put('notes', { id: 'n1', text: 'x' });
+		await store.sync();
+		await new Promise((r) => setTimeout(r, 0));
+
+		const after = fetched.mock.calls.filter((c) => String(c[0]).includes('/about')).length;
+		expect(first).toBe(1);
+		expect(after).toBe(1);
+		vi.unstubAllGlobals();
+	});
+});

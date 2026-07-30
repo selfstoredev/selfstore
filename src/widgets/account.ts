@@ -89,7 +89,8 @@ const ACCOUNT_STYLES = `
 	right: 0;
 	top: calc(100% + 0.4rem);
 	z-index: 20;
-	min-width: min(20rem, calc(100vw - 2rem));
+	min-width: min(17rem, calc(100vw - 2rem));
+	max-width: min(24rem, calc(100vw - 2rem));
 	display: flex;
 	flex-direction: column;
 	align-items: stretch;
@@ -114,7 +115,7 @@ const ACCOUNT_STYLES = `
 	cursor: pointer;
 }
 [part~='account-card']:hover { background: color-mix(in srgb, currentColor 7%, transparent); }
-[part~='account-logo'] { width: 1.5rem; height: 1.5rem; flex: none; }
+[part~='account-logo'] { width: 1.4rem; height: 1.4rem; object-fit: contain; flex: none; }
 [part~='account-text'] {
 	display: flex;
 	flex-direction: column;
@@ -122,11 +123,21 @@ const ACCOUNT_STYLES = `
 	min-width: 0;
 	line-height: 1.35;
 }
-[part~='account-title'] { font-weight: 600; }
+[part~='account-title'] {
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+/* An address is long and its END is the part that identifies it, so it gets a
+   line of its own and an ellipsis rather than a wrap that pushes the status
+   line out of the card. */
 [part~='account-mail'], [part~='account-line'] {
-	font-size: 0.875rem;
+	font-size: 0.8125rem;
 	color: var(--_ink-dim);
-	overflow-wrap: anywhere;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 [part~='account-item'] {
 	text-align: start;
@@ -264,18 +275,6 @@ export class SelfstoreAccountElement extends FlowWidget {
 		return kind === `destination.kind.${targetKind}` ? (label ?? targetKind) : kind;
 	}
 
-	/** "just now", "3 minutes ago", "yesterday" - in the page's language, from
-	 *  Intl rather than from five label keys per language. */
-	private when(ts: number): string {
-		const mins = Math.floor((Date.now() - ts) / 60_000);
-		if (mins < 1) return this.t('account.justNow');
-		const rtf = new Intl.RelativeTimeFormat(this.langTag(), { numeric: 'auto' });
-		if (mins < 60) return rtf.format(-mins, 'minute');
-		const hours = Math.floor(mins / 60);
-		if (hours < 24) return rtf.format(-hours, 'hour');
-		return new Date(ts).toLocaleDateString(this.langTag());
-	}
-
 	/**
 	 * The one line under the account. A plain "saved" is the only state this
 	 * element words itself, because it is the only one with nothing to do about
@@ -289,7 +288,7 @@ export class SelfstoreAccountElement extends FlowWidget {
 			return h(
 				'span',
 				{ part: 'account-line' },
-				this.t('account.saved', { when: this.when(lastSavedAt) })
+				this.t('account.saved', { when: this.since(lastSavedAt, this.t('account.justNow')) })
 			);
 		const el = document.createElement(
 			siblingTag(this.localName, 'account', 'status')
