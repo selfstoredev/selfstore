@@ -313,6 +313,43 @@ async function learnDriveAccount(app: string, auth: DriveAuth): Promise<void> {
 }
 
 /**
+ * The same connection, which learns whose it is the first time it hands out a
+ * token.
+ *
+ * Learning it took an explicit connect, so anyone whose backup was attached
+ * before this existed - or attached in another session - kept a destination
+ * with no name on it: the panel said "Google Drive" where it could have said
+ * which one, and the offer to reopen that backup had no address to show, which
+ * is most of what makes it recognisable.
+ *
+ * It cannot simply be asked for at start-up: reading the account needs a token,
+ * and asking for a token with no user gesture behind it opens a popup the
+ * browser blocks. So it rides along instead - every token this app obtains,
+ * whatever asked for it, teaches it the address at no cost. Once known, nothing
+ * is called again.
+ */
+function selfNaming(app: string, auth: DriveAuth): DriveAuth {
+	let learning: Promise<void> | null = null;
+	const learn = (): void => {
+		if (learning || rememberedDriveAccount(app)) return;
+		learning = learnDriveAccount(app, auth);
+	};
+	return {
+		async token(opts) {
+			const value = await auth.token(opts);
+			learn();
+			return value;
+		},
+		async reconnect() {
+			const ok = await auth.reconnect();
+			if (ok) learn();
+			return ok;
+		},
+		forget: () => auth.forget()
+	};
+}
+
+/**
  * Open (or create) the app's local store. Awaits the initial load, so the
  * returned store is ready: data readable, destination restored, first converge
  * done. See SimpleOptions for the defaults.
@@ -352,15 +389,21 @@ export async function selfstore<
 	/** Built at most once: two managers over one destination would each hold
 	 *  their own idea of which file is active. */
 	let backupsManager: BackupsManager | null = null;
+	// Wrapped whichever shape it came in as: an app that mints its own tokens
+	// (a server broker, a native shell) has the same nameless-destination
+	// problem, and the wrapper only ever rides along on a token already granted.
 	let driveAuth: DriveAuth | null = isDriveAuth(options.drive)
-		? options.drive
+		? selfNaming(app, options.drive)
 		: options.drive
-			? gisDriveAuth({
-					clientId: options.drive.clientId,
-					scope: options.drive.scope,
-					persist: 'session',
-					hint: () => rememberedDriveAccount(app)
-				})
+			? selfNaming(
+					app,
+					gisDriveAuth({
+						clientId: options.drive.clientId,
+						scope: options.drive.scope,
+						persist: 'session',
+						hint: () => rememberedDriveAccount(app)
+					})
+				)
 			: null;
 
 	// Ultra-sensitive: unlock the cache before the store hydrates from it. One

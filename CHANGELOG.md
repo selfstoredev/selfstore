@@ -14,8 +14,30 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
-_Nothing yet. Entries land here as they are merged; the release PR stamps them
-with a number and a date._
+### Added
+
+- **The panel says more, and says it in the order a settings page should.** The
+  status leads now - a tinted box carrying a glyph for its severity, where a
+  coloured dot made "saved" and "reconnect to continue" look like the same
+  notice in two shades - and the destination card follows, carrying an "Active"
+  tag, the password-protected tag when it applies, and a line naming who holds
+  the backup and how far it reaches (`destination.reach.*`: on all your
+  devices, on this device). A destination's name never said its reach, and
+  reach is the reason one is picked over another.
+
+### Fixed
+
+- **A connection learns whose it is the first time it hands out a token.**
+  Learning the account took an explicit connect, so a backup attached in an
+  earlier session - or before the library learned accounts at all - kept a
+  destination with no name on it: the panel said "Google Drive" where it could
+  say which one, and the offer to reopen that backup had no address to show,
+  which is most of what makes it recognisable. It cannot simply be asked at
+  start-up: reading the account needs a token, and asking for a token with no
+  user gesture behind it opens a popup the browser blocks. So it rides along -
+  every token the app obtains, whatever asked for it, teaches it the address at
+  no cost, and once known nothing is called again. Applies to a connection
+  built from `{ clientId }` and to a `DriveAuth` an app mints itself.
 
 ## [1.8.11] - 2026-07-30
 

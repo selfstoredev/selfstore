@@ -121,7 +121,23 @@ img[part~='icon'] {
 	background: color-mix(in srgb, var(--_accent) 10%, transparent);
 }
 [part~='status-ok'] { background: color-mix(in srgb, var(--_ok) 12%, transparent); }
+[part~='status-warn'] { background: color-mix(in srgb, var(--_warn) 12%, transparent); }
 [part~='status-error'] { background: color-mix(in srgb, var(--_danger) 12%, transparent); }
+/* The state, said in one glyph before the sentence is read: a saved backup is a
+   tick, anything asking for a gesture is a mark. It carries the severity color
+   the dot would have carried, and reads at a glance from across the page. */
+span[part~='status-glyph'] {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.5em;
+	height: 1.5em;
+	border-radius: 50%;
+	flex-shrink: 0;
+	font-size: 0.85em;
+	font-weight: 700;
+	background: color-mix(in srgb, currentColor 15%, transparent);
+}
 [part='spinner'] {
 	width: 0.7em; height: 0.7em; flex-shrink: 0;
 	border-radius: 50%;
@@ -451,6 +467,46 @@ export abstract class FlowWidget extends HTMLElement {
 	/** Build the current view into the given container. */
 	protected abstract view(into: HTMLElement): void;
 
+	#store: StoreLike | null = null;
+	#icons: Record<string, string> = {};
+
+	/**
+	 * The store this widget reads: the simple facade (anything exposing
+	 * `flowHost`) or a hand-built FlowHost. Idempotent, so a host may assign it
+	 * from a reactive effect that runs more than once.
+	 *
+	 * Every widget over a store had written this same pair, plus the host lookup
+	 * and the glyph map beside it - the same fifteen lines in six files, each one
+	 * a place where a fix could land in five.
+	 */
+	get store(): StoreLike | null {
+		return this.#store;
+	}
+	set store(v: StoreLike | null) {
+		if (v === this.#store) return;
+		this.#store = v;
+		this.storeChanged();
+		this.follow(this.hostOf());
+	}
+
+	/** Called before the widget follows a newly assigned store, for one that has
+	 *  its own view state to drop (a journey in progress belongs to the old one). */
+	protected storeChanged(): void {}
+
+	/** The ports behind the current store, or null while it is unwired. */
+	protected hostOf(): FlowHost | null {
+		return hostOf(this.#store);
+	}
+
+	/** Optional glyph per destination kind, same contract in every widget. */
+	get icons(): Record<string, string> {
+		return this.#icons;
+	}
+	set icons(v: Record<string, string> | null) {
+		this.#icons = v ?? {};
+		this.rerender();
+	}
+
 	/** Follow an engine: rerender on every notification, replacing any previous
 	 *  subscription. A no-op before connection and on a null host, so a host may
 	 *  assign the store from a reactive effect that runs more than once. */
@@ -514,6 +570,22 @@ export abstract class FlowWidget extends HTMLElement {
 		const copy = this.overrides[key] ?? this.localized()[key] ?? this.defaults()[key] ?? key;
 		if (!vars) return copy;
 		return copy.replace(/\{(\w+)\}/g, (whole, name: string) => vars[name] ?? whole);
+	}
+
+	/**
+	 * "just now", "3 minutes ago", "yesterday" - in the widget's language, from
+	 * Intl rather than from five label keys per language. The word for the first
+	 * minute is passed in: it is the one part Intl says badly ("this minute"),
+	 * and each widget words it in its own register.
+	 */
+	protected since(ts: number, justNow: string): string {
+		const mins = Math.floor((Date.now() - ts) / 60_000);
+		if (mins < 1) return justNow;
+		const rtf = new Intl.RelativeTimeFormat(this.langTag(), { numeric: 'auto' });
+		if (mins < 60) return rtf.format(-mins, 'minute');
+		const hours = Math.floor(mins / 60);
+		if (hours < 24) return rtf.format(-hours, 'hour');
+		return new Date(ts).toLocaleDateString(this.langTag());
 	}
 
 	/** A heading an empty-string label removes: labels = { 'share.title': '' }

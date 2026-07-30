@@ -25,10 +25,10 @@
  * customisation - they are the decisions a library must not take for an app.
  */
 
-import type { ConnectKind, ConnectTargets, FlowHost, StoreLike } from '../flows/connect';
+import type { ConnectKind, ConnectTargets, StoreLike } from '../flows/connect';
 import type { SelfstoreConnectElement } from './connect';
 import { datedName, saveToDisk } from '../selfstore/targets/local';
-import { FlowWidget, h, hostOf, put, siblingTag, type WidgetLabels } from './base';
+import { FlowWidget, h, put, siblingTag, type WidgetLabels } from './base';
 import { EN as KIND_EN, FR as KIND_FR } from './kinds';
 
 /** What the panel is about to do, for the host's veto. */
@@ -42,6 +42,9 @@ const EN: WidgetLabels = {
 	...KIND_EN,
 	'destination.heading': 'Where your data is kept',
 	'destination.encrypted': 'Password-protected',
+	'destination.active': 'Active',
+	'destination.reach.drive': 'On all your devices',
+	'destination.reach.file': '',
 	'destination.export': 'Export a copy',
 	'destination.exported': 'The copy is written.',
 	'destination.exportCancelled': 'Nothing was written.',
@@ -64,6 +67,9 @@ const FR: WidgetLabels = {
 	...KIND_FR,
 	'destination.heading': 'Où vos données sont enregistrées',
 	'destination.encrypted': 'Protégée par un mot de passe',
+	'destination.active': 'Active',
+	'destination.reach.drive': 'Sur tous vos appareils',
+	'destination.reach.file': '',
 	'destination.export': 'Exporter une copie',
 	'destination.exported': 'La copie est écrite.',
 	'destination.exportCancelled': "Rien n'a été écrit.",
@@ -93,10 +99,8 @@ const DESTINATION_STYLES = `
 `;
 
 export class SelfstoreDestinationElement extends FlowWidget {
-	#store: StoreLike | null = null;
 	#targets: ConnectTargets | null = null;
 	#account: string | null = null;
-	#icons: Partial<Record<ConnectKind, string>> = {};
 	#confirm: ((a: DestinationAction) => boolean | Promise<boolean>) | null = null;
 	#changing = false;
 	#busy = false;
@@ -113,16 +117,6 @@ export class SelfstoreDestinationElement extends FlowWidget {
 	constructor() {
 		super();
 		this.root.append(h('style', {}, DESTINATION_STYLES));
-	}
-
-	/** The simple store (anything exposing `flowHost`), or a hand-built FlowHost. */
-	get store(): StoreLike | null {
-		return this.#store;
-	}
-	set store(v: StoreLike | null) {
-		if (v === this.#store) return;
-		this.#store = v;
-		this.wire();
 	}
 
 	/** The destinations offered when the user changes their mind. Given them, the
@@ -147,15 +141,6 @@ export class SelfstoreDestinationElement extends FlowWidget {
 		this.rerender();
 	}
 
-	/** Optional glyph per destination kind, same contract as the connect cards. */
-	get icons(): Partial<Record<ConnectKind, string>> {
-		return this.#icons;
-	}
-	set icons(v: Partial<Record<ConnectKind, string>> | null) {
-		this.#icons = v ?? {};
-		this.rerender();
-	}
-
 	/** Veto on what is destructive. Returns false (or throws) to stop; absent
 	 *  means proceed. The panel never invents its own confirm dialog: an app has
 	 *  its own words and its own modal. */
@@ -168,15 +153,7 @@ export class SelfstoreDestinationElement extends FlowWidget {
 
 	connectedCallback(): void {
 		super.connectedCallback();
-		this.wire();
-	}
-
-	private host(): FlowHost | null {
-		return hostOf(this.#store);
-	}
-
-	private wire(): void {
-		this.follow(this.host());
+		this.follow(this.hostOf());
 	}
 
 	/** Run a gesture, keeping the panel honest while it is in flight. */
@@ -198,7 +175,7 @@ export class SelfstoreDestinationElement extends FlowWidget {
 	 *  nothing, so it must not clear the pending-export nudge nor claim success -
 	 *  that is the download that lies about itself. */
 	private exportCopy(): Promise<void> {
-		const host = this.host();
+		const host = this.hostOf();
 		if (!host) return Promise.resolve();
 		return this.run(async () => {
 			const blob = await host.engine.exportBlob();
@@ -212,7 +189,7 @@ export class SelfstoreDestinationElement extends FlowWidget {
 	/** Stop saving to this destination. The local data stays, and so does the
 	 *  backup already written: this detaches, it never deletes. */
 	private detach(label: string | null): Promise<void> {
-		const host = this.host();
+		const host = this.hostOf();
 		if (!host) return Promise.resolve();
 		return this.run(async () => {
 			// A throwing hook reads as "no": stopping is a decision, and an
@@ -235,9 +212,9 @@ export class SelfstoreDestinationElement extends FlowWidget {
 		const el = document.createElement(
 			siblingTag(this.localName, 'destination', 'connect')
 		) as SelfstoreConnectElement;
-		el.store = this.#store;
+		el.store = this.store;
 		el.targets = this.#targets;
-		el.icons = this.#icons;
+		el.icons = this.icons;
 		el.labels = this.labels;
 		const done = (): void => {
 			this.#changing = false;
@@ -257,7 +234,7 @@ export class SelfstoreDestinationElement extends FlowWidget {
 	}
 
 	protected view(into: HTMLElement): void {
-		const host = this.host();
+		const host = this.hostOf();
 		if (!host) return; // inert until wired
 		if (this.#changing && this.#targets) return this.connectView(into);
 
@@ -266,10 +243,11 @@ export class SelfstoreDestinationElement extends FlowWidget {
 		// An unknown kind (a host's own target) has no shipped name: its own label
 		// is a better answer than the raw key.
 		const title = kind === `destination.kind.${targetKind}` ? (label ?? targetKind) : kind;
-		const sub = [this.#account, label && label !== title ? label : null]
-			.filter(Boolean)
-			.join(' · ');
-		const icon = this.#icons[targetKind as ConnectKind];
+		// Who holds it. An address identifies a destination better than the backup
+		// file inside it does, so the file name gives way when there is one - it is
+		// on the status line above either way.
+		const sub = this.#account || (label && label !== title ? label : null);
+		const icon = this.icons[targetKind as ConnectKind];
 		const status = document.createElement(
 			siblingTag(this.localName, 'destination', 'status')
 		) as HTMLElement & {
@@ -279,8 +257,8 @@ export class SelfstoreDestinationElement extends FlowWidget {
 		};
 		status.setAttribute('variant', 'row');
 		status.labels = this.labels;
-		status.icons = this.#icons;
-		status.store = this.#store;
+		status.icons = this.icons;
+		status.store = this.store;
 
 		// An empty-string label removes the gesture, the same convention as the
 		// headings: labels = { 'destination.detach': '' } is how a host that
@@ -298,8 +276,19 @@ export class SelfstoreDestinationElement extends FlowWidget {
 			);
 		};
 
+		// Where this backup reaches, which is the whole reason one destination is
+		// picked over another - and the one thing the destination's own name does
+		// not say. Unknown kinds simply have no line.
+		const durable = targetKind !== 'device' && targetKind !== 'ephemeral';
+		const reach = this.t(`destination.reach.${targetKind}`);
+		const line = [sub, reach === `destination.reach.${targetKind}` ? null : reach]
+			.filter(Boolean)
+			.join(' · ');
 		put(
 			into,
+			// The situation first, then what holds it: a panel that opens on a card
+			// makes the reader work out from the name whether anything is wrong.
+			status,
 			this.heading('destination-heading', 'destination.heading'),
 			h(
 				'div',
@@ -308,12 +297,22 @@ export class SelfstoreDestinationElement extends FlowWidget {
 				h(
 					'div',
 					{},
-					h('div', { part: 'title' }, title),
-					sub ? h('div', { part: 'sub' }, sub) : null,
-					encrypted ? h('div', { part: 'sub' }, this.t('destination.encrypted')) : null
+					h(
+						'div',
+						{ part: 'title' },
+						title,
+						// Only where there IS a backup: "Active" over the device-only
+						// state would badge the absence of one as a live destination.
+						durable
+							? h('span', { part: 'tag destination-active' }, this.t('destination.active'))
+							: null,
+						encrypted
+							? h('span', { part: 'tag destination-encrypted' }, this.t('destination.encrypted'))
+							: null
+					),
+					line ? h('div', { part: 'sub' }, line) : null
 				)
 			),
-			status,
 			h(
 				'div',
 				{ part: 'destination-actions' },

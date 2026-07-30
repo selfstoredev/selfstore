@@ -24,7 +24,7 @@
 
 import type { ConnectKind, FlowHost, StoreLike } from '../flows/connect';
 import type { DestinationAction } from './destination';
-import { FlowWidget, h, hostOf, put, siblingTag, type WidgetLabels } from './base';
+import { FlowWidget, h, put, siblingTag, type WidgetLabels } from './base';
 import { EN as KIND_EN, FR as KIND_FR } from './kinds';
 
 const EN: WidgetLabels = {
@@ -89,7 +89,8 @@ const ACCOUNT_STYLES = `
 	right: 0;
 	top: calc(100% + 0.4rem);
 	z-index: 20;
-	min-width: min(20rem, calc(100vw - 2rem));
+	min-width: min(17rem, calc(100vw - 2rem));
+	max-width: min(24rem, calc(100vw - 2rem));
 	display: flex;
 	flex-direction: column;
 	align-items: stretch;
@@ -114,7 +115,7 @@ const ACCOUNT_STYLES = `
 	cursor: pointer;
 }
 [part~='account-card']:hover { background: color-mix(in srgb, currentColor 7%, transparent); }
-[part~='account-logo'] { width: 1.5rem; height: 1.5rem; flex: none; }
+[part~='account-logo'] { width: 1.4rem; height: 1.4rem; object-fit: contain; flex: none; }
 [part~='account-text'] {
 	display: flex;
 	flex-direction: column;
@@ -122,11 +123,21 @@ const ACCOUNT_STYLES = `
 	min-width: 0;
 	line-height: 1.35;
 }
-[part~='account-title'] { font-weight: 600; }
+[part~='account-title'] {
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+/* An address is long and its END is the part that identifies it, so it gets a
+   line of its own and an ellipsis rather than a wrap that pushes the status
+   line out of the card. */
 [part~='account-mail'], [part~='account-line'] {
-	font-size: 0.875rem;
+	font-size: 0.8125rem;
 	color: var(--_ink-dim);
-	overflow-wrap: anywhere;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 [part~='account-item'] {
 	text-align: start;
@@ -145,8 +156,6 @@ const ACCOUNT_STYLES = `
 const TICK_MS = 30_000;
 
 export class SelfstoreAccountElement extends FlowWidget {
-	#store: StoreLike | null = null;
-	#icons: Partial<Record<ConnectKind, string>> = {};
 	#confirm: ((a: DestinationAction) => boolean | Promise<boolean>) | null = null;
 	#open = false;
 	#timer: ReturnType<typeof setInterval> | null = null;
@@ -165,35 +174,14 @@ export class SelfstoreAccountElement extends FlowWidget {
 		this.root.append(h('style', {}, ACCOUNT_STYLES));
 	}
 
-	/** The simple store (anything exposing `flowHost`), or a hand-built FlowHost.
-	 *  A simple store also answers `account` on its own, so nothing else is
-	 *  needed to name who holds the backup. */
-	get store(): StoreLike | null {
-		return this.#store;
-	}
-	set store(v: StoreLike | null) {
-		if (v === this.#store) return;
-		this.#store = v;
-		this.follow(hostOf(v));
-	}
-
 	/** Who holds the backup ("someone@example.com"). Absent: whatever the store
 	 *  knows. A brand name is not an address, and several accounts look alike. */
 	#account: string | null = null;
 	get account(): string | null {
-		return this.#account ?? (this.#store as { account?: string | null } | null)?.account ?? null;
+		return this.#account ?? (this.store as { account?: string | null } | null)?.account ?? null;
 	}
 	set account(v: string | null) {
 		this.#account = v || null;
-		this.rerender();
-	}
-
-	/** Optional glyph per destination kind, same contract as the connect cards. */
-	get icons(): Partial<Record<ConnectKind, string>> {
-		return this.#icons;
-	}
-	set icons(v: Partial<Record<ConnectKind, string>> | null) {
-		this.#icons = v ?? {};
 		this.rerender();
 	}
 
@@ -220,7 +208,7 @@ export class SelfstoreAccountElement extends FlowWidget {
 
 	connectedCallback(): void {
 		super.connectedCallback();
-		this.follow(hostOf(this.#store));
+		this.follow(this.hostOf());
 	}
 
 	disconnectedCallback(): void {
@@ -264,18 +252,6 @@ export class SelfstoreAccountElement extends FlowWidget {
 		return kind === `destination.kind.${targetKind}` ? (label ?? targetKind) : kind;
 	}
 
-	/** "just now", "3 minutes ago", "yesterday" - in the page's language, from
-	 *  Intl rather than from five label keys per language. */
-	private when(ts: number): string {
-		const mins = Math.floor((Date.now() - ts) / 60_000);
-		if (mins < 1) return this.t('account.justNow');
-		const rtf = new Intl.RelativeTimeFormat(this.langTag(), { numeric: 'auto' });
-		if (mins < 60) return rtf.format(-mins, 'minute');
-		const hours = Math.floor(mins / 60);
-		if (hours < 24) return rtf.format(-hours, 'hour');
-		return new Date(ts).toLocaleDateString(this.langTag());
-	}
-
 	/**
 	 * The one line under the account. A plain "saved" is the only state this
 	 * element words itself, because it is the only one with nothing to do about
@@ -289,7 +265,7 @@ export class SelfstoreAccountElement extends FlowWidget {
 			return h(
 				'span',
 				{ part: 'account-line' },
-				this.t('account.saved', { when: this.when(lastSavedAt) })
+				this.t('account.saved', { when: this.since(lastSavedAt, this.t('account.justNow')) })
 			);
 		const el = document.createElement(
 			siblingTag(this.localName, 'account', 'status')
@@ -300,8 +276,8 @@ export class SelfstoreAccountElement extends FlowWidget {
 		};
 		el.setAttribute('variant', 'row');
 		el.labels = this.labels;
-		el.icons = this.#icons;
-		el.store = this.#store;
+		el.icons = this.icons;
+		el.store = this.store;
 		return el;
 	}
 
@@ -316,7 +292,7 @@ export class SelfstoreAccountElement extends FlowWidget {
 	/** Change backup: detach, and let the first-run screen take it from there.
 	 *  The data stays; only the destination is let go. */
 	private async change(): Promise<void> {
-		const host = hostOf(this.#store);
+		const host = this.hostOf();
 		if (!host) return;
 		this.open = false;
 		const label = host.engine.state.label;
@@ -332,7 +308,7 @@ export class SelfstoreAccountElement extends FlowWidget {
 
 	private card(host: FlowHost): HTMLElement {
 		const { targetKind } = host.engine.state;
-		const icon = this.#icons[targetKind as ConnectKind];
+		const icon = this.icons[targetKind as ConnectKind];
 		const mail = this.account;
 		return h(
 			'button',
@@ -355,7 +331,7 @@ export class SelfstoreAccountElement extends FlowWidget {
 	}
 
 	protected view(into: HTMLElement): void {
-		const host = hostOf(this.#store);
+		const host = this.hostOf();
 		if (!host) return; // inert until wired
 		const { status } = host.engine.state;
 		const trigger = h(
