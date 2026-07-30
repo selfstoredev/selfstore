@@ -32,6 +32,7 @@ import type { BackupTarget } from '../persistence/target';
 import type { StatusDescriptor } from '../persistence/status';
 import type { SyncConfig } from '../sync';
 import type { ConnectTargets, ResumeOffer } from '../flows/connect';
+import type { BackupsManager } from '../backups/manager';
 import type { Snapshot, SnapshotFile } from '../selfstore/types';
 import { SelfstoreError } from '../selfstore/errors';
 import { restore, type PasswordPolicy } from '../selfstore';
@@ -227,6 +228,18 @@ export interface SimpleStore<
 	resumeOffer(): ResumeOffer | null;
 
 	/**
+	 * The several-backups manager for this store's destination, or null when
+	 * there is nothing to manage several of (no Drive configured).
+	 *
+	 * The port under it - list, open by id, create, rename, delete - was the last
+	 * thing an app still assembled from the session the store had built, and the
+	 * one place it could pick the wrong file id. Built once and remembered; the
+	 * backups module is imported on demand, so an app that never asks does not
+	 * carry it.
+	 */
+	backups(): Promise<BackupsManager | null>;
+
+	/**
 	 * The destinations this store can offer, ready for a connect flow or widget:
 	 * Drive first when the app configured it, a file always.
 	 *
@@ -336,6 +349,9 @@ export async function selfstore<
 	// a reload, and the account remembered so Google stops asking which one. Each
 	// of those was a separate decision every consumer had to discover; the app
 	// that wrote them by hand hit all three as bugs first.
+	/** Built at most once: two managers over one destination would each hold
+	 *  their own idea of which file is active. */
+	let backupsManager: BackupsManager | null = null;
 	let driveAuth: DriveAuth | null = isDriveAuth(options.drive)
 		? options.drive
 		: options.drive
@@ -623,6 +639,20 @@ export async function selfstore<
 
 		get account(): string | null {
 			return rememberedDriveAccount(app) ?? null;
+		},
+
+		async backups(): Promise<BackupsManager | null> {
+			if (!driveAuth) return null;
+			backupsManager ??= await (async () => {
+				const { createBackupsManager, driveBackupsHost } = await import('../backups/manager-drive');
+				return createBackupsManager({
+					store,
+					kv: cache.kv,
+					host: driveBackupsHost({ auth: driveAuth!, kv: cache.kv, fileName: backupName }),
+					naming: { canonicalName: backupName }
+				});
+			})();
+			return backupsManager;
 		},
 
 		destinations(): ConnectTargets {
