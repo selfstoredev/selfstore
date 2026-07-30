@@ -14,8 +14,41 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
-_Nothing yet. Entries land here as they are merged; the release PR stamps them
-with a number and a date._
+### Added
+
+- **The Drive connection stops asking so often.** A user reported having to
+  reconnect at every page refresh, and Google mailing them "access granted"
+  each time. Three separate causes, three answers - and one honest limit.
+
+  `gisDriveAuth` gains `persist: 'session'`: the access token is kept in
+  `sessionStorage`, so a reload inside the hour reuses it and asks for nothing
+  at all. It stays **opt-in** and the default is unchanged, because that token
+  is a bearer credential for the `drive.file` scope and putting it in web
+  storage is a trade a library must not make on an app's behalf.
+
+  `hint` names the account to re-grant for, so the popup no longer asks which
+  one - pass what `driveTarget.account()` remembered; a callback is read at each
+  request, for a host that learns the address only after the first connect.
+
+  `reconnect()` now tries **silently before showing the consent screen**. It
+  forced `prompt: 'consent'` every time, which re-asks a question already
+  answered and is exactly what makes Google mail the user about it. Consent is
+  now the fallback, for a grant genuinely missing or withdrawn.
+
+  The limit, written down where the next reader will look: Google's browser
+  token flow issues no refresh token (that needs a client secret, so a server),
+  and `requestAccessToken` opens a popup even with `prompt: ''` - a popup needs
+  a user gesture. So a purely client-side app cannot re-acquire a token on load
+  without a click; it can only stop needing one so often. A connection that
+  never re-prompts needs a broker holding a refresh token.
+
+### Fixed
+
+- A browser that exposes web storage and throws on read no longer breaks
+  getting a token. The guard covered a refusing `sessionStorage` property but
+  not a throwing `getItem`, so private-mode policies and some embedded webviews
+  would have failed the whole connection over an optimisation. Every touch of
+  storage now degrades to memory.
 
 ## [1.8.6] - 2026-07-30
 
