@@ -32,6 +32,19 @@ version number is not asking you to trust.
   `<selfstore-status>`, which owns both that wording and the button resolving
   it, rather than being worded a second time.
 
+### Fixed
+
+- **A property assigned before the element upgraded is no longer undone by an
+  attribute in the markup.** `<selfstore-gate armed="false">` with the app
+  assigning `armed = true` from its own effect - the ordinary shape, since the
+  widget bundle is loaded lazily and the assignment is not - lost the
+  assignment the moment the element upgraded: `connectedCallback` read the
+  attribute back over it. An app whose bundle happened to load late got no
+  first-run screen at all and ran on device-only storage without ever asking,
+  and nothing said so. An attribute is a default written by the page; a
+  property is a decision taken by the app, and the decision wins. Same for
+  `deferrable` and `recommended`, on the gate and on `<selfstore-storage>`.
+
 ### Changed
 
 - The destination names (`destination.kind.*`) now live in one module both the

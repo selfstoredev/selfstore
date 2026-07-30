@@ -420,15 +420,18 @@ export function h<K extends keyof HTMLElementTagNameMap>(
  * an upgrade the base constructor runs BEFORE the subclass field
  * initializers, which would wipe whatever the setter had just stored.
  */
-export function upgradeOwnProperties(el: HTMLElement): void {
+export function upgradeOwnProperties(el: HTMLElement): Set<string> {
 	const proto = Object.getPrototypeOf(el) as object;
 	const bag = el as unknown as Record<string, unknown>;
+	const claimed = new Set<string>();
 	for (const name of Object.getOwnPropertyNames(el)) {
 		if (!(name in proto)) continue;
 		const value = bag[name];
 		delete bag[name];
 		bag[name] = value;
+		claimed.add(name);
 	}
+	return claimed;
 }
 
 export abstract class FlowWidget extends HTMLElement {
@@ -535,8 +538,29 @@ export abstract class FlowWidget extends HTMLElement {
 	/** Hands back whatever the host set before this class existed, then the
 	 *  subclass reads its attributes and wires itself. Subclasses override this
 	 *  and call `super.connectedCallback()` FIRST, for that reason. */
+	/**
+	 * What the HOST decided before this element could hear it.
+	 *
+	 * Assigning a property to an element that has not upgraded yet is what every
+	 * framework does - the widget bundle is loaded lazily, the assignment is
+	 * not - and `upgradeOwnProperties` replays those assignments through the
+	 * real setters. Then reading the same knob back from the markup would undo
+	 * them: an attribute is a DEFAULT written by the page, a property is a
+	 * decision taken by the app, and the decision has to win. A widget reads its
+	 * attributes through this set.
+	 */
+	protected assigned: Set<string> = new Set();
+
 	connectedCallback(): void {
-		upgradeOwnProperties(this);
+		// Merged, never replaced: an element moved in the DOM connects twice, and
+		// the second pass has no own properties left to replay.
+		for (const name of upgradeOwnProperties(this)) this.assigned.add(name);
+	}
+
+	/** An attribute the host has not already decided in code, as a boolean. */
+	protected flag(name: string): boolean | null {
+		if (this.assigned.has(name) || !this.hasAttribute(name)) return null;
+		return this.getAttribute(name) !== 'false';
 	}
 
 	protected emit(name: string, detail?: unknown): void {

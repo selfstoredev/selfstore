@@ -322,3 +322,37 @@ describe('a store still loading is not a store without a destination', () => {
 		expect(el.open).toBe(true);
 	});
 });
+
+describe('a decision taken in code beats a default written in the markup', () => {
+	it('keeps `armed = true` set before the element upgraded', () => {
+		// The real sequence, and the one no test had: the page ships
+		// `<gate armed="false">` to hold the screen shut, the app assigns
+		// `armed = true` from its own effect, and the widget bundle - loaded
+		// lazily, as every consumer loads it - upgrades the element AFTER that.
+		// Reading the attribute back on upgrade silently undid the assignment,
+		// and an app whose bundle happened to be slow got no first-run screen at
+		// all: it ran on device-only storage without ever asking.
+		//
+		// An un-upgraded element is one carrying OWN properties that shadow the
+		// accessors, which is what is built here: this environment does not
+		// upgrade an element already in the document, and the point is the code
+		// path, not the parser.
+		const { engine } = fakeEngine();
+		const el = document.createElement('selfstore-gate') as SelfstoreGateElement;
+		el.setAttribute('armed', 'false');
+		el.setAttribute('deferrable', 'false');
+		const own = (name: string, value: unknown): void => {
+			Object.defineProperty(el, name, { value, writable: true, configurable: true });
+		};
+		own('armed', true);
+		own('store', { engine, kv: {} as FlowHost['kv'], backupName: 'app.zip' });
+
+		document.body.append(el);
+
+		expect(el.armed).toBe(true);
+		expect(el.open).toBe(true);
+		// What the host did NOT decide still comes from the markup.
+		expect(el.deferrable).toBe(false);
+		el.remove();
+	});
+});
