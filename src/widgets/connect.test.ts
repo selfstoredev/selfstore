@@ -574,4 +574,70 @@ describe('selfstore-connect: the offer is the host to shape', () => {
 		expect(q(el, '[part="stack"] > [part="title"]')).toBeNull();
 		el.remove();
 	});
+
+	it('the remembered destination comes first, named, above the rule', async () => {
+		const { host } = makeHost();
+		const el = mount();
+		el.store = host;
+		el.targets = { drive: async () => null, file: async () => null };
+		el.options = {
+			resume: { kind: 'drive', detail: 'someone@example.com', connect: async () => null }
+		};
+
+		const resume = await waitFor(() => q(el, 'button[part="card resume-card"]'));
+		expect(resume.getAttribute('data-kind')).toBe('drive');
+		expect(resume.textContent).toContain('Resume my backup');
+		// Naming the backup is the whole difference with a fourth generic button.
+		expect(resume.textContent).toContain('someone@example.com');
+		expect(q(el, '[part="separator"]')!.textContent).toBe('or');
+
+		// Order matters more than presence: the way back reads first, then the rule.
+		const parts = Array.from(el.shadowRoot!.querySelectorAll('[part]'))
+			.map((n) => n.getAttribute('part'))
+			.filter((p) => p === 'card resume-card' || p === 'separator' || p === 'card');
+		expect(parts.slice(0, 3)).toEqual(['card resume-card', 'separator', 'card']);
+		el.remove();
+	});
+
+	// Rendering the card proves nothing about where it leads. This one asserts
+	// the wiring: the resume card runs the OFFER's connector, never the drive
+	// card's - the difference between reopening the known backup and going
+	// looking for one.
+	it('the resume card runs the offer, not the destination behind it', async () => {
+		const { host, engine } = makeHost();
+		await engine.init();
+		const remembered = fakeTarget();
+		let choseDrive = 0;
+		const el = mount();
+		el.store = host;
+		el.targets = {
+			drive: async () => {
+				choseDrive++;
+				return null;
+			}
+		};
+		el.options = { resume: { kind: 'drive', connect: async () => remembered.target } };
+
+		const card = await waitFor(() => q(el, 'button[part="card resume-card"]'));
+		const done = new Promise<CustomEvent>((res) =>
+			el.addEventListener('selfstore-connected', (e) => res(e as CustomEvent), { once: true })
+		);
+		card.click();
+		await done;
+		expect(engine.state.targetKind).toBe('drive');
+		expect(choseDrive).toBe(0);
+		el.remove();
+	});
+
+	it('no offer, no rule: the screen is the plain choice it always was', async () => {
+		const { host } = makeHost();
+		const el = mount();
+		el.store = host;
+		el.targets = { drive: async () => null };
+
+		await waitFor(() => q(el, 'button[part="card"]'));
+		expect(q(el, '[part="separator"]')).toBeNull();
+		expect(q(el, 'button[part="card resume-card"]')).toBeNull();
+		el.remove();
+	});
 });

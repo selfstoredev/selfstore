@@ -72,6 +72,24 @@ button[part~='dot-button'] {
 }
 button[part~='card'] { cursor: pointer; font: inherit; color: inherit; }
 button[part~='card']:hover { border-color: var(--_accent); }
+/* The rule between "go back to what you had" and "start something new". A word
+   sits in the gap rather than beside it, so the two groups read as two even
+   before either is read. */
+[part~='separator'] {
+	display: flex;
+	align-items: center;
+	gap: 0.7rem;
+	margin: 0.15rem 0;
+	color: var(--_ink-dim);
+	font-size: 0.85em;
+}
+[part~='separator']::before,
+[part~='separator']::after {
+	content: '';
+	flex: 1;
+	height: 1px;
+	background: var(--_border);
+}
 img[part~='icon'] {
 	width: var(--selfstore-icon-size, 2.1em);
 	height: var(--selfstore-icon-size, 2.1em);

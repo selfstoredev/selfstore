@@ -14,8 +14,24 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
-_Nothing yet. Entries land here as they are merged; the release PR stamps them
-with a number and a date._
+### Added
+
+- **The connect journey can offer the destination this device already used.**
+  The screen that asks where to save is right exactly once; every visit after
+  that - a detached destination, a cleared browser - asked a returning user to
+  re-derive a decision the app still had on file. `options.resume` carries that
+  memory: a card that goes first, names WHICH backup it reopens, and sits above
+  a labelled rule separating "go back to what you had" from "start something
+  new". The host supplies the connector, because only the host knows how to
+  reach a remembered destination (adopting a known file id rather than
+  searching by name); the flow supplies what follows.
+  Taking the offer never raises the conflict step, whatever `hasLocalData`
+  says. Reopening one's own backup is not a merge question - it is the answer
+  to one - and asking it there is asking someone to arbitrate between
+  themselves and themselves. The question stays armed for a destination the
+  user newly points at, which is the case it was written for.
+  New: `flow.resume()`, the `ResumeOffer` type, the `resume-card` and
+  `separator` parts, and the `connect.resume` / `connect.or` labels.
 
 ## [1.8.5] - 2026-07-30
 

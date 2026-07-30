@@ -30,7 +30,8 @@ export {
 	type ConnectStep,
 	type ConnectTargets,
 	type Connector,
-	type FlowHost
+	type FlowHost,
+	type ResumeOffer
 } from '../flows/connect';
 export {
 	replicaFlow,

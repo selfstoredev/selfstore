@@ -74,7 +74,45 @@ export interface FlowHost {
  *  carries its ports on `flowHost`, or a hand-built host. */
 export type StoreLike = FlowHost | { flowHost: FlowHost };
 
+/**
+ * A destination this device has already used, offered as one gesture back to
+ * it rather than as the question it answered the first time.
+ *
+ * The screen that asks "where should we save your data?" is right exactly
+ * once. Every time after that - a device whose destination was detached, a
+ * browser whose storage was cleared - the app usually still knows the answer,
+ * and asking again makes the returning user re-derive a decision they already
+ * made. This offer carries that memory: it goes first, above a separator, and
+ * says WHICH backup it will reopen.
+ *
+ * The host supplies the connector, because only the host knows how to reach
+ * the remembered destination (adopting a known file id, not searching by
+ * name). The flow supplies what follows: no conflict step, and no chooser.
+ */
+export interface ResumeOffer {
+	/** Which destination it is. Picks the icon and the wording, nothing else. */
+	kind: ConnectKind;
+	/**
+	 * What exactly is being reopened - the account, the file name. Rendered as
+	 * the card's second line: "resume my backup" only answers the user's
+	 * question when it can name the backup.
+	 */
+	detail?: string;
+	/** Reopen it. Same contract as any connector: null when the user cancels. */
+	connect: Connector;
+}
+
 export interface ConnectFlowOptions {
+	/**
+	 * The destination this device already used, offered ahead of the others.
+	 * Absent (the default) means every visit is a first visit.
+	 *
+	 * Taking this offer never raises the conflict step, whatever
+	 * `hasLocalData` says: reopening one's own backup is not a merge question,
+	 * it IS the answer to it. The question still stands for a destination the
+	 * user newly points at.
+	 */
+	resume?: ResumeOffer;
 	/** Declare when this device holds data worth a question: only then does an
 	 *  existing backup raise the 'conflict' step with the destructive choices.
 	 *  Default: never - the flow applies defaultResolution. */
@@ -159,6 +197,10 @@ export interface ConnectFlow extends FlowStore<ConnectSnapshot> {
 	 *  with the object form, `variant` picks the gesture: 'create' (default,
 	 *  save picker) or 'open' (adopt an existing backup file). */
 	choose(kind: ConnectKind, variant?: 'create' | 'open'): void;
+	/** Reopen the remembered destination (`options.resume`). Same gesture rule
+	 *  as choose - call it inside the click. No-op when nothing is remembered.
+	 *  Never raises the conflict step: this backup is already this device's. */
+	resume(): void;
 	/** 'form' step (webdav: true): submit the server config. */
 	submitWebdav(config: WebdavConfig): void;
 	/** 'form' step (s3: true): submit the bucket config. */
@@ -224,12 +266,17 @@ export function connectFlow(
 	// Set at inspection: the destination already holds an ENCRYPTED backup, so
 	// its key is the one that matters and the host secret must stay out of it.
 	let remoteEncrypted = false;
+	// This journey took the resume offer rather than picking a destination.
+	// Reset with every other piece of journey state, so a cancelled resume
+	// followed by an ordinary choice is an ordinary choice.
+	let resuming = false;
 
 	const backToChoose = (): void => {
 		generation++;
 		target = null;
 		password = null;
 		remoteEncrypted = false;
+		resuming = false;
 		m.set({
 			step: 'choose',
 			kind: null,
@@ -360,11 +407,16 @@ export function connectFlow(
 	 *  the only default that loses nothing on either side. */
 	function routeAfterUnlock(gen: number): void {
 		if (gen !== generation) return;
-		if (options.hasLocalData?.() === true) {
+		// `resuming` survives the password detour on purpose: the journey is one
+		// generation, and the question "is this the backup I already had" does
+		// not change while its password is being typed. Reopening one's own
+		// backup is not a merge question, so the conflict step never rises on
+		// that path - only on a destination newly pointed at.
+		if (!resuming && options.hasLocalData?.() === true) {
 			m.set({ step: 'conflict', busy: false });
 			return;
 		}
-		const plan = planFor(options.defaultResolution ?? 'merge');
+		const plan = planFor(resuming ? 'resume' : (options.defaultResolution ?? 'merge'));
 		void attach(gen, plan.strategy, plan.outcome);
 	}
 
@@ -403,9 +455,37 @@ export function connectFlow(
 		},
 		subscribe: m.subscribe,
 
+		resume(): void {
+			const { step, busy } = m.snapshot;
+			if (busy || (step !== 'choose' && step !== 'error')) return; // one popup per gesture
+			const offer = options.resume;
+			if (!offer) return;
+			resuming = true;
+			const gen = ++generation;
+			m.set({ step: 'authorizing', kind: offer.kind, busy: true, error: null });
+			// No degraded mode and no form here: the host handed us a connector
+			// that knows exactly which backup to reopen. A null answer is the
+			// user closing the consent popup - back to the choice, no error.
+			void offer
+				.connect()
+				.then(async (t) => {
+					if (gen !== generation) return;
+					if (!t) {
+						backToChoose();
+						return;
+					}
+					await inspectAndRoute(gen, t);
+				})
+				.catch((e) => {
+					if (gen !== generation) return;
+					fail(e);
+				});
+		},
+
 		choose(kind: ConnectKind, variant: 'create' | 'open' = 'create'): void {
 			const { step, busy } = m.snapshot;
 			if (busy || (step !== 'choose' && step !== 'error')) return; // one popup per gesture
+			resuming = false;
 			const connector = connectorFor(kind, variant);
 			if (!connector) return;
 			if (

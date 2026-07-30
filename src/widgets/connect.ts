@@ -25,6 +25,7 @@ import {
 	type ConnectKind,
 	type ConnectSnapshot,
 	type ConnectTargets,
+	type ResumeOffer,
 	type StoreLike
 } from '../flows/connect';
 import { FlowWidget, h, put, type WidgetLabels } from './base';
@@ -57,6 +58,10 @@ export interface WebdavPreset {
 const EN: WidgetLabels = {
 	'connect.title': 'Where should we save your data?',
 	'connect.recommended': 'Recommended',
+	// The way back, and the rule under it. A host that can name the destination
+	// overrides this with something less abstract ("Resume my Google Drive").
+	'connect.resume': 'Resume my backup',
+	'connect.or': 'or',
 	'connect.drive': 'Google Drive',
 	'connect.drive.sub': 'Available on all your devices',
 	'connect.file': 'A file on this device',
@@ -128,6 +133,8 @@ const EN: WidgetLabels = {
 const FR: WidgetLabels = {
 	'connect.title': 'Où enregistrer vos données ?',
 	'connect.recommended': 'Recommandé',
+	'connect.resume': 'Reprendre ma sauvegarde',
+	'connect.or': 'ou',
 	'connect.drive': 'Google Drive',
 	'connect.drive.sub': 'Disponible sur tous vos appareils',
 	'connect.file': 'Un fichier sur cet appareil',
@@ -372,44 +379,63 @@ export class SelfstoreConnectElement extends FlowWidget {
 		});
 	}
 
+	/**
+	 * The destination choice: the way back first, then a rule, then the ways
+	 * forward.
+	 *
+	 * Its own method because `view` covers every step of the journey and was at
+	 * the complexity cap; this is the step that keeps growing, since it is the
+	 * one the host shapes.
+	 */
+	private viewChoose(into: HTMLElement, s: ConnectSnapshot): void {
+		put(into, this.heading('title', 'connect.title'));
+		// Everything above the rule reopens what this device already had,
+		// everything below starts something. Two groups the eye separates
+		// before reading either.
+		const offer = this.#options.resume;
+		if (offer) {
+			into.append(this.resumeCard(offer));
+			into.append(h('div', { part: 'separator' }, h('span', {}, this.t('connect.or'))));
+		}
+		// WebDAV and S3 are both "your own server": when both are offered as
+		// cards, fold them into one entry that opens the tabbed form, so a new
+		// backend never adds another top-level button.
+		const serverKinds = (['webdav', 's3'] as const).filter(
+			(k) => s.kinds.includes(k) && !this.#advanced.includes(k)
+		);
+		const groupServer = serverKinds.length >= 2;
+		for (const kind of s.kinds) {
+			if (this.#advanced.includes(kind)) continue;
+			if (groupServer && (kind === 'webdav' || kind === 's3')) {
+				if (kind === serverKinds[0]) into.append(this.serverCard(serverKinds[0]));
+				continue;
+			}
+			into.append(this.destCard(kind));
+		}
+		// The tucked-away destinations: same journey, discreet entry.
+		for (const kind of s.kinds) {
+			if (!this.#advanced.includes(kind)) continue;
+			into.append(
+				h(
+					'button',
+					{
+						part: 'link advanced-link',
+						'data-kind': kind,
+						onclick: () => this.#flow?.choose(kind)
+					},
+					this.t(`connect.${kind}`)
+				)
+			);
+		}
+	}
+
 	protected view(into: HTMLElement): void {
 		const flow = this.#flow;
 		if (!flow) return; // inert until wired
 		const s = flow.snapshot;
 
 		if (s.step === 'choose') {
-			put(into, this.heading('title', 'connect.title'));
-			// WebDAV and S3 are both "your own server": when both are offered as
-			// cards, fold them into one entry that opens the tabbed form, so a new
-			// backend never adds another top-level button.
-			const serverKinds = (['webdav', 's3'] as const).filter(
-				(k) => s.kinds.includes(k) && !this.#advanced.includes(k)
-			);
-			const groupServer = serverKinds.length >= 2;
-			for (const kind of s.kinds) {
-				if (this.#advanced.includes(kind)) continue;
-				if (groupServer && (kind === 'webdav' || kind === 's3')) {
-					if (kind === serverKinds[0]) into.append(this.serverCard(serverKinds[0]));
-					continue;
-				}
-				into.append(this.destCard(kind));
-			}
-			// The tucked-away destinations: same journey, discreet entry.
-			for (const kind of s.kinds) {
-				if (this.#advanced.includes(kind)) {
-					into.append(
-						h(
-							'button',
-							{
-								part: 'link advanced-link',
-								'data-kind': kind,
-								onclick: () => this.#flow?.choose(kind)
-							},
-							this.t(`connect.${kind}`)
-						)
-					);
-				}
-			}
+			this.viewChoose(into, s);
 			return;
 		}
 
@@ -602,6 +628,31 @@ export class SelfstoreConnectElement extends FlowWidget {
 	 */
 	private labelled(labelKey: string, input: HTMLElement): HTMLElement {
 		return h('label', { part: 'labelled' }, h('span', { part: 'label' }, this.t(labelKey)), input);
+	}
+
+	/**
+	 * The destination this device already used, first and on its own.
+	 *
+	 * It carries the same shape as an ordinary card so nothing new has to be
+	 * styled, and the host's icon for that kind, so it reads as the same place
+	 * rather than a fourth option. Its second line names WHICH backup - without
+	 * that, "resume my backup" is one more thing to wonder about.
+	 */
+	private resumeCard(offer: ResumeOffer): HTMLElement {
+		const icon = this.#icons[offer.kind] ?? defaultIcons[offer.kind];
+		const head = icon ? h('img', { part: 'icon', src: icon, alt: '' }) : null;
+		const title = h('div', { part: 'title' }, this.t('connect.resume'));
+		const sub = offer.detail ? h('div', { part: 'sub' }, offer.detail) : null;
+		return h(
+			'button',
+			{
+				part: 'card resume-card',
+				'data-kind': offer.kind,
+				onclick: () => this.#flow?.resume()
+			},
+			head,
+			h('div', {}, title, sub)
+		);
 	}
 
 	private destCard(kind: ConnectKind): HTMLElement {
