@@ -14,8 +14,29 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
-_Nothing yet. Entries land here as they are merged; the release PR stamps them
-with a number and a date._
+### Fixed
+
+- The French widget copy holds to the lexicon it declares. The packs state, in
+  a comment above them, that the durable destination is "la sauvegarde" - and
+  two strings out of a hundred and sixty-three called it "la destination". The
+  same journey asked the user to choose "une sauvegarde" and then reported that
+  "cette destination" already held one, implying they were two different
+  things. English is unaffected: it distinguishes the two words and keeps them
+  distinct, so the merge into one word was made for French and two strings were
+  left behind. A test now reads every pack in the directory and holds them to
+  the rule - a lexicon stated in a comment drifts one string at a time, and the
+  test caught a third occurrence in a widget added the same day.
+- The connect widget no longer prescribes a gesture it does not offer. Its
+  degraded file mode said "save the file after each change" from a screen that
+  renders a status line and no button: the export lives in the status widget,
+  so an app mounting only the connect widget left the user with a recurring
+  instruction and no way to follow it. It now states the fact - this browser
+  cannot keep the file open - and leaves the gesture to the screen that carries
+  it. The French also stopped calling the DEGRADED mode "mode fichier", the
+  words already used for the healthy file destination.
+- The French invitation title no longer agrees in the masculine. "Vous etes
+  invite" was the only string in the whole set whose agreement fell on the
+  person reading it.
 
 ## [1.8.4] - 2026-07-30
 

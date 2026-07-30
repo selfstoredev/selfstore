@@ -74,7 +74,7 @@ const FR: WidgetLabels = {
 	'destination.exported': 'La copie est écrite.',
 	'destination.exportCancelled': "Rien n'a été écrit.",
 	'destination.restore': 'Charger une copie',
-	'destination.change': 'Changer de destination',
+	'destination.change': 'Changer de sauvegarde',
 	'destination.detach': 'Ne plus enregistrer ici',
 	'destination.detached': 'Arrêté. Vos données restent sur cet appareil.',
 	'destination.back': 'Retour',
