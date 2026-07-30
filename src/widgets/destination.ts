@@ -26,7 +26,6 @@
  */
 
 import type { ConnectKind, ConnectTargets, StoreLike } from '../flows/connect';
-import type { SelfstoreConnectElement } from './connect';
 import { datedName, saveToDisk } from '../selfstore/targets/local';
 import { FlowWidget, h, put, siblingTag, type WidgetLabels } from './base';
 import { EN as KIND_EN, FR as KIND_FR } from './kinds';
@@ -49,7 +48,7 @@ const EN: WidgetLabels = {
 	'destination.exported': 'The copy is written.',
 	'destination.exportCancelled': 'Nothing was written.',
 	'destination.restore': 'Restore a copy',
-	'destination.change': 'Change destination',
+	'destination.change': 'Change backup',
 	'destination.detach': 'Stop saving here',
 	'destination.detached': 'Stopped. Your data stays on this device.',
 	'destination.back': 'Back',
@@ -102,7 +101,6 @@ export class SelfstoreDestinationElement extends FlowWidget {
 	#targets: ConnectTargets | null = null;
 	#account: string | null = null;
 	#confirm: ((a: DestinationAction) => boolean | Promise<boolean>) | null = null;
-	#changing = false;
 	#busy = false;
 	#message: string | null = null;
 
@@ -205,39 +203,9 @@ export class SelfstoreDestinationElement extends FlowWidget {
 		});
 	}
 
-	/** The connect journey, in place. Built like the gate builds it, so the
-	 *  destinations, the password step and the cancel path are the library's
-	 *  tested ones rather than a second implementation. */
-	private connectView(into: HTMLElement): void {
-		const el = document.createElement(
-			siblingTag(this.localName, 'destination', 'connect')
-		) as SelfstoreConnectElement;
-		el.store = this.store;
-		el.targets = this.#targets;
-		el.icons = this.icons;
-		el.labels = this.labels;
-		const done = (): void => {
-			this.#changing = false;
-			this.rerender();
-		};
-		el.addEventListener('selfstore-connected', done);
-		el.addEventListener('selfstore-cancelled', done);
-		put(
-			into,
-			h(
-				'button',
-				{ part: 'link destination-back', type: 'button', onclick: done },
-				this.t('destination.back')
-			),
-			el
-		);
-	}
-
 	protected view(into: HTMLElement): void {
 		const host = this.hostOf();
 		if (!host) return; // inert until wired
-		if (this.#changing && this.#targets) return this.connectView(into);
-
 		const { targetKind, label, encrypted } = host.engine.state;
 		const kind = this.t(`destination.kind.${targetKind}`);
 		// An unknown kind (a host's own target) has no shipped name: its own label
@@ -322,11 +290,13 @@ export class SelfstoreDestinationElement extends FlowWidget {
 				act('destination.restore', 'destination-restore', () =>
 					this.emit('selfstore-destination-action', { action: 'restore' })
 				),
+				// Changing backup lets the destination go and stops there: the
+				// first-run screen the app already mounts is what asks where to go
+				// next. A second connect journey inside this panel gave the same
+				// decision two mechanics depending on which control was pressed, and
+				// only one of them could be reached from anywhere in the app.
 				this.#targets
-					? act('destination.change', 'destination-change', () => {
-							this.#changing = true;
-							this.rerender();
-						})
+					? act('destination.change', 'destination-change', () => void this.detach(label))
 					: null,
 				act('destination.detach', 'destination-detach', () => void this.detach(label))
 			),

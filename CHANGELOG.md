@@ -14,8 +14,20 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
-_Nothing yet. Entries land here as they are merged; the release PR stamps them
-with a number and a date._
+### Changed
+
+- **Changing backup is one journey again.** The panel used to run a second
+  connect flow inside itself, so the same decision had two mechanics depending
+  on which control was pressed - and only one of them could be reached from
+  anywhere in the app. It now lets the destination go and stops there, exactly
+  as the header control does, and the first-run screen the app already mounts
+  asks where to go next. `Change destination` is called `Change backup` in
+  English too, since both controls run the same thing.
+- **The header menu reads as a menu.** Its items were rendered in the link
+  style - underlined, in the muted link colour - which made a two-item menu
+  look like four destinations to weigh. They are plain lines of text now, at
+  the size a menu uses, and the one that lets a destination go wears the danger
+  colour, the same as everywhere else that takes something away.
 
 ## [1.8.12] - 2026-07-31
 
