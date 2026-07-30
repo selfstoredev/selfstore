@@ -108,7 +108,7 @@ const EN: WidgetLabels = {
 	'connect.webdav.signup': 'Create an account',
 	'connect.webdav.help.more': 'How?',
 	'connect.done': 'Connected. Your data is saved.',
-	'connect.done.manual': 'Download mode: save the file after each change.',
+	'connect.done.manual': 'Download mode: this browser cannot keep the file open.',
 	'error.generic': 'That did not work. Check the connection and try again.',
 	'error.targetUnavailable': 'The destination did not answer. Try again in a moment.',
 	'error.authExpired': 'Access expired: reconnect to continue.',
@@ -123,6 +123,8 @@ const EN: WidgetLabels = {
 // portable file is an "export". One verb, one meaning. The act that loses
 // nothing opens with "Tout garder"; the ones that overwrite open with
 // "Remplacer", so the first word alone says whether something is lost.
+// lexicon.test.ts holds every pack to the first rule: stated in a comment, it
+// had already drifted in two strings before anyone noticed.
 const FR: WidgetLabels = {
 	'connect.title': 'Où enregistrer vos données ?',
 	'connect.recommended': 'Recommandé',
@@ -163,7 +165,7 @@ const FR: WidgetLabels = {
 		"Sans le mot de passe, cette sauvegarde ne peut pas être ouverte. Vous pouvez repartir d'une sauvegarde vide : l'ancienne sera perdue définitivement.",
 	'connect.password.forgot.confirm': 'Remplacer la sauvegarde',
 	'connect.password.forgot.back': 'Retour',
-	'connect.conflict.title': 'Cette destination contient déjà une sauvegarde',
+	'connect.conflict.title': 'Une sauvegarde existe déjà ici',
 	'connect.conflict.merge': 'Tout garder',
 	'connect.conflict.merge.sub': 'Réunir la sauvegarde et les données de cet appareil',
 	'connect.conflict.resume': 'Utiliser la sauvegarde',
@@ -177,9 +179,9 @@ const FR: WidgetLabels = {
 	'connect.webdav.signup': 'Créer un compte',
 	'connect.webdav.help.more': 'Comment faire ?',
 	'connect.done': 'Connecté. Vos données sont enregistrées.',
-	'connect.done.manual': 'Mode fichier : exportez après chaque changement.',
+	'connect.done.manual': 'Mode export : ce navigateur ne peut pas garder le fichier ouvert.',
 	'error.generic': "Cela n'a pas fonctionné. Vérifiez la connexion et réessayez.",
-	'error.targetUnavailable': 'La destination ne répond pas. Réessayez dans un instant.',
+	'error.targetUnavailable': 'La sauvegarde ne répond pas. Réessayez dans un instant.',
 	'error.authExpired': 'Accès expiré : reconnectez-vous pour continuer.',
 	'error.decryptFailed': "Cette sauvegarde n'a pas pu être ouverte avec ce mot de passe.",
 	'error.badFormat': 'Ce fichier ne ressemble pas à une sauvegarde lisible.',

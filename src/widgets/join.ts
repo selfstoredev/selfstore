@@ -35,7 +35,7 @@ const EN: WidgetLabels = {
 
 const FR: WidgetLabels = {
 	'join.previewing': "Lecture de l'invitation...",
-	'join.title': 'Vous êtes invité',
+	'join.title': 'Vous avez reçu une invitation',
 	'join.from': 'Partagé par {from}',
 	'join.level.read': 'Vous pourrez consulter.',
 	'join.level.write': 'Vous pourrez consulter et modifier.',
