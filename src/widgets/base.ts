@@ -557,10 +557,26 @@ export abstract class FlowWidget extends HTMLElement {
 		for (const name of upgradeOwnProperties(this)) this.assigned.add(name);
 	}
 
-	/** An attribute the host has not already decided in code, as a boolean. */
+	/**
+	 * An attribute the host has NOT already decided in code, or null.
+	 *
+	 * Two ways it can have decided, and both have to be caught. It replayed
+	 * through `assigned` on connect - or it has not been replayed yet, and its
+	 * value is sitting on the element as an own property shadowing this very
+	 * accessor. That second case is the one that bit: on upgrade the browser
+	 * fires attributeChangedCallback BEFORE connectedCallback, so a widget
+	 * writing the attribute through its own setter wrote into the shadowing own
+	 * property instead - overwriting the decision it was about to replay.
+	 */
+	protected attr(name: string): string | null {
+		if (this.assigned.has(name) || Object.hasOwn(this, name)) return null;
+		return this.getAttribute(name);
+	}
+
+	/** The same, as a boolean: absent is null, anything but "false" is true. */
 	protected flag(name: string): boolean | null {
-		if (this.assigned.has(name) || !this.hasAttribute(name)) return null;
-		return this.getAttribute(name) !== 'false';
+		const value = this.attr(name);
+		return value === null ? null : value !== 'false';
 	}
 
 	protected emit(name: string, detail?: unknown): void {

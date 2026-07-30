@@ -339,13 +339,16 @@ describe('a decision taken in code beats a default written in the markup', () =>
 		// path, not the parser.
 		const { engine } = fakeEngine();
 		const el = document.createElement('selfstore-gate') as SelfstoreGateElement;
-		el.setAttribute('armed', 'false');
-		el.setAttribute('deferrable', 'false');
 		const own = (name: string, value: unknown): void => {
 			Object.defineProperty(el, name, { value, writable: true, configurable: true });
 		};
 		own('armed', true);
 		own('store', { engine, kv: {} as FlowHost['kv'], backupName: 'app.zip' });
+		// Then the upgrade fires its attribute callbacks, still shadowed - the
+		// exact moment the decision used to be overwritten - and only after that
+		// does the element connect and replay what the host had assigned.
+		el.setAttribute('armed', 'false');
+		el.setAttribute('deferrable', 'false');
 
 		document.body.append(el);
 

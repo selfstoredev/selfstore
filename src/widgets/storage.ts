@@ -122,17 +122,23 @@ export class SelfstoreStorageElement extends FlowWidget {
 		this.rerender();
 	}
 
-	attributeChangedCallback(name: string, _old: string | null, value: string | null): void {
-		if (name === 'deferrable') this.deferrable = value !== 'false';
-		if (name === 'recommended') this.recommended = value as ConnectKind | null;
+	attributeChangedCallback(name: string): void {
+		if (name === 'deferrable') {
+			const value = this.flag(name);
+			if (value !== null) this.deferrable = value;
+		}
+		if (name === 'recommended') {
+			const value = this.attr(name);
+			if (value !== null) this.recommended = value as ConnectKind;
+		}
 	}
 
 	connectedCallback(): void {
 		super.connectedCallback();
 		const deferrable = this.flag('deferrable');
 		if (deferrable !== null) this.deferrable = deferrable;
-		if (!this.assigned.has('recommended') && this.hasAttribute('recommended'))
-			this.recommended = this.getAttribute('recommended') as ConnectKind;
+		const recommended = this.attr('recommended');
+		if (recommended !== null) this.recommended = recommended as ConnectKind;
 		this.follow(hostOf(this.#store));
 	}
 

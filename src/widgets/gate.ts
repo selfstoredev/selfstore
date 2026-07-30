@@ -239,9 +239,11 @@ export class SelfstoreGateElement extends FlowWidget {
 		this.root.append(h('style', {}, GATE_STYLES));
 	}
 
-	attributeChangedCallback(name: string, _old: string | null, value: string | null): void {
-		if (name === 'armed') this.armed = value !== 'false';
-		if (name === 'deferrable') this.deferrable = value !== 'false';
+	attributeChangedCallback(name: string): void {
+		const value = this.flag(name);
+		if (value === null) return;
+		if (name === 'armed') this.armed = value;
+		if (name === 'deferrable') this.deferrable = value;
 	}
 
 	connectedCallback(): void {
