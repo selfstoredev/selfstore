@@ -14,8 +14,29 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
-_Nothing yet. Entries land here as they are merged; the release PR stamps them
-with a number and a date._
+### Added
+
+- **`drive: { clientId }` is now the whole Drive wiring.** An app that wanted a
+  Drive backup had to build the connection itself, keep exactly one of it (two
+  meant two consent screens), decide whether its token survived a reload,
+  discover the account and hand it back to Google so the chooser would stop
+  appearing - four decisions, each learned as a bug first. Naming the client id
+  does all of it. A host that mints its own tokens still passes a `DriveAuth`
+  and is unaffected; the two are told apart by shape.
+
+  With that in place the library knows the account, so `store.account` names the
+  destination ("Google Drive" is not an address) and `store.resumeOffer()` hands
+  a connect flow the "reopen my backup" card, both without a single call going
+  out. Consumers were deriving those by hand from data the library already had.
+
+### Fixed
+
+- **The first-run screen no longer appears during boot.** It opened whenever the
+  store had no destination - including the second a restore takes - so a
+  connected user was asked, at every load, a question they had answered long
+  ago. A store that is still loading has no destination YET, which is not the
+  same as having none: the gate now waits for `ready`. Every consumer had to
+  discover the `armed` property to work around this; none should have needed to.
 
 ## [1.8.7] - 2026-07-30
 

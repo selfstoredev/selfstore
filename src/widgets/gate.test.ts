@@ -28,6 +28,7 @@ const CHOOSE = {
 function fakeEngine(status: Record<string, unknown> = CHOOSE) {
 	const subs = new Set<() => void>();
 	const state = {
+		ready: true,
 		targetKind: 'device',
 		label: null as string | null,
 		lastSavedAt: null as number | null,
@@ -300,5 +301,24 @@ describe('selfstore-gate', () => {
 			el.remove();
 			document.documentElement.lang = '';
 		});
+	});
+});
+
+describe('a store still loading is not a store without a destination', () => {
+	it('stays shut until the store is ready, then decides', () => {
+		// The second a restore takes was showing the question to someone who
+		// answered it long ago - at every load. Every consumer had to discover
+		// `armed` to work around it.
+		const { engine, set } = fakeEngine({ action: 'choose-destination', actionable: true });
+		(engine.state as { ready: boolean }).ready = false;
+		const el = mount(engine);
+
+		expect(el.open).toBe(false);
+
+		set({});
+		(engine.state as { ready: boolean }).ready = true;
+		set({});
+
+		expect(el.open).toBe(true);
 	});
 });
