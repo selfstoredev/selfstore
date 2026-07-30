@@ -14,6 +14,11 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+_Nothing yet. Entries land here as they are merged; the release PR stamps them
+with a number and a date._
+
+## [1.8.7] - 2026-07-30
+
 ### Added
 
 - **The Drive connection stops asking so often.** A user reported having to
