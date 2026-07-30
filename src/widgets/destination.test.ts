@@ -173,11 +173,33 @@ describe('selfstore-destination', () => {
 			seen.push((e as CustomEvent).detail)
 		);
 
-		byText(el, 'Load a copy')!.click();
+		byText(el, 'Restore a copy')!.click();
 		await settle();
 
 		// The library holds no records - the app's own apply does.
 		expect(seen).toEqual([{ action: 'restore' }]);
+	});
+
+	it('an empty-string label removes a gesture, same convention as the headings', () => {
+		const el = mount(fakeEngine());
+		expect(byText(el, 'Stop saving here')).toBeDefined();
+
+		// A host that forbids the device-only state takes the journey off the
+		// screen; the other gestures are untouched.
+		el.labels = { 'destination.detach': '' };
+
+		expect(byText(el, 'Stop saving here')).toBeUndefined();
+		expect(byText(el, 'Export a copy')).toBeDefined();
+		expect(byText(el, 'Restore a copy')).toBeDefined();
+	});
+
+	it('each gesture carries its own part, so a host can prune ONE from CSS', () => {
+		const el = mount(fakeEngine());
+
+		const parts = buttons(el).map((b) => b.getAttribute('part') ?? '');
+		expect(parts.some((p) => p.includes('destination-export'))).toBe(true);
+		expect(parts.some((p) => p.includes('destination-restore'))).toBe(true);
+		expect(parts.some((p) => p.includes('destination-detach'))).toBe(true);
 	});
 
 	it('offers no way to change destination when there is nothing to change to', () => {

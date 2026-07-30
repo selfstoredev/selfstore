@@ -60,7 +60,10 @@ collaborative editing (use a CRDT library), or Node-side storage.
   (exportBlob + save dialog, false = nothing written, markDownloaded only on a
   real write) and stop saving here (detachTarget, behind confirmAction, local
   data untouched); given `targets` it runs the connect journey in place to
-  change destination, and without them that button is absent rather than dead.
+  change destination, and without them that button is absent rather than dead;
+  an empty-string label removes a gesture (labels = { 'destination.detach': '' }
+  for a host that forbids the device-only state) and each button carries its own
+  part (destination-export/-restore/-change/-detach) for CSS pruning.
   Loading a copy BACK is the one gesture it cannot run - the library holds no
   records, the app's apply does - so it emits
   'selfstore-destination-action' { action: 'restore' }; share renders ONE link per level (a level shows its live

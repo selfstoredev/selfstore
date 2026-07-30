@@ -16,6 +16,18 @@ version number is not asking you to trust.
 
 ### Fixed
 
+- The destination panel's gestures can be pruned and addressed one by one. The
+  first app to mount it came back with "too many buttons" and could do nothing
+  about it: the four gestures shared one anonymous `part` and no label
+  convention removed a button, so a host that forbids the device-only state
+  still showed "Stop saving here" - a journey it does not offer. An
+  empty-string label now removes a gesture (the same convention the headings
+  already follow), and each button carries its own part
+  (`destination-export`, `destination-restore`, `destination-change`,
+  `destination-detach`). Also: "Load a copy" becomes **"Restore a copy"**
+  ("Restaurer une copie") - restore says you go BACK to a state, load could
+  mean adding, and next to "Export a copy" the pair reads as the round trip it
+  is.
 - The French widget copy holds to the lexicon it declares. The packs state, in
   a comment above them, that the durable destination is "la sauvegarde" - and
   two strings out of a hundred and sixty-three called it "la destination". The
