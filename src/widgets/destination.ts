@@ -48,7 +48,7 @@ const EN: WidgetLabels = {
 	'destination.export': 'Export a copy',
 	'destination.exported': 'The copy is written.',
 	'destination.exportCancelled': 'Nothing was written.',
-	'destination.restore': 'Load a copy',
+	'destination.restore': 'Restore a copy',
 	'destination.change': 'Change destination',
 	'destination.detach': 'Stop saving here',
 	'destination.detached': 'Stopped. Your data stays on this device.',
@@ -73,7 +73,10 @@ const FR: WidgetLabels = {
 	'destination.export': 'Exporter une copie',
 	'destination.exported': 'La copie est écrite.',
 	'destination.exportCancelled': "Rien n'a été écrit.",
-	'destination.restore': 'Charger une copie',
+	// "Restaurer", pas "charger" : le premier dit qu'on REVIENT a un etat, le
+	// second pourrait ajouter. Face a "Exporter une copie", la paire se lit
+	// comme l'aller-retour qu'elle est.
+	'destination.restore': 'Restaurer une copie',
 	'destination.change': 'Changer de sauvegarde',
 	'destination.detach': 'Ne plus enregistrer ici',
 	'destination.detached': 'Arrêté. Vos données restent sur cet appareil.',
@@ -290,12 +293,21 @@ export class SelfstoreDestinationElement extends FlowWidget {
 		status.icons = this.#icons;
 		status.store = this.#store;
 
-		const act = (key: string, onclick: () => void): HTMLElement =>
-			h(
+		// An empty-string label removes the gesture, the same convention as the
+		// headings: labels = { 'destination.detach': '' } is how a host that
+		// forbids the device-only state takes that journey off the screen. Each
+		// button also carries its own part, so a host can style or hide ONE of
+		// them from CSS - four gestures sharing one anonymous part made the row
+		// impossible to prune, which is how a panel ends up "too many buttons".
+		const act = (key: string, part: string, onclick: () => void): HTMLElement | null => {
+			const label = this.t(key);
+			if (!label) return null;
+			return h(
 				'button',
-				{ part: 'button', type: 'button', disabled: this.#busy ? '' : null, onclick },
-				this.t(key)
+				{ part: `button ${part}`, type: 'button', disabled: this.#busy ? '' : null, onclick },
+				label
 			);
+		};
 
 		put(
 			into,
@@ -316,19 +328,19 @@ export class SelfstoreDestinationElement extends FlowWidget {
 			h(
 				'div',
 				{ part: 'destination-actions' },
-				act('destination.export', () => void this.exportCopy()),
+				act('destination.export', 'destination-export', () => void this.exportCopy()),
 				// The library holds no records, so loading a copy back is the host's
 				// own gesture - see the note at the top of this file.
-				act('destination.restore', () =>
+				act('destination.restore', 'destination-restore', () =>
 					this.emit('selfstore-destination-action', { action: 'restore' })
 				),
 				this.#targets
-					? act('destination.change', () => {
+					? act('destination.change', 'destination-change', () => {
 							this.#changing = true;
 							this.rerender();
 						})
 					: null,
-				act('destination.detach', () => void this.detach(label))
+				act('destination.detach', 'destination-detach', () => void this.detach(label))
 			),
 			this.#message
 				? h('div', { part: 'sub destination-message', role: 'status' }, this.#message)
