@@ -295,8 +295,16 @@ the store's restoreTarget option):
 - webdavTarget.connect({ kv, config: { url, username, password } }) - the url MUST
   be https (loopback excepted).
 - driveTarget.connect({ auth, kv, fileName }) - Google Drive; auth: DriveAuth
-  (gisDriveAuth({ clientId }) is the client-only reference; a refresh-token
-  broker makes it permanent). Shared-file primitives: driveTarget.preview /
+  (gisDriveAuth({ clientId, hint?, persist? }) is the client-only reference; a
+  refresh-token broker makes it permanent). How often it interrupts: the browser
+  token flow has NO refresh token and requestAccessToken opens a popup even with
+  prompt '' (so it needs a user gesture - no silent re-acquisition on page load).
+  persist: 'session' keeps the ~1h token in sessionStorage so a reload asks
+  nothing (opt-in: it is a drive.file bearer credential in web storage); hint
+  (value or callback, e.g. what driveTarget.account() returned) skips the account
+  chooser; reconnect() tries prompt '' before 'consent', because forcing consent
+  over a live grant re-asks an answered question and makes Google mail the user
+  each time. Shared-file primitives: driveTarget.preview /
   adopt / findOrCreateOwnFile. My-backups ops (metadata, one call each):
   listBackups({ auth, nameContains? }) / createBackup({ auth, fileName }) /
   renameBackup({ auth, fileId, fileName }) / deleteBackup({ auth, fileId }) -

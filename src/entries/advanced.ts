@@ -192,5 +192,9 @@ export type {
 	WebdavPeerOptions
 } from '../persistence/targets/webdav';
 export type { S3Config, S3ConnectOptions } from '../persistence/targets/s3';
-export { gisDriveAuth } from '../persistence/targets/drive-auth-gis';
+export {
+	gisDriveAuth,
+	type GisDriveAuthOptions,
+	type GisTokenPersistence
+} from '../persistence/targets/drive-auth-gis';
 export { saveToDisk, pickFromDisk, datedName } from '../selfstore/targets/local';
