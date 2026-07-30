@@ -47,8 +47,20 @@ const FR: WidgetLabels = {
 	'account.justNow': "à l'instant"
 };
 
+// A menu floats OVER the page, so it has to be opaque, and it cannot borrow
+// the page's background the way the rest of a widget borrows its font: there
+// is nothing behind it to borrow. `Canvas` is the system surface (it follows
+// light and dark on its own); a host with a paper of its own sets
+// --selfstore-surface once and both are covered.
 const ACCOUNT_STYLES = `
 :host { position: relative; display: inline-block; }
+/* Every other widget fills the width it is given, so the shared stack declares
+   itself a size container (that is what lets a card lay out against ITS width
+   and not the page's). This one is a control in a header: it must be as wide as
+   its own label. Inline-size containment makes a box report an intrinsic width
+   of ZERO - the pill collapsed to its dot in a flex header, with the label
+   overflowing off screen. Nothing here queries its own width. */
+[part~='stack'] { container-type: normal; display: block; }
 [part~='account-trigger'] {
 	display: inline-flex;
 	align-items: center;
@@ -57,6 +69,13 @@ const ACCOUNT_STYLES = `
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
+	font: inherit;
+	color: inherit;
+	background: transparent;
+	border: 1px solid var(--_border);
+	border-radius: 999px;
+	padding: 0.3rem 0.7rem;
+	cursor: pointer;
 }
 [part~='account-dot'] {
 	width: 0.5rem;
@@ -73,20 +92,51 @@ const ACCOUNT_STYLES = `
 	min-width: min(20rem, calc(100vw - 2rem));
 	display: flex;
 	flex-direction: column;
+	align-items: stretch;
 	gap: 0.25rem;
 	text-align: start;
+	padding: 0.4rem;
+	background: var(--selfstore-surface, Canvas);
+	box-shadow: var(--selfstore-shadow, 0 10px 30px rgb(0 0 0 / 0.14));
 }
 [part~='account-card'] {
 	display: flex;
 	align-items: flex-start;
 	gap: 0.6rem;
 	width: 100%;
+	font: inherit;
+	color: inherit;
+	text-align: start;
+	background: transparent;
+	border: none;
+	border-radius: calc(var(--_radius) * 0.75);
+	padding: 0.5rem 0.6rem;
+	cursor: pointer;
 }
+[part~='account-card']:hover { background: color-mix(in srgb, currentColor 7%, transparent); }
 [part~='account-logo'] { width: 1.5rem; height: 1.5rem; flex: none; }
-[part~='account-text'] { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+[part~='account-text'] {
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+	min-width: 0;
+	line-height: 1.35;
+}
 [part~='account-title'] { font-weight: 600; }
-[part~='account-mail'], [part~='account-line'] { font-size: 0.875rem; opacity: 0.75; }
-[part~='account-sep'] { height: 1px; background: currentColor; opacity: 0.15; margin: 0.25rem 0; }
+[part~='account-mail'], [part~='account-line'] {
+	font-size: 0.875rem;
+	color: var(--_ink-dim);
+	overflow-wrap: anywhere;
+}
+[part~='account-item'] {
+	text-align: start;
+	padding: 0.4rem 0.6rem;
+	border-radius: calc(var(--_radius) * 0.75);
+	text-decoration: none;
+	color: inherit;
+}
+[part~='account-item']:hover { background: color-mix(in srgb, currentColor 7%, transparent); }
+[part~='account-sep'] { height: 1px; background: var(--_border); margin: 0.2rem 0.3rem; }
 `;
 
 /** How long a "saved just now" stays true, and the beat at which the open menu
@@ -287,7 +337,7 @@ export class SelfstoreAccountElement extends FlowWidget {
 		return h(
 			'button',
 			{
-				part: 'card account-card',
+				part: 'account-card',
 				type: 'button',
 				role: 'menuitem',
 				title: this.t('account.settings'),
@@ -318,40 +368,57 @@ export class SelfstoreAccountElement extends FlowWidget {
 				'aria-label': this.t('account.open'),
 				onclick: () => (this.open = !this.#open)
 			},
-			h('span', { part: `account-dot ${status.severity}` }),
+			// The severity colors the DOT, never the label: a whole line turning
+			// amber reads as a warning about the destination's name.
+			h('span', { part: `account-dot sev-${status.severity}` }),
 			h('span', {}, this.named(host))
 		);
-		put(
-			into,
-			trigger,
-			this.#open
-				? h(
-						'div',
-						{ part: 'card account-menu', role: 'menu' },
-						this.card(host),
-						h('div', { part: 'account-sep' }),
-						h(
-							'button',
-							{
-								part: 'link account-item',
-								type: 'button',
-								role: 'menuitem',
-								onclick: () => this.settings()
-							},
-							this.t('account.settings')
-						),
-						h(
-							'button',
-							{
-								part: 'link account-item account-change',
-								type: 'button',
-								role: 'menuitem',
-								onclick: () => void this.change()
-							},
-							this.t('account.change')
-						)
+		const menu = this.#open
+			? h(
+					'div',
+					{ part: 'card account-menu', role: 'menu' },
+					this.card(host),
+					h('div', { part: 'account-sep' }),
+					h(
+						'button',
+						{
+							part: 'link account-item',
+							type: 'button',
+							role: 'menuitem',
+							onclick: () => this.settings()
+						},
+						this.t('account.settings')
+					),
+					h(
+						'button',
+						{
+							part: 'link account-item account-change',
+							type: 'button',
+							role: 'menuitem',
+							onclick: () => void this.change()
+						},
+						this.t('account.change')
 					)
-				: null
-		);
+				)
+			: null;
+		put(into, trigger, menu);
+		if (menu) this.anchor(menu);
+	}
+
+	/**
+	 * Which side the menu hangs from.
+	 *
+	 * A header control is usually at the right edge, so the menu hangs right -
+	 * and the moment the header wraps on a narrow window, that same control sits
+	 * at the LEFT edge and the menu hangs off the screen. Measured rather than
+	 * assumed: it hangs left when there is room to the right, and right
+	 * otherwise, which lands correctly at both edges without the host declaring
+	 * where it put the control.
+	 */
+	private anchor(menu: HTMLElement): void {
+		const here = this.getBoundingClientRect();
+		const fits = here.left + menu.getBoundingClientRect().width <= window.innerWidth - 8;
+		menu.style.left = fits ? '0' : 'auto';
+		menu.style.right = fits ? 'auto' : '0';
 	}
 }

@@ -30,7 +30,11 @@ version number is not asking you to trust.
   written ("Saved 3 minutes ago", from `Intl` in the page's language, refreshed
   while the menu is open); anything needing attention is handed to
   `<selfstore-status>`, which owns both that wording and the button resolving
-  it, rather than being worded a second time.
+  it, rather than being worded a second time. The menu carries its own opaque
+  surface (a menu floats over the page, so it cannot borrow a background it
+  does not have behind it: `--selfstore-surface`, falling back to the system
+  one) and picks the side it hangs from by measuring, so a header that wraps on
+  a narrow window does not push it off screen.
 
 ### Fixed
 
