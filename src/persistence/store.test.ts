@@ -122,6 +122,28 @@ function makeStore(
 	return { store, app, cache };
 }
 
+/** Poll until an assertion holds. A debounced save lands on a timer AND on the
+ *  async write that timer starts, both at the scheduler's mercy: on a loaded
+ *  machine a sleep sized to the debounce window is not a wait, it is a bet. So
+ *  the debounce tests below wait on the CONDITION, with a ceiling only a real
+ *  stall can trip - and well under testTimeout, so the failure names the
+ *  condition rather than the whole test. */
+const eventually = <T>(read: () => T | Promise<T>) => expect.poll(read, { timeout: 10_000 });
+
+/** Resolve once a debounce window of `ms` has elapsed AND been served by the
+ *  event loop, witnessed by a throwaway store armed and saved in the meantime.
+ *  A negative check ("that save never fired") needs exactly that: absence is not
+ *  pollable, and under load a fixed sleep can expire before the runtime ever ran
+ *  the timer - passing without having tested anything, a false green rather than
+ *  a flake. */
+async function debounceWindowPassed(ms: number) {
+	const witness = makeStore({ accounts: [{ id: 'w1' }] }, undefined, ms);
+	await witness.store.init();
+	witness.store.schedule();
+	await eventually(() => witness.cache.load()).not.toBeNull();
+	witness.store.dispose();
+}
+
 describe('store.forget', () => {
 	it('keeps the connection and empties the remote backup when connected', async () => {
 		const { store, app } = makeStore({ accounts: [{ id: 'a1', name: 'Boursorama' }] });
@@ -467,20 +489,14 @@ describe('freshness (stat-based converge)', () => {
 	});
 
 	it('schedule is a pre-init no-op, then debounce-saves once initialized', async () => {
-		const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-		const a = makeStore({ accounts: [{ id: 'a1' }] }, undefined, 10);
+		const debounceMs = 10;
+		const a = makeStore({ accounts: [{ id: 'a1' }] }, undefined, debounceMs);
 		a.store.schedule(); // pre-init: must not even arm the timer
-		await sleep(40);
+		await debounceWindowPassed(debounceMs);
 		expect(await a.cache.load()).toBeNull();
 		await a.store.init();
 		a.store.schedule();
-		// Wait for the save rather than for a duration: a fixed sleep races the
-		// debounce, and on a loaded machine the race is lost - this test went red
-		// twice in an afternoon without a defect behind it. A deadline still
-		// fails a save that never lands.
-		const deadline = Date.now() + 5000;
-		while ((await a.cache.load()) === null && Date.now() < deadline) await sleep(10);
-		expect(await a.cache.load()).not.toBeNull(); // the debounced save landed
+		await eventually(() => a.cache.load()).not.toBeNull(); // the debounced save landed
 	});
 
 	it('syncNow resolves to null (and journals nothing) when already up to date', async () => {
@@ -897,12 +913,12 @@ describe('non-string id warning (data-loss footgun)', () => {
 
 describe('store.dispose', () => {
 	it('cancels a pending debounced save so it never fires after teardown', async () => {
-		const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-		const a = makeStore({ accounts: [{ id: 'a1' }] }, undefined, 20);
+		const debounceMs = 20;
+		const a = makeStore({ accounts: [{ id: 'a1' }] }, undefined, debounceMs);
 		await a.store.init();
 		a.store.schedule(); // arm the debounce
 		a.store.dispose(); // then tear down before it fires
-		await sleep(50);
+		await debounceWindowPassed(debounceMs);
 		expect(await a.cache.load()).toBeNull(); // the save never landed
 	});
 

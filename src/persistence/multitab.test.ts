@@ -51,7 +51,13 @@ function memCache(): LocalCache {
 	};
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** Poll until an assertion holds. A cross-tab refresh is a channel message plus
+ *  a serialized save-or-adopt: nothing about it is instant, and none of it is
+ *  ours to time. On a loaded machine - a full-suite run is exactly that - a
+ *  sleep sized to a guess expires before the work lands and the test fails for
+ *  no reason, in the gate that guards a release. So the live tests below wait on
+ *  the CONDITION, with a ceiling only a real stall can trip. */
+const eventually = <T>(read: () => T | Promise<T>) => expect.poll(read, { timeout: 10_000 });
 
 // Every store created in a test registers here; afterEach disposes them all,
 // so no BroadcastChannel handle outlives its test (or keeps vitest alive).
@@ -137,10 +143,12 @@ describe('multi-tab: live refresh (BroadcastChannel)', () => {
 
 		a.app.collections.notes = [{ id: 'a1' }];
 		await a.store.flush();
-		await sleep(50); // channel delivery + the serialized adopt
 
-		expect(ids(b.app.collections.notes)).toEqual(['a1']);
-		expect(b.store.state.lastSavedAt).toBe(a.store.state.lastSavedAt);
+		// Channel delivery + the serialized adopt. One wait per outcome: the adopt
+		// applies the data first and re-reads the bookkeeping after, so neither
+		// order-of-arrival nor its duration is the test's business.
+		await eventually(() => ids(b.app.collections.notes)).toEqual(['a1']);
+		await eventually(() => b.store.state.lastSavedAt).toBe(a.store.state.lastSavedAt);
 	});
 
 	it('a tab holding an unsaved edit saves it on refresh instead of losing it', async () => {
@@ -155,12 +163,15 @@ describe('multi-tab: live refresh (BroadcastChannel)', () => {
 
 		a.app.collections.notes = [{ id: 'a1' }];
 		await a.store.flush();
-		await sleep(80); // B refreshes: pending edit -> full save, folding A's write in
 
-		expect(ids((await cache.load())!.collections.notes)).toEqual(['a1', 'b1']);
-		expect(ids(b.app.collections.notes)).toEqual(['a1', 'b1']);
-		await sleep(80); // and A adopts B's fold back
-		expect(ids(a.app.collections.notes)).toEqual(['a1', 'b1']);
+		// B refreshes: pending edit -> full save, folding A's write in.
+		await eventually(async () => ids((await cache.load())!.collections.notes)).toEqual([
+			'a1',
+			'b1'
+		]);
+		await eventually(() => ids(b.app.collections.notes)).toEqual(['a1', 'b1']);
+		// And A adopts B's fold back.
+		await eventually(() => ids(a.app.collections.notes)).toEqual(['a1', 'b1']);
 	});
 
 	it('forget in one tab clears the others', async () => {
@@ -173,8 +184,7 @@ describe('multi-tab: live refresh (BroadcastChannel)', () => {
 		expect(ids(b.app.collections.notes)).toEqual(['n1']);
 
 		await a.store.forget(); // no destination connected: full local wipe
-		await sleep(50);
-		expect(b.app.collections.notes ?? []).toEqual([]);
-		expect(ids((await cache.load())?.collections.notes ?? [])).toEqual([]);
+		await eventually(() => b.app.collections.notes ?? []).toEqual([]);
+		await eventually(async () => ids((await cache.load())?.collections.notes ?? [])).toEqual([]);
 	});
 });
