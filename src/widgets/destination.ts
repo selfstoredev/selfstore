@@ -28,7 +28,8 @@
 import type { ConnectKind, ConnectTargets, FlowHost, StoreLike } from '../flows/connect';
 import type { SelfstoreConnectElement } from './connect';
 import { datedName, saveToDisk } from '../selfstore/targets/local';
-import { FlowWidget, h, hostOf, put, type WidgetLabels } from './base';
+import { FlowWidget, h, hostOf, put, siblingTag, type WidgetLabels } from './base';
+import { EN as KIND_EN, FR as KIND_FR } from './kinds';
 
 /** What the panel is about to do, for the host's veto. */
 export interface DestinationAction {
@@ -38,12 +39,8 @@ export interface DestinationAction {
 }
 
 const EN: WidgetLabels = {
+	...KIND_EN,
 	'destination.heading': 'Where your data is kept',
-	'destination.kind.drive': 'Google Drive',
-	'destination.kind.file': 'A file on this device',
-	'destination.kind.webdav': 'Your own server',
-	'destination.kind.s3': 'Your own bucket',
-	'destination.kind.device': 'This device only',
 	'destination.encrypted': 'Password-protected',
 	'destination.export': 'Export a copy',
 	'destination.exported': 'The copy is written.',
@@ -64,11 +61,8 @@ const EN: WidgetLabels = {
 // defaults, so a key repeated word for word (a brand name) would just be a
 // second place to keep it in step.
 const FR: WidgetLabels = {
+	...KIND_FR,
 	'destination.heading': 'Où vos données sont enregistrées',
-	'destination.kind.file': 'Un fichier sur cet appareil',
-	'destination.kind.webdav': 'Votre serveur',
-	'destination.kind.s3': 'Votre bucket',
-	'destination.kind.device': 'Cet appareil seulement',
 	'destination.encrypted': 'Protégée par un mot de passe',
 	'destination.export': 'Exporter une copie',
 	'destination.exported': 'La copie est écrite.',
@@ -97,13 +91,6 @@ const DESTINATION_STYLES = `
 	font-weight: 600;
 }
 `;
-
-/** The sibling element under the same prefix: both are registered together, so
- *  <app-destination> composes <app-connect> without being told. */
-function siblingTag(own: string, name: string): string {
-	const suffix = '-destination';
-	return own.endsWith(suffix) ? `${own.slice(0, -suffix.length)}-${name}` : `selfstore-${name}`;
-}
 
 export class SelfstoreDestinationElement extends FlowWidget {
 	#store: StoreLike | null = null;
@@ -246,7 +233,7 @@ export class SelfstoreDestinationElement extends FlowWidget {
 	 *  tested ones rather than a second implementation. */
 	private connectView(into: HTMLElement): void {
 		const el = document.createElement(
-			siblingTag(this.localName, 'connect')
+			siblingTag(this.localName, 'destination', 'connect')
 		) as SelfstoreConnectElement;
 		el.store = this.#store;
 		el.targets = this.#targets;
@@ -283,7 +270,9 @@ export class SelfstoreDestinationElement extends FlowWidget {
 			.filter(Boolean)
 			.join(' · ');
 		const icon = this.#icons[targetKind as ConnectKind];
-		const status = document.createElement(siblingTag(this.localName, 'status')) as HTMLElement & {
+		const status = document.createElement(
+			siblingTag(this.localName, 'destination', 'status')
+		) as HTMLElement & {
 			store?: StoreLike | null;
 			labels?: WidgetLabels;
 			icons?: Partial<Record<ConnectKind, string>>;

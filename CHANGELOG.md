@@ -14,8 +14,46 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
-_Nothing yet. Entries land here as they are merged; the release PR stamps them
-with a number and a date._
+### Added
+
+- **`<selfstore-account>`**: the storage control for an app's header - a
+  trigger naming where the data goes, and a menu holding exactly two
+  decisions: open the settings (the host owns the route; the element emits
+  `selfstore-account-settings`) and change backup. It is deliberately short.
+  `<selfstore-destination>` offers four gestures, which is right for a settings
+  page and wrong for a menu: a header opening onto "export a copy / restore a
+  copy / change backup / stop saving here" asks the user to arbitrate between
+  four irreversible-looking words before knowing what any of them does.
+  Changing backup detaches and stops there, so the first-run screen already on
+  the page runs the journey - one connect flow, whether it is the first day or
+  a change of mind. The card states who holds the backup and _when_ it was last
+  written ("Saved 3 minutes ago", from `Intl` in the page's language, refreshed
+  while the menu is open); anything needing attention is handed to
+  `<selfstore-status>`, which owns both that wording and the button resolving
+  it, rather than being worded a second time. The menu carries its own opaque
+  surface (a menu floats over the page, so it cannot borrow a background it
+  does not have behind it: `--selfstore-surface`, falling back to the system
+  one) and picks the side it hangs from by measuring, so a header that wraps on
+  a narrow window does not push it off screen.
+
+### Fixed
+
+- **A property assigned before the element upgraded is no longer undone by an
+  attribute in the markup.** `<selfstore-gate armed="false">` with the app
+  assigning `armed = true` from its own effect - the ordinary shape, since the
+  widget bundle is loaded lazily and the assignment is not - lost the
+  assignment the moment the element upgraded: `connectedCallback` read the
+  attribute back over it. An app whose bundle happened to load late got no
+  first-run screen at all and ran on device-only storage without ever asking,
+  and nothing said so. An attribute is a default written by the page; a
+  property is a decision taken by the app, and the decision wins. Same for
+  `deferrable` and `recommended`, on the gate and on `<selfstore-storage>`.
+
+### Changed
+
+- The destination names (`destination.kind.*`) now live in one module both the
+  panel and the header control read. Two screens of one app naming the same
+  target differently, each correct on its own, is how a lexicon drifts.
 
 ## [1.8.10] - 2026-07-30
 

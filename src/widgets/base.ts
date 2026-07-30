@@ -349,6 +349,20 @@ button[part~='menu-item-danger'] { color: var(--_danger); }
 type Child = Node | string | null | undefined;
 
 /** Append children to an element, skipping null/undefined (conditional bits). */
+/**
+ * The sibling element under the same prefix: widgets are registered together,
+ * so <app-destination> composes <app-connect> without being told which prefix
+ * it was registered under.
+ *
+ * `self` is the caller's own suffix ('destination'), `name` the sibling's
+ * ('connect'). An element registered under no known prefix falls back to the
+ * library's own tags rather than guessing.
+ */
+export function siblingTag(own: string, self: string, name: string): string {
+	const suffix = `-${self}`;
+	return own.endsWith(suffix) ? `${own.slice(0, -suffix.length)}-${name}` : `selfstore-${name}`;
+}
+
 export function put(el: HTMLElement, ...children: Child[]): void {
 	for (const c of children) {
 		if (c == null) continue;
@@ -406,15 +420,18 @@ export function h<K extends keyof HTMLElementTagNameMap>(
  * an upgrade the base constructor runs BEFORE the subclass field
  * initializers, which would wipe whatever the setter had just stored.
  */
-export function upgradeOwnProperties(el: HTMLElement): void {
+export function upgradeOwnProperties(el: HTMLElement): Set<string> {
 	const proto = Object.getPrototypeOf(el) as object;
 	const bag = el as unknown as Record<string, unknown>;
+	const claimed = new Set<string>();
 	for (const name of Object.getOwnPropertyNames(el)) {
 		if (!(name in proto)) continue;
 		const value = bag[name];
 		delete bag[name];
 		bag[name] = value;
+		claimed.add(name);
 	}
+	return claimed;
 }
 
 export abstract class FlowWidget extends HTMLElement {
@@ -464,17 +481,23 @@ export abstract class FlowWidget extends HTMLElement {
 		this.rerender();
 	}
 
-	/** The shipped translation for the page's language, if the widget has one.
-	 *  An explicit `lang` on the element (or on any ancestor) wins over the
-	 *  document's, which wins over the browser's, so a host that already sets
-	 *  `<html lang>` gets translated copy without writing a single label. */
-	private localized(): WidgetLabels {
-		const tag =
+	/** The language this widget speaks. An explicit `lang` on the element (or on
+	 *  any ancestor) wins over the document's, which wins over the browser's, so
+	 *  a host that already sets `<html lang>` gets translated copy without
+	 *  writing a single label. Also what to hand `Intl` when a widget formats a
+	 *  date or a duration itself. */
+	protected langTag(): string {
+		return (
 			this.closest('[lang]')?.getAttribute('lang') ||
 			document.documentElement.lang ||
 			navigator.language ||
-			'';
-		return this.packs()[tag.slice(0, 2).toLowerCase()] ?? {};
+			'en'
+		);
+	}
+
+	/** The shipped translation for the page's language, if the widget has one. */
+	private localized(): WidgetLabels {
+		return this.packs()[this.langTag().slice(0, 2).toLowerCase()] ?? {};
 	}
 
 	/**
@@ -515,8 +538,45 @@ export abstract class FlowWidget extends HTMLElement {
 	/** Hands back whatever the host set before this class existed, then the
 	 *  subclass reads its attributes and wires itself. Subclasses override this
 	 *  and call `super.connectedCallback()` FIRST, for that reason. */
+	/**
+	 * What the HOST decided before this element could hear it.
+	 *
+	 * Assigning a property to an element that has not upgraded yet is what every
+	 * framework does - the widget bundle is loaded lazily, the assignment is
+	 * not - and `upgradeOwnProperties` replays those assignments through the
+	 * real setters. Then reading the same knob back from the markup would undo
+	 * them: an attribute is a DEFAULT written by the page, a property is a
+	 * decision taken by the app, and the decision has to win. A widget reads its
+	 * attributes through this set.
+	 */
+	protected assigned: Set<string> = new Set();
+
 	connectedCallback(): void {
-		upgradeOwnProperties(this);
+		// Merged, never replaced: an element moved in the DOM connects twice, and
+		// the second pass has no own properties left to replay.
+		for (const name of upgradeOwnProperties(this)) this.assigned.add(name);
+	}
+
+	/**
+	 * An attribute the host has NOT already decided in code, or null.
+	 *
+	 * Two ways it can have decided, and both have to be caught. It replayed
+	 * through `assigned` on connect - or it has not been replayed yet, and its
+	 * value is sitting on the element as an own property shadowing this very
+	 * accessor. That second case is the one that bit: on upgrade the browser
+	 * fires attributeChangedCallback BEFORE connectedCallback, so a widget
+	 * writing the attribute through its own setter wrote into the shadowing own
+	 * property instead - overwriting the decision it was about to replay.
+	 */
+	protected attr(name: string): string | null {
+		if (this.assigned.has(name) || Object.hasOwn(this, name)) return null;
+		return this.getAttribute(name);
+	}
+
+	/** The same, as a boolean: absent is null, anything but "false" is true. */
+	protected flag(name: string): boolean | null {
+		const value = this.attr(name);
+		return value === null ? null : value !== 'false';
 	}
 
 	protected emit(name: string, detail?: unknown): void {
