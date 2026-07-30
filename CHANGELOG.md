@@ -14,6 +14,11 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+_Nothing yet. Entries land here as they are merged; the release PR stamps them
+with a number and a date._
+
+## [1.8.12] - 2026-07-31
+
 ### Added
 
 - **The panel says more, and says it in the order a settings page should.** The
