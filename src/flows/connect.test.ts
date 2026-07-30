@@ -575,6 +575,87 @@ describe('connectFlow: the conflict step', () => {
 	});
 });
 
+describe('connectFlow: the resume offer', () => {
+	// The whole point of the offer: the returning user answers nothing. These
+	// tests exist because the temptation, each time a risk is spotted, is to
+	// add one more question to this exact screen.
+	it('reopens the remembered destination without asking anything', async () => {
+		const { host, app, engine } = makeHost({ todos: [{ id: 'b', text: 'local' }] });
+		await engine.init();
+		const t = await seedRemote({ todos: [{ id: 'a', text: 'from-backup' }] });
+		const flow = connectFlow(
+			host,
+			{ drive: async () => null },
+			{ resume: { kind: 'drive', detail: 'someone@example.com', connect: async () => t.target } }
+		);
+		flow.resume();
+		const s = await until(flow, (x) => x.step === 'connected');
+		expect(s.outcome).toBe('resumed');
+		expect(app.collections.todos).toEqual([{ id: 'a', text: 'from-backup' }]);
+	});
+
+	// The conflict step is for a destination newly pointed at. Coming back to
+	// one's own backup IS the answer to "which side wins", so asking it there
+	// is asking someone to arbitrate between themselves and themselves.
+	it('never raises the conflict step, even with local data declared', async () => {
+		const { host, engine } = makeHost({ todos: [{ id: 'b', text: 'local' }] });
+		await engine.init();
+		const t = await seedRemote({ todos: [{ id: 'a', text: 'from-backup' }] });
+		const flow = connectFlow(
+			host,
+			{ drive: async () => null },
+			{
+				hasLocalData: () => true,
+				resume: { kind: 'drive', connect: async () => t.target }
+			}
+		);
+		flow.resume();
+		const s = await until(flow, (x) => x.step === 'connected');
+		expect(s.outcome).toBe('resumed');
+	});
+
+	// ...but the offer must not disarm the question for the OTHER cards: a
+	// destination the user newly picks is still a destination they might be
+	// about to overwrite.
+	it('leaves the conflict step armed for a destination newly chosen', async () => {
+		const { host, engine } = makeHost({ todos: [{ id: 'b', text: 'local' }] });
+		await engine.init();
+		const t = await seedRemote({ todos: [{ id: 'a', text: 'from-backup' }] });
+		const flow = connectFlow(
+			host,
+			{ drive: async () => t.target },
+			{
+				hasLocalData: () => true,
+				resume: { kind: 'drive', connect: async () => t.target }
+			}
+		);
+		flow.choose('drive');
+		expect((await until(flow, (x) => x.step === 'conflict')).hasBackup).toBe(true);
+	});
+
+	it('a cancelled consent returns to the choice, silently', async () => {
+		const { host, engine } = makeHost();
+		await engine.init();
+		const flow = connectFlow(
+			host,
+			{ drive: async () => null },
+			{ resume: { kind: 'drive', connect: async () => null } }
+		);
+		flow.resume();
+		expect(flow.snapshot.step).toBe('authorizing');
+		const s = await until(flow, (x) => x.step === 'choose');
+		expect(s.error).toBeNull();
+		expect(engine.state.targetKind).toBe('device');
+	});
+
+	it('does nothing when nothing is remembered', () => {
+		const { host } = makeHost();
+		const flow = connectFlow(host, { drive: async () => null });
+		flow.resume();
+		expect(flow.snapshot.step).toBe('choose');
+	});
+});
+
 describe('connectFlow: degraded and form modes', () => {
 	it('webdav offered without a config goes through the form step', () => {
 		const { host } = makeHost();
