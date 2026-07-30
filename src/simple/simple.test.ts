@@ -467,3 +467,25 @@ describe('connecting Drive learns WHICH account holds the backup', () => {
 		vi.unstubAllGlobals();
 	});
 });
+
+describe('store.backups() - the last thing an app assembled by hand', () => {
+	it('builds the manager once, over the store own session', async () => {
+		const auth = { token: async () => 'tok', reconnect: async () => true, forget: async () => {} };
+		const store = await selfstore('has-backups', { cache: memoryCache(), drive: auth });
+		open.push(store as unknown as SimpleStore<Schema>);
+
+		const first = await store.backups();
+		expect(first).not.toBeNull();
+		// Two managers over one destination would each hold their own idea of
+		// which file is active.
+		expect(await store.backups()).toBe(first);
+		expect(first!.fileNameFor('2026')).toContain('has-backups');
+	});
+
+	it('offers nothing to manage without a Drive to manage it on', async () => {
+		const store = await selfstore('no-backups', { cache: memoryCache() });
+		open.push(store as unknown as SimpleStore<Schema>);
+
+		expect(await store.backups()).toBeNull();
+	});
+});

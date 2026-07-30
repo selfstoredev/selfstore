@@ -14,8 +14,23 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
-_Nothing yet. Entries land here as they are merged; the release PR stamps them
-with a number and a date._
+### Added
+
+- **`store.backups()`**: the several-backups manager for this store's
+  destination, built from its own session. It was the last piece an app still
+  assembled by hand - the port over the destination, the naming, and the one
+  place it could pick the wrong file id - and the only reason a consumer still
+  needed the `DriveAuth` the store had built for itself. Built at most once (two
+  managers over one destination would each hold their own idea of which file is
+  active), and the backups module is imported on demand, so an app that never
+  asks does not carry it.
+
+### Fixed
+
+- A timing test waited a fixed 60 ms for a debounced save and lost that race on
+  a loaded machine - red twice in one afternoon with no defect behind it. It
+  now waits for the save itself, under a deadline that still fails a save that
+  never lands.
 
 ## [1.8.9] - 2026-07-30
 

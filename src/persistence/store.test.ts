@@ -474,7 +474,12 @@ describe('freshness (stat-based converge)', () => {
 		expect(await a.cache.load()).toBeNull();
 		await a.store.init();
 		a.store.schedule();
-		await sleep(60);
+		// Wait for the save rather than for a duration: a fixed sleep races the
+		// debounce, and on a loaded machine the race is lost - this test went red
+		// twice in an afternoon without a defect behind it. A deadline still
+		// fails a save that never lands.
+		const deadline = Date.now() + 5000;
+		while ((await a.cache.load()) === null && Date.now() < deadline) await sleep(10);
 		expect(await a.cache.load()).not.toBeNull(); // the debounced save landed
 	});
 
