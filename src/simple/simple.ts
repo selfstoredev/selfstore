@@ -31,15 +31,18 @@ import {
 import type { BackupTarget } from '../persistence/target';
 import type { StatusDescriptor } from '../persistence/status';
 import type { SyncConfig } from '../sync';
+import type { ResumeOffer } from '../flows/connect';
 import type { Snapshot, SnapshotFile } from '../selfstore/types';
 import { SelfstoreError } from '../selfstore/errors';
 import { restore, type PasswordPolicy } from '../selfstore';
 import { saveToDisk } from '../selfstore/targets/local';
 import {
+	account as driveAccount,
 	connect as driveConnect,
 	fromSession as driveFromSession,
 	type DriveAuth
 } from '../persistence/targets/drive';
+import { gisDriveAuth } from '../persistence/targets/drive-auth-gis';
 import {
 	connect as fileConnect,
 	fromSession as fileFromSession,
@@ -71,9 +74,22 @@ export interface SimpleOptions {
 	/** Per-collection merge tuning (id field mapping, strategies). The default -
 	 *  records keyed by `id`, later edit wins, deletes propagate - fits most apps. */
 	sync?: SyncConfig;
-	/** Google Drive auth, when this app uses Drive: providing it here lets a
-	 *  connected Drive backup restore itself on the next start. */
-	drive?: DriveAuth;
+	/**
+	 * Google Drive, when this app uses it. Two shapes for two situations:
+	 *
+	 * `{ clientId }` is the whole wiring - the library builds the browser
+	 * connection, keeps ONE session for the app (several would mean several
+	 * consent screens), reuses its token across a reload, remembers which
+	 * account holds the backup and hands that back to Google so the chooser
+	 * stops appearing. Nothing else to write.
+	 *
+	 * A `DriveAuth` instead, for an app that gets its tokens elsewhere - a
+	 * server broker holding a refresh token, a native shell.
+	 *
+	 * Either way, providing it here is also what lets a connected Drive backup
+	 * restore itself on the next start.
+	 */
+	drive?: DriveAuth | { clientId: string; scope?: string };
 	/** Where the working copy lives (default: IndexedDB named after the app;
 	 *  in-memory when IndexedDB does not exist, e.g. tests or SSR). */
 	cache?: LocalCache;
@@ -196,6 +212,19 @@ export interface SimpleStore<
 	 *  and backup file name a flow needs to build destination targets. Apps on
 	 *  the advanced store hand a flow the same three by themselves. */
 	readonly flowHost: { engine: LocalStore; kv: KV; backupName: string };
+
+	/** Who holds the destination, when it is known - the Google address behind a
+	 *  Drive backup. Learned on connect and remembered across sessions, so a
+	 *  surface can NAME the destination ("Google Drive" is not an address) and a
+	 *  re-grant can skip the account chooser. Null for a file, or before a first
+	 *  connect. Reading it costs nothing: no call goes out. */
+	readonly account: string | null;
+
+	/** The destination this device already used, ready to hand to a connect flow
+	 *  as `options.resume` - so a returning visitor is offered "reopen my backup"
+	 *  ahead of the plain destinations, instead of re-deriving a decision the
+	 *  library already has on file. Null when there is nothing to resume. */
+	resumeOffer(): ResumeOffer | null;
 }
 
 /** The id field a collection's records are keyed by: `sync.ids` may remap it;
@@ -222,6 +251,40 @@ function requireStringId(record: SimpleRecord, field: string | null, collection:
 /** True when a browser IndexedDB is available (SSR and plain Node lack it). */
 function hasIndexedDb(): boolean {
 	return typeof indexedDB !== 'undefined';
+}
+
+/** Told apart by shape: a DriveAuth mints tokens, a `{ clientId }` asks us to. */
+function isDriveAuth(v: SimpleOptions['drive']): v is DriveAuth {
+	return !!v && typeof (v as DriveAuth).token === 'function';
+}
+
+/** Where the connected Drive address is kept, per app: it is what stops Google
+ *  asking WHICH account at every re-grant. An address is not a secret, and a
+ *  browser that refuses storage simply gets the chooser back. */
+const driveAccountKey = (app: string): string => `selfstore.drive.account.${app}`;
+
+function localStore<T>(job: (store: Storage) => T): T | undefined {
+	try {
+		const store = globalThis.localStorage;
+		return store ? job(store) : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function rememberedDriveAccount(app: string): string | undefined {
+	return localStore((s) => s.getItem(driveAccountKey(app))) ?? undefined;
+}
+
+/** Learn the account behind a live Drive session, best-effort and once: it feeds
+ *  the next re-grant's hint, and any surface that wants to name the destination. */
+async function learnDriveAccount(app: string, auth: DriveAuth): Promise<void> {
+	try {
+		const who = await driveAccount({ auth });
+		if (who.email) localStore((s) => s.setItem(driveAccountKey(app), who.email!));
+	} catch {
+		// A destination that will not say costs the hint, never the connection.
+	}
 }
 
 /**
@@ -255,7 +318,22 @@ export async function selfstore<
 	const backupName = `${app}.zip`;
 	// connectDrive() remembers the auth so a later restoreTarget can use it even
 	// when options.drive was not provided up front (same session only).
-	let driveAuth: DriveAuth | null = options.drive ?? null;
+	//
+	// `{ clientId }` is the whole wiring done here rather than in every app: ONE
+	// session (several would mean several consent screens), a token that survives
+	// a reload, and the account remembered so Google stops asking which one. Each
+	// of those was a separate decision every consumer had to discover; the app
+	// that wrote them by hand hit all three as bugs first.
+	let driveAuth: DriveAuth | null = isDriveAuth(options.drive)
+		? options.drive
+		: options.drive
+			? gisDriveAuth({
+					clientId: options.drive.clientId,
+					scope: options.drive.scope,
+					persist: 'session',
+					hint: () => rememberedDriveAccount(app)
+				})
+			: null;
 
 	// Ultra-sensitive: unlock the cache before the store hydrates from it. One
 	// prompt per session, driven by the app (branch it on an existing login to
@@ -432,7 +510,13 @@ export async function selfstore<
 			driveAuth = auth;
 			const target = await driveConnect({ auth, kv: cache.kv, fileName: backupName });
 			if (!target) return 'cancelled';
-			return connectTarget(target, opts);
+			const outcome = await connectTarget(target, opts);
+			// Learn WHICH account now that there is a session: it is the hint that
+			// keeps the chooser away next time, and the name a panel can show. Not
+			// awaited into the outcome - a slow metadata call must not delay the
+			// connect the user is waiting on.
+			if (outcome !== 'cancelled') void learnDriveAccount(app, auth);
+			return outcome;
 		},
 		async connectFile(opts?: { password?: string }): Promise<ConnectOutcome> {
 			// Asked twice on purpose: the first call answers from what the browser
@@ -523,7 +607,25 @@ export async function selfstore<
 
 		advanced: store,
 
-		flowHost: { engine: store, kv: cache.kv, backupName }
+		flowHost: { engine: store, kv: cache.kv, backupName },
+
+		get account(): string | null {
+			return rememberedDriveAccount(app) ?? null;
+		},
+
+		resumeOffer(): ResumeOffer | null {
+			const detail = rememberedDriveAccount(app);
+			if (!driveAuth || !detail) return null;
+			const auth = driveAuth;
+			return {
+				kind: 'drive',
+				detail,
+				// Reopening is not searching: fromSession takes the file id already
+				// remembered, where a fresh connect resolves by name and could land on
+				// another file carrying the same one.
+				connect: () => driveFromSession({ auth, kv: cache.kv, fileName: backupName })
+			};
+		}
 	};
 
 	return simple;

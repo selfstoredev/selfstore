@@ -346,3 +346,124 @@ describe('foreign backups', () => {
 		expect(store.state.targetKind).toBe('device');
 	});
 });
+
+describe('drive: { clientId } - the whole wiring, in one option', () => {
+	it('accepts a client id where it used to demand a built connection', async () => {
+		// The point of the option: an app names its Google client and writes
+		// nothing else - no session to build, memoise, or hand to four places.
+		const store = await selfstore('drive-sugar', {
+			cache: memoryCache(),
+			drive: { clientId: 'cid.apps.googleusercontent.com' }
+		});
+		open.push(store as unknown as SimpleStore<Schema>);
+
+		expect(store.state.targetKind).toBe('device'); // nothing connected yet
+		expect(store.account).toBeNull();
+		expect(store.resumeOffer()).toBeNull(); // nothing to resume either
+	});
+
+	it('a host that mints its own tokens still passes its DriveAuth', async () => {
+		// Told apart by shape, so a broker-backed app is unaffected.
+		const auth = { token: async () => 'tok', reconnect: async () => true, forget: async () => {} };
+		const store = await selfstore('drive-broker', { cache: memoryCache(), drive: auth });
+		open.push(store as unknown as SimpleStore<Schema>);
+
+		expect(store.state.targetKind).toBe('device');
+	});
+
+	it('offers to reopen the backup it remembers, named by its account', async () => {
+		vi.stubGlobal('localStorage', memLocalStorage());
+		localStorage.setItem('selfstore.drive.account.drive-resume', 'someone@example.com');
+		const auth = { token: async () => 'tok', reconnect: async () => true, forget: async () => {} };
+
+		const store = await selfstore('drive-resume', { cache: memoryCache(), drive: auth });
+		open.push(store as unknown as SimpleStore<Schema>);
+
+		// What a returning visitor is offered ahead of the plain destinations -
+		// the app no longer derives it, and cannot get it wrong.
+		expect(store.account).toBe('someone@example.com');
+		expect(store.resumeOffer()).toMatchObject({ kind: 'drive', detail: 'someone@example.com' });
+		vi.unstubAllGlobals();
+	});
+
+	it('offers nothing to resume without a Drive connection to resume with', async () => {
+		vi.stubGlobal('localStorage', memLocalStorage());
+		localStorage.setItem('selfstore.drive.account.no-auth', 'someone@example.com');
+
+		const store = await selfstore('no-auth', { cache: memoryCache() });
+		open.push(store as unknown as SimpleStore<Schema>);
+
+		expect(store.resumeOffer()).toBeNull();
+		vi.unstubAllGlobals();
+	});
+
+	it('reading the account costs nothing and survives a browser without storage', async () => {
+		const store = await selfstore('no-storage', { cache: memoryCache() });
+		open.push(store as unknown as SimpleStore<Schema>);
+
+		expect(globalThis.localStorage).toBeUndefined();
+		expect(store.account).toBeNull();
+	});
+});
+
+/** A localStorage the tests run without: node has none. */
+function memLocalStorage() {
+	const m = new Map<string, string>();
+	return {
+		getItem: (k: string) => m.get(k) ?? null,
+		setItem: (k: string, v: string) => void m.set(k, v),
+		removeItem: (k: string) => void m.delete(k)
+	};
+}
+
+/** A Drive that answers: an empty backup file, and an account (or a mute one). */
+function driveReply(url: string, email: string | null): Response {
+	if (url.includes('/about')) {
+		return email
+			? new Response(JSON.stringify({ user: { emailAddress: email } }), { status: 200 })
+			: new Response(null, { status: 503 });
+	}
+	// The file exists but is empty: an empty destination reads as "started".
+	if (url.includes('alt=media')) return new Response(null, { status: 404 });
+	return new Response(JSON.stringify({ id: 'file-1', files: [{ id: 'file-1' }] }), { status: 200 });
+}
+
+describe('connecting Drive learns WHICH account holds the backup', () => {
+	it('remembers the address on connect, and offers to reopen with it', async () => {
+		vi.stubGlobal('localStorage', memLocalStorage());
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (url: string) => driveReply(String(url), 'owner@example.com'))
+		);
+		const auth = { token: async () => 'tok', reconnect: async () => true, forget: async () => {} };
+		const store = await selfstore('learns-account', { cache: memoryCache(), drive: auth });
+		open.push(store as unknown as SimpleStore<Schema>);
+
+		await store.connectDrive(auth);
+		// Not awaited by connectDrive on purpose - a slow metadata call must not
+		// delay the connect - so let it land.
+		await new Promise((r) => setTimeout(r, 0));
+
+		expect(store.account).toBe('owner@example.com');
+		expect(store.resumeOffer()?.detail).toBe('owner@example.com');
+		vi.unstubAllGlobals();
+	});
+
+	it('a destination that will not say costs the hint, never the connection', async () => {
+		vi.stubGlobal('localStorage', memLocalStorage());
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (url: string) => driveReply(String(url), null))
+		);
+		const auth = { token: async () => 'tok', reconnect: async () => true, forget: async () => {} };
+		const store = await selfstore('silent-account', { cache: memoryCache(), drive: auth });
+		open.push(store as unknown as SimpleStore<Schema>);
+
+		const outcome = await store.connectDrive(auth);
+		await new Promise((r) => setTimeout(r, 0));
+
+		expect(outcome).not.toBe('cancelled'); // the connect itself stands
+		expect(store.account).toBeNull();
+		vi.unstubAllGlobals();
+	});
+});

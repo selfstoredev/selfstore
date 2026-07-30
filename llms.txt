@@ -146,6 +146,11 @@ user closed picker/consent; 'manual' = no File System Access, offer
 downloadBackup()):
 
     await store.connectDrive(gisDriveAuth({ clientId }), { password? });
+  // simpler: selfstore('app', { drive: { clientId } }) builds that session for
+  // you (one per app, token kept across a reload, account remembered as the
+  // hint), restores a connected backup at start-up, and then answers
+  // store.account (who holds it) and store.resumeOffer() (the "reopen my
+  // backup" card for connectFlow's options.resume) with no call going out.
     await store.connectFile({ password? });                    // Chromium FSA
     await store.connectWebdav({ url, username, password }, { password? });
     await store.connectTarget(anyBackupTarget, { password? }); // your own

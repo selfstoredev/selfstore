@@ -274,6 +274,12 @@ export class SelfstoreGateElement extends FlowWidget {
 	private shouldOpen(): boolean {
 		const host = this.host();
 		if (!host || !this.#armed || this.#deferred) return false;
+		// A store still loading has no destination YET - which is not the same as
+		// having none. Opening then shows the question to someone who answered it
+		// long ago, for the second the restore takes, at every single load. Every
+		// consumer had to discover `armed` to work around it; the widget can see
+		// `ready` for itself.
+		if (!host.engine.state.ready) return false;
 		return host.engine.state.status.action === 'choose-destination';
 	}
 
