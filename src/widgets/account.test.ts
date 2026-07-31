@@ -263,3 +263,26 @@ describe('the knobs', () => {
 		expect(el.account).toBe('store@example.com');
 	});
 });
+
+describe('a change that fails says so', () => {
+	it('reopens the menu with the error, where the press happened', async () => {
+		// A failure that closed the menu behind it is indistinguishable from a
+		// button that does nothing - which is what a user reports, and what makes
+		// them press it again.
+		const { engine } = fakeEngine();
+		(engine as unknown as { detachTarget: () => Promise<void> }).detachTarget = () =>
+			Promise.reject(new Error('nope'));
+		const el = mount(engine);
+		el.open = true;
+
+		btn(el, 'account-change')!.click();
+		await vi.waitFor(() =>
+			expect(el.shadowRoot!.querySelector("[part~='account-error']")).not.toBeNull()
+		);
+
+		expect(el.open).toBe(true);
+		expect(el.shadowRoot!.querySelector("[part~='account-error']")!.textContent).toBe(
+			'Something went wrong.'
+		);
+	});
+});

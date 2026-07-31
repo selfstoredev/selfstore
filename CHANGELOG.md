@@ -14,8 +14,13 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
-_Nothing yet. Entries land here as they are merged; the release PR stamps them
-with a number and a date._
+### Fixed
+
+- **A change of backup that fails now says so.** The header control let the
+  destination go and swallowed any error on the way: the menu closed on a
+  gesture that had not happened, which is indistinguishable from a button that
+  does nothing - and that is what makes a user press it again. The menu reopens
+  carrying the message, where the press was, under `part="account-error"`.
 
 ## [1.8.13] - 2026-07-31
 

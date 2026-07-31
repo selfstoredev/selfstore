@@ -33,7 +33,8 @@ const EN: WidgetLabels = {
 	'account.settings': 'Settings',
 	'account.change': 'Change backup',
 	'account.saved': 'Saved {when}',
-	'account.justNow': 'just now'
+	'account.justNow': 'just now',
+	'error.generic': 'Something went wrong.'
 };
 
 // "Changer de sauvegarde" is the same words as the panel's, on purpose: the
@@ -44,7 +45,8 @@ const FR: WidgetLabels = {
 	'account.settings': 'Paramètres',
 	'account.change': 'Changer de sauvegarde',
 	'account.saved': 'Enregistré {when}',
-	'account.justNow': "à l'instant"
+	'account.justNow': "à l'instant",
+	'error.generic': "Quelque chose n'a pas fonctionné."
 };
 
 // A menu floats OVER the page, so it has to be opaque, and it cannot borrow
@@ -161,6 +163,7 @@ const ACCOUNT_STYLES = `
 [part~='account-change'] { color: var(--_danger); }
 [part~='account-change']:hover { background: color-mix(in srgb, var(--_danger) 10%, transparent); }
 [part~='account-sep'] { height: 1px; background: var(--_border); margin: 0.2rem 0.3rem; }
+[part~='account-error'] { margin: 0.15rem 0.55rem 0.3rem; font-size: 0.8125rem; color: var(--_danger); }
 `;
 
 /** How long a "saved just now" stays true, and the beat at which the open menu
@@ -171,6 +174,7 @@ const TICK_MS = 30_000;
 export class SelfstoreAccountElement extends FlowWidget {
 	#confirm: ((a: DestinationAction) => boolean | Promise<boolean>) | null = null;
 	#open = false;
+	#error: string | null = null;
 	#timer: ReturnType<typeof setInterval> | null = null;
 	#away: ((e: Event) => void) | null = null;
 
@@ -308,6 +312,7 @@ export class SelfstoreAccountElement extends FlowWidget {
 		const host = this.hostOf();
 		if (!host) return;
 		this.open = false;
+		this.#error = null;
 		const label = host.engine.state.label;
 		// A throwing hook reads as "no": changing backup is a decision, and an
 		// undecided answer must not be taken for a yes.
@@ -316,7 +321,16 @@ export class SelfstoreAccountElement extends FlowWidget {
 		} catch {
 			return;
 		}
-		await host.engine.detachTarget();
+		try {
+			await host.engine.detachTarget();
+		} catch {
+			// A failure that closed the menu behind it is indistinguishable from a
+			// button that does nothing. It is said where the press happened, and
+			// the menu reopens to carry it.
+			this.#error = this.t('error.generic');
+			this.open = true;
+			this.rerender();
+		}
 	}
 
 	private card(host: FlowHost): HTMLElement {
@@ -387,7 +401,8 @@ export class SelfstoreAccountElement extends FlowWidget {
 							onclick: () => void this.change()
 						},
 						this.t('account.change')
-					)
+					),
+					this.#error ? h('p', { part: 'account-error', role: 'alert' }, this.#error) : null
 				)
 			: null;
 		put(into, trigger, menu);
