@@ -16,6 +16,9 @@ version number is not asking you to trust.
 
 ### Fixed
 
+- **The download-only mode has a name.** `file-manual` is a mode the store
+  itself falls back to on a browser that cannot hold a writable file handle,
+  and no pack shipped a name for it - so a panel showed the user the raw key.
 - **A change of backup that fails now says so.** The header control let the
   destination go and swallowed any error on the way: the menu closed on a
   gesture that had not happened, which is indistinguishable from a button that

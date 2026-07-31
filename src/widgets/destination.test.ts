@@ -227,6 +227,16 @@ describe('selfstore-destination', () => {
 		expect(el.shadowRoot!.querySelector('selfstore-connect')).toBeNull();
 	});
 
+	it('names every mode the store can fall back to, raw keys reaching nobody', () => {
+		// file-manual is a mode the STORE itself falls back to, on a browser that
+		// cannot hold a writable file handle. Without a shipped name, the panel
+		// showed the user the raw key - found the day a second app mounted this.
+		const el = mount(fakeEngine({ targetKind: 'file-manual', label: null }));
+
+		expect(text(el)).toContain('A file you download');
+		expect(text(el)).not.toContain('destination.kind.');
+	});
+
 	it('speaks the page language without a single label from the host', () => {
 		document.documentElement.lang = 'fr';
 		const el = mount(fakeEngine());
