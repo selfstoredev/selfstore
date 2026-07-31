@@ -15,7 +15,12 @@ export const EN: WidgetLabels = {
 	'destination.kind.file': 'A file on this device',
 	'destination.kind.webdav': 'Your own server',
 	'destination.kind.s3': 'Your own bucket',
-	'destination.kind.device': 'This device only'
+	'destination.kind.device': 'This device only',
+	// A browser that cannot hold a writable file handle: the data is kept here
+	// and a backup is written only when the user asks for one. It is a mode the
+	// STORE itself falls back to, so the library owes it a name - without one, a
+	// panel showed the raw key to the user.
+	'destination.kind.file-manual': 'A file you download'
 };
 
 // A pack carries only what READS differently: `t()` falls back to the EN
@@ -25,5 +30,6 @@ export const FR: WidgetLabels = {
 	'destination.kind.file': 'Un fichier sur cet appareil',
 	'destination.kind.webdav': 'Votre serveur',
 	'destination.kind.s3': 'Votre bucket',
-	'destination.kind.device': 'Cet appareil seulement'
+	'destination.kind.device': 'Cet appareil seulement',
+	'destination.kind.file-manual': 'Un fichier, par téléchargement'
 };
