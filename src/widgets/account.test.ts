@@ -313,3 +313,48 @@ describe('a state that needs a gesture', () => {
 		expect(el.shadowRoot!.querySelector("[part~='account-card']")!.contains(line)).toBe(false);
 	});
 });
+
+describe('what the trigger says', () => {
+	it('states the condition when an app has one destination to offer', () => {
+		// Naming the place is right when there is a choice. It says nothing at all
+		// where a file is the only thing it could ever be - such an app states a
+		// condition instead, which is the part that changes.
+		const { engine } = fakeEngine({ targetKind: 'file', label: 'cabinet.zip' });
+		const el = mount(engine);
+		expect(text(el, 'account-trigger')).toContain('A file on this device');
+
+		el.trigger = 'status';
+		expect(el.trigger).toBe('status');
+		const said = el.shadowRoot!.querySelector("[part~='account-trigger-status']") as HTMLElement & {
+			shadowRoot: ShadowRoot;
+		};
+		expect(said).not.toBeNull();
+		expect(said.getAttribute('variant')).toBe('line');
+		// The state comes from the status widget's own words: the two surfaces
+		// cannot drift.
+		expect(said.shadowRoot.querySelector("[part~='status-line-text']")!.textContent).toContain(
+			'Saved'
+		);
+	});
+});
+
+describe('the trigger as an attribute', () => {
+	it('reads it from the markup, and follows a later change', () => {
+		// A plain-HTML host writes trigger="status" and never touches a property.
+		const { engine } = fakeEngine({ targetKind: 'file', label: 'cabinet.zip' });
+		const el = document.createElement('selfstore-account') as SelfstoreAccountElement;
+		el.setAttribute('trigger', 'status');
+		document.body.append(el);
+		el.store = {
+			flowHost: { engine, kv: {} as FlowHost['kv'], backupName: 'app.zip' }
+		} as unknown as SelfstoreAccountElement['store'];
+
+		expect(el.trigger).toBe('status');
+		expect(el.shadowRoot!.querySelector("[part~='account-trigger-status']")).not.toBeNull();
+
+		el.setAttribute('trigger', 'destination');
+		expect(el.trigger).toBe('destination');
+		expect(el.shadowRoot!.querySelector("[part~='account-trigger-status']")).toBeNull();
+		el.remove();
+	});
+});
