@@ -14,6 +14,23 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+### Changed
+
+- A budget now watches what one edit costs to save. A save rebuilds and
+  re-uploads everything, so its cost follows the size of the whole store rather
+  than the size of the change: **19 kB at 1 000 records, 163 kB at 10 000**
+  (measured 2026-08-01, protected store, one field edited). That is the trade a
+  backup-shaped store makes against a delta sync engine, and it is comfortable
+  at the sizes real vaults reach - but nothing watched the number, so a change
+  to the merge layer could have doubled it and the first to notice would have
+  been a user years in.
+
+  The budgets are in bytes, never milliseconds: wall clock on a shared runner
+  says more about the neighbours than about this code, and bytes are what a
+  connection actually pays. A tripped budget is not automatically a bug, it is a
+  change in what every save costs - raise it on purpose with the reason, or find
+  what grew.
+
 ### Added
 
 - `exportBackup({ plaintext: true })`: a readable copy of a protected store.
