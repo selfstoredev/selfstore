@@ -11,6 +11,8 @@ import {
 	type SyncMeta
 } from './merge';
 
+import type { SelfstoreError } from '../selfstore/errors';
+
 type Row = { id: string; v: number };
 
 const cfg: SyncConfig = { fallback: 'lww-set' };
@@ -405,5 +407,47 @@ describe('gcTombstones (bounded metadata)', () => {
 			cfg2
 		);
 		expect(asSet(m.collections.rows)).toHaveProperty('1'); // resurrected
+	});
+});
+
+/**
+ * A hybrid logical clock absorbs the highest value it sees. One replica
+ * carrying an impossible wall time would win every last-writer-wins
+ * comparison from then on, raise the clock of every replica that merges it,
+ * and keep doing so long after its author was removed from the group.
+ */
+describe('clock drift', () => {
+	const aheadWall = (): number => Date.now() + 6 * 60_000;
+
+	it('refuses an incoming replica whose clock cannot be real', () => {
+		const local = replica('a', [{ rows: [{ id: '1', v: 1 }] }]);
+		const ahead = replica('b', [{ rows: [{ id: '1', v: 2 }] }], aheadWall());
+		let code = '';
+		try {
+			merge(local, ahead, cfg);
+		} catch (e) {
+			code = (e as SelfstoreError).code;
+		}
+		expect(code).toBe('CLOCK_DRIFT');
+	});
+
+	it('checks the tombstones and the field clocks too, not just the meta', () => {
+		const local = replica('a', [{ rows: [{ id: '1', v: 1 }] }]);
+		const ahead = replica('b', [{ rows: [{ id: '1', v: 2 }] }], aheadWall());
+		// Keep only a tombstone from the drifted side: the guard must still catch it.
+		const meta: SyncMeta = {
+			node: ahead.meta.node,
+			clock: null,
+			cols: { rows: { ...ahead.meta.cols.rows, clocks: {}, hashes: {} } }
+		};
+		meta.cols.rows.deleted = { '9': ahead.meta.cols.rows.clocks['1'] };
+		expect(() => merge(local, { collections: { rows: [] }, meta }, cfg)).toThrow();
+	});
+
+	it('still merges when only the local side already absorbed a bad clock', () => {
+		// The guard must not strand the very replicas it exists to protect.
+		const poisoned = replica('a', [{ rows: [{ id: '1', v: 1 }] }], aheadWall());
+		const sane = replica('b', [{ rows: [{ id: '2', v: 2 }] }]);
+		expect(() => merge(poisoned, sane, cfg)).not.toThrow();
 	});
 });
