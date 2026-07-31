@@ -149,3 +149,35 @@ describe('selfstore-status', () => {
 		el.remove();
 	});
 });
+
+describe('variant=line, for a menu', () => {
+	it('is one line and a link, and the link asks for the gesture', () => {
+		// The box belongs to a settings page. In a 17 rem menu it took 247 px,
+		// most of that a sentence wrapping inside a column meant for an address.
+		const { engine } = fakeEngine({
+			status: {
+				state: 'pending-download',
+				severity: 'warn',
+				actionable: true,
+				action: 'download',
+				labelKey: 'status.pendingDownload'
+			}
+		} as unknown as Partial<LocalStore['state']>);
+		const el = mount(engine);
+		el.variant = 'line';
+
+		expect(q(el, '[part~="status-line"]')).not.toBeNull();
+		expect(q(el, '[part~="status-row"]')).toBeNull(); // no box
+		expect(q(el, '[part~="status-line-text"]')!.textContent).toBe('Changes to download');
+
+		let asked: string | null = null;
+		el.addEventListener('selfstore-status-action', (e) => {
+			asked = (e as CustomEvent<{ action: string }>).detail.action;
+		});
+		const link = q(el, '[part~="status-action"]') as HTMLButtonElement;
+		expect(link.getAttribute('part')).toContain('link'); // a link, not a button
+		link.click();
+		expect(asked).toBe('download');
+		el.remove();
+	});
+});

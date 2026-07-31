@@ -233,7 +233,7 @@ describe('selfstore-destination', () => {
 		// showed the user the raw key - found the day a second app mounted this.
 		const el = mount(fakeEngine({ targetKind: 'file-manual', label: null }));
 
-		expect(text(el)).toContain('A file you download');
+		expect(text(el)).toContain('A file');
 		expect(text(el)).not.toContain('destination.kind.');
 	});
 

@@ -163,6 +163,7 @@ const ACCOUNT_STYLES = `
 [part~='account-change'] { color: var(--_danger); }
 [part~='account-change']:hover { background: color-mix(in srgb, var(--_danger) 10%, transparent); }
 [part~='account-sep'] { height: 1px; background: var(--_border); margin: 0.2rem 0.3rem; }
+[part~='account-status'] { display: block; padding: 0 0.6rem 0.2rem; font-size: 0.8125rem; }
 [part~='account-error'] { margin: 0.15rem 0.55rem 0.3rem; font-size: 0.8125rem; color: var(--_danger); }
 `;
 
@@ -270,20 +271,29 @@ export class SelfstoreAccountElement extends FlowWidget {
 	}
 
 	/**
-	 * The one line under the account. A plain "saved" is the only state this
-	 * element words itself, because it is the only one with nothing to do about
-	 * it - and the only one where WHEN is the whole information. Everything else
-	 * (reconnect, unlock, changes to download) belongs to <selfstore-status>,
-	 * which owns both the wording and the button that resolves it.
+	 * The one line this element words itself: a plain "saved", the only state
+	 * with nothing to do about it and the only one where WHEN is the whole
+	 * information. Null in every other state.
 	 */
-	private line(host: FlowHost): HTMLElement {
+	private saved(host: FlowHost): HTMLElement | null {
 		const { status, lastSavedAt } = host.engine.state;
-		if (status.state === 'saved' && lastSavedAt && !('status.saved' in this.labels))
-			return h(
-				'span',
-				{ part: 'account-line' },
-				this.t('account.saved', { when: this.since(lastSavedAt, this.t('account.justNow')) })
-			);
+		if (status.state !== 'saved' || !lastSavedAt || 'status.saved' in this.labels) return null;
+		return h(
+			'span',
+			{ part: 'account-line' },
+			this.t('account.saved', { when: this.since(lastSavedAt, this.t('account.justNow')) })
+		);
+	}
+
+	/**
+	 * Anything that is NOT a plain "saved" - reconnect, unlock, changes to
+	 * export - belongs to <selfstore-status>, which owns both the wording and
+	 * the gesture. It goes under the card and across the whole menu, never
+	 * inside the card's text column: that column is sized for an address, and a
+	 * sentence wrapping in 167 px turned a three-word notice into 247 px of box.
+	 */
+	private attention(host: FlowHost): HTMLElement | null {
+		if (this.saved(host)) return null;
 		const el = document.createElement(
 			siblingTag(this.localName, 'account', 'status')
 		) as HTMLElement & {
@@ -291,7 +301,8 @@ export class SelfstoreAccountElement extends FlowWidget {
 			labels?: WidgetLabels;
 			icons?: Partial<Record<ConnectKind, string>>;
 		};
-		el.setAttribute('variant', 'row');
+		el.setAttribute('variant', 'line');
+		el.setAttribute('part', 'account-status');
 		el.labels = this.labels;
 		el.icons = this.icons;
 		el.store = this.store;
@@ -352,7 +363,7 @@ export class SelfstoreAccountElement extends FlowWidget {
 				{ part: 'account-text' },
 				h('span', { part: 'account-title' }, this.named(host)),
 				mail ? h('span', { part: 'account-mail' }, mail) : null,
-				this.line(host)
+				this.saved(host)
 			)
 		);
 	}
@@ -381,6 +392,7 @@ export class SelfstoreAccountElement extends FlowWidget {
 					'div',
 					{ part: 'card account-menu', role: 'menu' },
 					this.card(host),
+					this.attention(host),
 					h('div', { part: 'account-sep' }),
 					h(
 						'button',

@@ -53,7 +53,7 @@ export class SelfstoreStatusElement extends FlowWidget {
 		return ['variant'];
 	}
 
-	#variant: 'row' | 'dot' = 'row';
+	#variant: 'row' | 'line' | 'dot' = 'row';
 
 	protected defaults(): WidgetLabels {
 		return EN;
@@ -63,22 +63,27 @@ export class SelfstoreStatusElement extends FlowWidget {
 		return { fr: FR };
 	}
 
-	/** 'row' (dot + text + action) or 'dot' (the dot alone). Also the attribute. */
-	get variant(): 'row' | 'dot' {
+	/**
+	 * 'row' (a tinted box: dot, text, action button - for a settings page),
+	 * 'line' (one line and a link - for a menu, where a box eats the surface),
+	 * or 'dot' (the dot alone, for a header corner). Also the attribute.
+	 */
+	get variant(): 'row' | 'line' | 'dot' {
 		return this.#variant;
 	}
-	set variant(v: 'row' | 'dot' | null) {
-		this.#variant = v === 'dot' ? 'dot' : 'row';
+	set variant(v: 'row' | 'line' | 'dot' | null) {
+		this.#variant = v === 'dot' || v === 'line' ? v : 'row';
 		this.rerender();
 	}
 
 	attributeChangedCallback(name: string, _old: string | null, value: string | null): void {
-		if (name === 'variant') this.variant = value as 'row' | 'dot' | null;
+		if (name === 'variant') this.variant = value as 'row' | 'line' | 'dot' | null;
 	}
 
 	connectedCallback(): void {
 		super.connectedCallback();
-		if (this.hasAttribute('variant')) this.variant = this.getAttribute('variant') as 'row' | 'dot';
+		if (this.hasAttribute('variant'))
+			this.variant = this.getAttribute('variant') as 'row' | 'line' | 'dot';
 		this.follow(this.hostOf());
 	}
 
@@ -103,6 +108,15 @@ export class SelfstoreStatusElement extends FlowWidget {
 			part: `status-dot sev-${status.severity}`,
 			'aria-hidden': 'true'
 		});
+		// The state, said in one sign before the sentence is read: a saved backup
+		// is a tick, anything asking for a gesture is a mark. A dot alone made
+		// "saved" and "reconnect to continue" look like the same notice in two
+		// colors.
+		const GLYPH: Record<string, string> = { ok: '✓', warn: '!', danger: '!', info: '' };
+		const glyph = GLYPH[status.severity];
+		const sign = glyph
+			? h('span', { part: `status-glyph sev-${status.severity}`, 'aria-hidden': 'true' }, glyph)
+			: dot;
 
 		if (this.#variant === 'dot') {
 			into.append(
@@ -120,17 +134,40 @@ export class SelfstoreStatusElement extends FlowWidget {
 			return;
 		}
 
-		// The box states the situation before it is read: the severity tints it,
-		// and a glyph says which of the four it is. A dot alone made "saved" and
-		// "reconnect to continue" look like the same notice in two colors.
+		if (this.#variant === 'line') {
+			// A menu is 17 rem wide and already carries a card. The box, with its
+			// own padding, took 247 px of it - most of that one sentence wrapping
+			// inside a column meant for an address. One line, and a link.
+			put(
+				into,
+				h(
+					'div',
+					{ part: 'row status-line' },
+					sign,
+					h('span', { part: 'status-line-text' }, text),
+					status.actionable && status.action
+						? h(
+								'button',
+								{
+									part: 'link status-action',
+									type: 'button',
+									onclick: () => this.emit('selfstore-status-action', { action: status.action })
+								},
+								this.t(`status.action.${status.action}`)
+							)
+						: null
+				)
+			);
+			return;
+		}
+
+		// The box states the situation before it is read: the severity tints it.
 		const TINT: Record<string, string> = {
 			ok: 'status-ok',
 			warn: 'status-warn',
 			danger: 'status-error',
 			info: ''
 		};
-		const GLYPH: Record<string, string> = { ok: '✓', warn: '!', danger: '!', info: '' };
-		const glyph = GLYPH[status.severity];
 		const icon = this.icons[targetKind];
 		// The sub-line answers "where, and when" the way a settings page does:
 		// "Google Drive, 2 minutes ago". The DESTINATION is named there, not the
@@ -154,11 +191,9 @@ export class SelfstoreStatusElement extends FlowWidget {
 			h(
 				'div',
 				{ part: `status row status-row ${TINT[status.severity] ?? ''}` },
-				// The severity colors the glyph, not the box: tinting the whole line
+				// The severity colors the sign, not the box: tinting the whole line
 				// turns a title into a warning about itself.
-				glyph
-					? h('span', { part: `status-glyph sev-${status.severity}`, 'aria-hidden': 'true' }, glyph)
-					: dot,
+				sign,
 				icon ? h('img', { part: 'icon', src: icon, alt: '' }) : null,
 				h(
 					'div',

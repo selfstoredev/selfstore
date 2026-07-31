@@ -20,7 +20,7 @@ export const EN: WidgetLabels = {
 	// and a backup is written only when the user asks for one. It is a mode the
 	// STORE itself falls back to, so the library owes it a name - without one, a
 	// panel showed the raw key to the user.
-	'destination.kind.file-manual': 'A file you download'
+	'destination.kind.file-manual': 'A file'
 };
 
 // A pack carries only what READS differently: `t()` falls back to the EN
@@ -31,5 +31,5 @@ export const FR: WidgetLabels = {
 	'destination.kind.webdav': 'Votre serveur',
 	'destination.kind.s3': 'Votre bucket',
 	'destination.kind.device': 'Cet appareil seulement',
-	'destination.kind.file-manual': 'Un fichier, par téléchargement'
+	'destination.kind.file-manual': 'Un fichier'
 };

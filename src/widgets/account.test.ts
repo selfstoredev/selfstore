@@ -286,3 +286,30 @@ describe('a change that fails says so', () => {
 		);
 	});
 });
+
+describe('a state that needs a gesture', () => {
+	it('sits under the card, on one line, not in the column meant for an address', () => {
+		// Inside the card's text column the notice wrapped in 167 px and became a
+		// 247 px box in a 395 px menu. It is a line now, across the menu.
+		const { engine, tick } = fakeEngine();
+		const el = mount(engine);
+		el.open = true;
+		expect(el.shadowRoot!.querySelector("[part~='account-status']")).toBeNull();
+
+		tick({
+			status: {
+				state: 'pending-download',
+				severity: 'warn',
+				actionable: true,
+				action: 'download',
+				labelKey: 'status.pendingDownload'
+			}
+		});
+
+		const line = el.shadowRoot!.querySelector("[part~='account-status']") as HTMLElement;
+		expect(line).not.toBeNull();
+		expect(line.getAttribute('variant')).toBe('line');
+		// Under the card, not inside it.
+		expect(el.shadowRoot!.querySelector("[part~='account-card']")!.contains(line)).toBe(false);
+	});
+});
