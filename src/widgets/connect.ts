@@ -530,7 +530,9 @@ export class SelfstoreConnectElement extends FlowWidget {
 				h('div', { part: 'title' }, this.t('connect.password.title')),
 				h('div', { part: 'hint' }, this.t('connect.password.hint')),
 				field,
-				s.passwordError ? h('div', { part: 'error-note' }, this.t('connect.password.wrong')) : null,
+				s.passwordError
+					? h('div', { part: 'error-note', role: 'alert' }, this.t('connect.password.wrong'))
+					: null,
 				h(
 					'div',
 					{ part: 'row' },

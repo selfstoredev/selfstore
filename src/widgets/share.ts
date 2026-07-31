@@ -197,7 +197,9 @@ export class SelfstoreShareElement extends FlowWidget {
 		put(into, this.heading('title', 'share.title'));
 		if (s.stale) into.append(h('div', { part: 'hint' }, this.t('share.stale')));
 		if (s.error && !s.stale) {
-			into.append(h('div', { part: 'error-note' }, this.errorText(s.error.labelKey)));
+			into.append(
+				h('div', { part: 'error-note', role: 'alert' }, this.errorText(s.error.labelKey))
+			);
 		}
 
 		// One link per level: a level with a live link shows it below instead of

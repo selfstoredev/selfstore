@@ -14,6 +14,34 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+### Fixed
+
+- Accessibility of the widgets, on four points an audit measured rather than
+  guessed.
+
+  **The default severity colors were unreadable as text.** `--selfstore-ok`
+  (#16a34a) sat at 3.30:1 on white and `--selfstore-warn` (#d97706) at 3.19:1,
+  where WCAG AA asks 4.5:1 for text. They are not decoration: `sev-ok`,
+  `sev-warn` and `warn-note` use them as `color`, so the status sentence itself
+  failed. Both move one step darker, to 5.02:1, without changing the color
+  anyone thinks they see. A test now computes the ratio, so a future palette
+  tweak cannot drop below the line quietly.
+
+  **The blocking first-run gate did not hold the keyboard.** It declared
+  `role="dialog"` and `aria-modal="true"`, which tells assistive tech it is
+  modal and does nothing to the Tab key: a keyboard user tabbed straight out of
+  the screen whose purpose is to block, into the application behind it, still
+  covered by the gate they were no longer in. Focus that lands outside now comes
+  back, and closing the gate hands focus to wherever it was before.
+
+  **Nothing was ever announced.** No widget carried a live region, so a screen
+  reader user was never told that a save started, that access expired, or that
+  a destination needs reconnecting. `<selfstore-status>` is now a polite live
+  region, in all three variants, and every error note carries `role="alert"`.
+
+  **The spinner ignored `prefers-reduced-motion`.** The one animation in the
+  library ran an endless rotation during precisely the wait nobody can leave.
+
 ### Added
 
 - One register function per widget, so an app stops shipping the widgets it

@@ -52,6 +52,16 @@ const FR: WidgetLabels = {
 	'status.action.unlock': 'Déverrouiller'
 };
 
+/** The state, said in one sign before the sentence is read: a saved backup is a
+ *  tick, anything asking for a gesture is a mark. A dot alone made "saved" and
+ *  "reconnect to continue" look like the same notice in two colors.
+ *
+ *  This is also the channel that carries severity when color cannot: the ok and
+ *  warn tokens were darkened for contrast until they share a luminance, so on a
+ *  greyscale screen, or to someone who sees no color, the glyph is the whole
+ *  difference. Module scope, so it is not rebuilt on every render. */
+export const GLYPH: Record<string, string> = { ok: '✓', warn: '!', danger: '!', info: '' };
+
 export class SelfstoreStatusElement extends FlowWidget {
 	static get observedAttributes(): string[] {
 		return ['variant'];
@@ -86,6 +96,15 @@ export class SelfstoreStatusElement extends FlowWidget {
 
 	connectedCallback(): void {
 		super.connectedCallback();
+		// This element's whole job is to say when the situation changed - and it
+		// said it to sighted users only. `role="status"` makes the host a polite
+		// live region, so "saving", "access expired", "reconnect to continue" are
+		// announced when they appear, in every variant, without a second copy of
+		// the sentence to keep in step. Polite and not assertive on purpose: it
+		// must not cut across someone mid-sentence for a state they can act on
+		// whenever they choose. Set on the HOST, so an app that wants other
+		// wording can still override the attribute from the outside.
+		if (!this.hasAttribute('role')) this.setAttribute('role', 'status');
 		if (this.hasAttribute('variant'))
 			this.variant = this.getAttribute('variant') as 'row' | 'line' | 'dot';
 		this.follow(this.hostOf());
@@ -134,11 +153,6 @@ export class SelfstoreStatusElement extends FlowWidget {
 			part: `status-dot sev-${status.severity}`,
 			'aria-hidden': 'true'
 		});
-		// The state, said in one sign before the sentence is read: a saved backup
-		// is a tick, anything asking for a gesture is a mark. A dot alone made
-		// "saved" and "reconnect to continue" look like the same notice in two
-		// colors.
-		const GLYPH: Record<string, string> = { ok: '✓', warn: '!', danger: '!', info: '' };
 		const glyph = GLYPH[status.severity];
 		const sign = glyph
 			? h('span', { part: `status-glyph sev-${status.severity}`, 'aria-hidden': 'true' }, glyph)

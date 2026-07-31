@@ -34,8 +34,13 @@ export const baseStyles = `
 	--_radius: var(--selfstore-radius, 12px);
 	--_gap: var(--selfstore-gap, 0.6rem);
 	--_danger: var(--selfstore-danger, #dc2626);
-	--_ok: var(--selfstore-ok, #16a34a);
-	--_warn: var(--selfstore-warn, #d97706);
+	/* Severity colors are read as TEXT (see sev-* below), so they answer to the
+	   4.5:1 text threshold, not the 3:1 one for a graphic. The obvious green and
+	   amber of a palette sit at 3.3:1 and 3.2:1 on white and fail it: a status
+	   line is exactly the sentence someone needs to read. One step darker each
+	   clears it at 5.0:1 without changing which color anyone thinks they see. */
+	--_ok: var(--selfstore-ok, #15803d);
+	--_warn: var(--selfstore-warn, #b45309);
 }
 /* Status severity, as a text color the dot inherits (background: currentColor). */
 [part~='sev-ok'] { color: var(--_ok); }
@@ -146,6 +151,12 @@ span[part~='status-glyph'] {
 	animation: ss-spin 0.8s linear infinite;
 }
 @keyframes ss-spin { to { transform: rotate(360deg); } }
+/* An endless spin is the one motion here, and it runs during the wait someone
+   with vestibular trouble cannot escape. Keep the shape as the busy signal,
+   drop the rotation. */
+@media (prefers-reduced-motion: reduce) {
+	[part='spinner'] { animation: none; border-top-color: var(--_border); }
+}
 button[part~='button'] {
 	font: inherit;
 	padding: 0.45rem 0.9rem;
