@@ -414,10 +414,17 @@ describe('selfstore-backups', () => {
 		el.setAttribute('with-create', 'off');
 		el.setAttribute('with-shared', 'off');
 		el.setAttribute('with-rename', 'off');
+		// Encrypt and share only TELL the host; an app that opens neither must be
+		// able to take them off the menu, or it ships two gestures that do
+		// nothing - which is what a user reports as "the links do not work".
+		el.setAttribute('with-encrypt', 'false');
+		el.setAttribute('with-share', 'false');
 		expect(q(el, '[data-action="new"]')).toBeNull();
 		expect(q(el, '[data-shared="x9"]')).toBeNull();
 		(q(el, '[data-row="f2"] [data-action="menu"]') as HTMLButtonElement).click();
 		expect(q(el, '[data-action="rename"]')).toBeNull();
+		expect(q(el, '[data-action="encrypt"]')).toBeNull();
+		expect(q(el, '[data-action="share"]')).toBeNull();
 		expect(q(el, '[data-action="delete"]')).not.toBeNull();
 	});
 
