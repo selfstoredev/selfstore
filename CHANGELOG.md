@@ -14,6 +14,11 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+_Nothing yet. Entries land here as they are merged; the release PR stamps them
+with a number and a date._
+
+## [1.8.18] - 2026-07-31
+
 ### Fixed
 
 - **"Never saved anywhere yet" is no longer said to someone holding the copy
