@@ -23,7 +23,8 @@ const EXPECTED: Record<SelfstoreErrorCode, string> = {
 	IDENTITY_REQUIRED: 'error.identityRequired',
 	SIGNATURE_INVALID: 'error.signatureInvalid',
 	NOT_A_RECIPIENT: 'error.notARecipient',
-	MANIFEST_ROLLBACK: 'error.manifestRollback'
+	MANIFEST_ROLLBACK: 'error.manifestRollback',
+	CLOCK_DRIFT: 'error.clockDrift'
 };
 
 describe('errorLabelKey', () => {

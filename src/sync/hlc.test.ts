@@ -1,5 +1,42 @@
-import { describe, it, expect } from 'vitest';
-import { issue, receive, compare, max, createNode } from './hlc';
+import { describe, it, expect, vi } from 'vitest';
+import { issue, receive, compare, max, createNode, driftedAhead, MAX_DRIFT_MS } from './hlc';
+
+describe('drift bound', () => {
+	const now = 1_700_000_000_000;
+
+	it('accepts a clock at the bound and refuses the millisecond past it', () => {
+		expect(driftedAhead(issue(null, 'a', now + MAX_DRIFT_MS), now)).toBe(false);
+		expect(driftedAhead(issue(null, 'a', now + MAX_DRIFT_MS + 1), now)).toBe(true);
+	});
+
+	it('is about the future only: an old clock is ordinary data', () => {
+		// A wall time in the past cannot be told apart from a device that was
+		// offline for a week, so the bound never looks backwards.
+		expect(driftedAhead(issue(null, 'a', 1000), now)).toBe(false);
+	});
+});
+
+describe('createNode', () => {
+	it('mints an id without randomUUID, and never from Math.random', () => {
+		// randomUUID is exposed only in a secure context; getRandomValues is the
+		// one that is always there, so it is the one the fallback uses.
+		const real = globalThis.crypto;
+		vi.stubGlobal('crypto', {
+			getRandomValues: real.getRandomValues.bind(real)
+		});
+		const a = createNode();
+		const b = createNode();
+		vi.unstubAllGlobals();
+		expect(a).toMatch(/^[0-9a-f]{32}$/);
+		expect(a).not.toBe(b);
+	});
+
+	it('refuses to mint one where no WebCrypto exists at all', () => {
+		vi.stubGlobal('crypto', undefined);
+		expect(() => createNode()).toThrow(TypeError);
+		vi.unstubAllGlobals();
+	});
+});
 
 describe('hlc', () => {
 	it('is monotonic even when the wall clock goes backwards', () => {
