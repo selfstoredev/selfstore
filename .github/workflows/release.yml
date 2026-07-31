@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Version to release, without the v prefix (e.g. 0.0.6).
+        description: Version to release (e.g. 0.0.6). A leading v is accepted.
         required: true
       sha:
         description: Commit SHA to tag. Defaults to the dispatched ref.
@@ -27,7 +27,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - name: Resolve target commit
+      - name: Resolve the target commit and the version
         id: target
         run: |
           sha="${{ inputs.sha }}"
@@ -35,9 +35,15 @@ jobs:
           # Expand to a full commit sha: the release API rejects abbreviated ones.
           sha=$(git rev-parse "${sha}^{commit}")
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          # Typing the tag rather than the version is a reflex, and it used to
+          # cost a red run: the changelog heading reads "## [1.8.11]", so a
+          # dispatch on "v1.8.11" looked for a section that cannot exist. The
+          # prefix is absorbed here, once, for every step that follows.
+          version="${{ inputs.version }}"
+          echo "version=${version#v}" >> "$GITHUB_OUTPUT"
       - name: Extract the changelog section
         run: |
-          version="${{ inputs.version }}"
+          version="${{ steps.target.outputs.version }}"
           awk -v v="$version" '
             $0 ~ ("^## \\[" v "\\]") { grab = 1; next }
             grab && /^## \[/ { exit }
@@ -51,7 +57,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          version="${{ inputs.version }}"
+          version="${{ steps.target.outputs.version }}"
           sha="${{ steps.target.outputs.sha }}"
           if gh release view "v$version" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Release v$version already exists; refreshing its notes from the changelog."
