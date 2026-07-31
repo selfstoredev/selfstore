@@ -14,6 +14,24 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+### Added
+
+- `exportBackup({ plaintext: true })`: a readable copy of a protected store.
+  The same ZIP, with `selfstore.json` in the clear, openable by any tool and
+  diffable by git.
+
+  "Can I actually get my data out" is an ordinary question, and the only answer
+  before was `unprotect()` - which rewrites the destination and leaves the real
+  backup unencrypted until the user remembers to undo it. A dangerous price for
+  wanting to read what is yours. This changes nothing about the store, its
+  password or its destination: the backup that lives on the destination stays
+  encrypted, and the default export is untouched.
+
+  Two refusals, both deliberate. While locked, because there is nothing
+  readable to write. And outright on a store created with `requireEncryption` -
+  that flag means this store never produces cleartext, and an escape hatch
+  would make it a lie.
+
 ### Fixed
 
 - Accessibility of the widgets, on four points an audit measured rather than

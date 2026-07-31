@@ -342,8 +342,14 @@ export interface LocalStore {
 	 *  detached file, attaching another one on the same account). */
 	detachTarget(opts?: { keepSession?: boolean }): Promise<void>;
 
-	/** Build the portable .selfstore blob (for a manual download or dated copy). */
-	exportBlob(): Promise<Blob>;
+	/** Build the portable .selfstore blob (for a manual download or dated copy).
+	 *
+	 *  `plaintext` writes a READABLE copy even when the store is protected: the
+	 *  same ZIP, with `selfstore.json` in the clear, for someone who wants to
+	 *  read, inspect or move their own data. It changes nothing about the store
+	 *  or its destination - the real backup stays encrypted. Refused while
+	 *  locked, and refused outright on a `requireEncryption` store. */
+	exportBlob(opts?: { plaintext?: boolean }): Promise<Blob>;
 	/** Mark the file-manual pending download as resolved. */
 	markDownloaded(): void;
 
@@ -849,14 +855,40 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 		};
 	}
 
-	async function buildBlob(pre?: Snapshot): Promise<Blob> {
+	async function buildBlob(pre?: Snapshot, opts?: { plaintext?: boolean }): Promise<Blob> {
 		// Backstop the attach/setEncryption guards: even a direct exportBlob() never
-		// hands back cleartext once the store is set to require encryption.
-		if (requireEncryption && !encrypted && !group) {
+		// hands back cleartext once the store is set to require encryption. The
+		// deliberate plaintext export asks the same question, and gets the same
+		// answer: a store told never to produce cleartext does not gain a way to.
+		if (requireEncryption && (opts?.plaintext || (!encrypted && !group))) {
 			throw new SelfstoreError(
 				'ENCRYPTION_REQUIRED',
 				'requireEncryption is set: refusing to build a plaintext backup.'
 			);
+		}
+		// A readable copy of an encrypted store, on purpose. Someone who wants to
+		// read their own data, move it elsewhere, or diff it had exactly one way
+		// before: unprotect(), which rewrites the destination and leaves the real
+		// backup unencrypted until they remember to undo it. That is a dangerous
+		// price for a question as ordinary as "what is actually in there".
+		//
+		// It stays an explicit argument, never a default, and it is refused while
+		// locked below - the data has to be readable here to be written readable.
+		if (opts?.plaintext) {
+			if (locked()) {
+				throw new SelfstoreError(
+					'PASSWORD_REQUIRED',
+					'Cannot export a readable copy while locked - unlock first.'
+				);
+			}
+			const snapshot = pre ?? (await gather());
+			const stamp = Math.max(version, schemaCeiling);
+			const bytes = await writeBox(
+				{ collections: snapshot.collections, files: snapshot.files },
+				{ app, appVersion, schemaVersion: stamp, readme },
+				{ schemaVersion: stamp, meta }
+			);
+			return new Blob([bytes as BlobPart], { type: BACKUP_MIME });
 		}
 		// Reuse a snapshot the caller already gathered (pushDurable hashes it first),
 		// so a save does not gather twice for the same bytes. No caller mutates state
@@ -2465,8 +2497,8 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 			}
 		},
 
-		exportBlob() {
-			return buildBlob();
+		exportBlob(opts) {
+			return buildBlob(undefined, opts);
 		},
 
 		markDownloaded() {
