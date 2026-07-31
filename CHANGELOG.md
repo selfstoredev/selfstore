@@ -14,22 +14,7 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
-### Changed
-
-- A budget now watches what one edit costs to save. A save rebuilds and
-  re-uploads everything, so its cost follows the size of the whole store rather
-  than the size of the change: **19 kB at 1 000 records, 163 kB at 10 000**
-  (measured 2026-08-01, protected store, one field edited). That is the trade a
-  backup-shaped store makes against a delta sync engine, and it is comfortable
-  at the sizes real vaults reach - but nothing watched the number, so a change
-  to the merge layer could have doubled it and the first to notice would have
-  been a user years in.
-
-  The budgets are in bytes, never milliseconds: wall clock on a shared runner
-  says more about the neighbours than about this code, and bytes are what a
-  connection actually pays. A tripped budget is not automatically a bug, it is a
-  change in what every save costs - raise it on purpose with the reason, or find
-  what grew.
+## [1.8.20] - 2026-08-01
 
 ### Added
 
@@ -48,6 +33,45 @@ version number is not asking you to trust.
   readable to write. And outright on a store created with `requireEncryption` -
   that flag means this store never produces cleartext, and an escape hatch
   would make it a lie.
+
+- One register function per widget, so an app stops shipping the widgets it
+  never renders. `defineSelfstoreWidgets()` names all nine elements, which is
+  exactly what pins them in a bundle: no tree-shaker may drop a class the code
+  references. An app showing only a status line paid for the backups manager,
+  the share panel and the join screen all the same.
+
+  `defineConnect`, `defineStatus`, `defineShare`, `defineJoin`,
+  `defineBackups`, `defineGate`, `defineDestination`, `defineStorage` and
+  `defineAccount` each register their own element and, when they compose
+  another, the elements they compose - the composition happens by tag name, so
+  a missing child would render as an inert unknown element rather than fail
+  where anyone could see it.
+
+  Measured on a bundle built from source, brotli: the full barrel is 101.5 kB
+  over 39 modules. `defineStatus` alone is **5.1 kB over 5 modules**, and
+  `defineAccount` alone 7.0 kB. An app that needs the first-run gate keeps most
+  of it (90.9 kB), since the gate builds a connect child and connect carries the
+  whole journey - the saving there is the 11 kB of widgets it no longer names.
+
+  `defineSelfstoreWidgets()` is unchanged and still registers all nine, so
+  nothing existing moves.
+
+### Changed
+
+- A budget now watches what one edit costs to save. A save rebuilds and
+  re-uploads everything, so its cost follows the size of the whole store rather
+  than the size of the change: **19 kB at 1 000 records, 163 kB at 10 000**
+  (measured 2026-08-01, protected store, one field edited). That is the trade a
+  backup-shaped store makes against a delta sync engine, and it is comfortable
+  at the sizes real vaults reach - but nothing watched the number, so a change
+  to the merge layer could have doubled it and the first to notice would have
+  been a user years in.
+
+  The budgets are in bytes, never milliseconds: wall clock on a shared runner
+  says more about the neighbours than about this code, and bytes are what a
+  connection actually pays. A tripped budget is not automatically a bug, it is a
+  change in what every save costs - raise it on purpose with the reason, or find
+  what grew.
 
 ### Fixed
 
@@ -76,30 +100,6 @@ version number is not asking you to trust.
 
   **The spinner ignored `prefers-reduced-motion`.** The one animation in the
   library ran an endless rotation during precisely the wait nobody can leave.
-
-### Added
-
-- One register function per widget, so an app stops shipping the widgets it
-  never renders. `defineSelfstoreWidgets()` names all nine elements, which is
-  exactly what pins them in a bundle: no tree-shaker may drop a class the code
-  references. An app showing only a status line paid for the backups manager,
-  the share panel and the join screen all the same.
-
-  `defineConnect`, `defineStatus`, `defineShare`, `defineJoin`,
-  `defineBackups`, `defineGate`, `defineDestination`, `defineStorage` and
-  `defineAccount` each register their own element and, when they compose
-  another, the elements they compose - the composition happens by tag name, so
-  a missing child would render as an inert unknown element rather than fail
-  where anyone could see it.
-
-  Measured on a bundle built from source, brotli: the full barrel is 101.5 kB
-  over 39 modules. `defineStatus` alone is **5.1 kB over 5 modules**, and
-  `defineAccount` alone 7.0 kB. An app that needs the first-run gate keeps most
-  of it (90.9 kB), since the gate builds a connect child and connect carries the
-  whole journey - the saving there is the 11 kB of widgets it no longer names.
-
-  `defineSelfstoreWidgets()` is unchanged and still registers all nine, so
-  nothing existing moves.
 
 ## [1.8.19] - 2026-07-31
 
