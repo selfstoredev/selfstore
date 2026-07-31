@@ -14,8 +14,19 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
-_Nothing yet. Entries land here as they are merged; the release PR stamps them
-with a number and a date._
+### Added
+
+- **`<selfstore-status variant="line">`**: one line and a link, for a menu.
+  The tinted box belongs to a settings page; inside a 17 rem menu it took
+  247 px of a 395 px surface, most of that one sentence wrapping in a column
+  sized for an address. The header control now puts anything needing a gesture
+  UNDER its card, across the whole menu, on that line.
+
+### Changed
+
+- The download-only mode is called **"Un fichier" / "A file"**, without naming
+  the mechanism. A backup is exported, never downloaded, and the extra words
+  said nothing the user could act on.
 
 ## [1.8.15] - 2026-07-31
 
