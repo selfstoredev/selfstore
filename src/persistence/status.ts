@@ -31,6 +31,10 @@ export interface StatusInput {
 	locked: boolean;
 	/** Degraded file mode has changes awaiting a manual download. */
 	pendingDownload: boolean;
+	/** A portable copy was written at some point, and whether anything has been
+	 *  entered since. Without a durable destination, this is the difference
+	 *  between "never saved anywhere" and "saved this morning". */
+	copy?: { at: number | null; stale: boolean };
 }
 
 import { isReservedStoreMode } from './target';
@@ -79,6 +83,21 @@ export function deriveStatus(input: StatusInput): StatusDescriptor {
 	}
 
 	if (input.targetKind === 'device') {
+		// A copy the user wrote is not nothing. Announcing "never saved anywhere"
+		// to someone looking at the backup they exported an hour ago is the kind
+		// of sentence that costs the app its credibility - and every consumer that
+		// hit it kept its own memo to work around it. The state stays cache-only
+		// (no durable destination is attached, and that IS what the gesture is
+		// for); only the sentence, and the alarm, follow the facts.
+		if (input.copy?.at) {
+			return {
+				state: 'cache-only',
+				severity: input.copy.stale ? 'warn' : 'ok',
+				actionable: true,
+				action: 'choose-destination',
+				labelKey: input.copy.stale ? 'status.copyStale' : 'status.copy'
+			};
+		}
 		return {
 			state: 'cache-only',
 			severity: 'warn',
