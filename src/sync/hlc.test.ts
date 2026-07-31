@@ -22,7 +22,7 @@ describe('createNode', () => {
 		// one that is always there, so it is the one the fallback uses.
 		const real = globalThis.crypto;
 		vi.stubGlobal('crypto', {
-			getRandomValues: (b: Uint8Array): Uint8Array => real.getRandomValues(b)
+			getRandomValues: real.getRandomValues.bind(real)
 		});
 		const a = createNode();
 		const b = createNode();
