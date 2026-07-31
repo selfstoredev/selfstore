@@ -64,6 +64,10 @@
 			"types": "./dist/households.d.ts",
 			"import": "./dist/households.js"
 		},
+		"./passkey": {
+			"types": "./dist/passkey.d.ts",
+			"import": "./dist/passkey.js"
+		},
 		"./sync": {
 			"types": "./dist/sync.d.ts",
 			"import": "./dist/sync.js"

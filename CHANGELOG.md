@@ -14,8 +14,27 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
-_Nothing yet. Entries land here as they are merged; the release PR stamps them
-with a number and a date._
+### Added
+
+- **`selfstore/passkey` - open a store with the device instead of the keyboard.**
+  `passkeyUnlock({ appName, salt })` seals a secret you already hold, normally
+  the backup password, behind a platform passkey carrying the WebAuthn PRF
+  extension, and returns it after a Face / fingerprint / Hello verification.
+  The PRF secret never leaves the authenticator and demands user verification,
+  so a copy of the browser profile still opens nothing - the property a
+  lock-mode cache exists for is preserved, not traded away.
+
+  It does not replace the password. The password keeps opening everything on
+  every device; this is a convenience bound to one browser profile on one
+  machine, and losing the passkey costs a typed password, never data. A second
+  independent key to the data would widen what a stolen device gives away,
+  which is the opposite of the point.
+
+  Opt-in by construction: an app that never calls `passkeyUnlock()` has no such
+  capability, nothing enables itself, and `forget()` is the way back out.
+  Enrolment fails closed where the PRF extension is absent rather than storing
+  a blob no key could ever open - so the option is only usable where a real
+  secret comes back.
 
 ## [1.8.18] - 2026-07-31
 
