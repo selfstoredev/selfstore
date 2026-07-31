@@ -18,6 +18,7 @@ export default defineConfig([
 			flows: 'src/entries/flows.ts',
 			groups: 'src/entries/groups.ts',
 			households: 'src/entries/households.ts',
+			passkey: 'src/entries/passkey.ts',
 			sync: 'src/entries/sync.ts',
 			widgets: 'src/entries/widgets.ts'
 		},
