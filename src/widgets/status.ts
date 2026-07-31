@@ -102,8 +102,24 @@ export class SelfstoreStatusElement extends FlowWidget {
 			// Pas de jumelle declaree: la cle de base ne parle deja pas du lieu.
 			return copie === jumelle ? this.t(cle) : copie;
 		};
+		/**
+		 * La jumelle PAR TYPE de destination, quand une application en donne une.
+		 *
+		 * Un cabinet dit "Fichier a jour" ou "Serveur a jour" - pas la meme
+		 * phrase, parce que ce n'est pas le meme objet, et le nom du fichier
+		 * n'ajoute rien quand il n'y a qu'un endroit possible. Une seule cle pour
+		 * les deux forcait a choisir laquelle des deux phrases serait fausse.
+		 * Absente, rien ne change : c'est la phrase de base qui parle.
+		 */
+		const selonLeType = (cle: string): string | null => {
+			const jumelle = `${cle}.${targetKind}`;
+			const copie = this.t(jumelle, { label: label ?? '' });
+			return copie === jumelle ? null : copie;
+		};
 		const { lastSavedAt } = host.engine.state;
-		const text = label ? this.t(status.labelKey, { label }) : sansLieu(status.labelKey);
+		const text =
+			selonLeType(status.labelKey) ??
+			(label ? this.t(status.labelKey, { label }) : sansLieu(status.labelKey));
 		const dot = h('span', {
 			part: `status-dot sev-${status.severity}`,
 			'aria-hidden': 'true'
@@ -184,8 +200,9 @@ export class SelfstoreStatusElement extends FlowWidget {
 		const place = where !== `status.where.${targetKind}` ? where : (own ?? named ?? label ?? '');
 		const when = lastSavedAt ? this.since(lastSavedAt, this.t('status.justNow')) : '';
 		const sub = [place, status.state === 'saved' ? when : ''].filter(Boolean).join(', ');
-		// The place is on the line below now, so the sentence above stops naming it.
-		const title = sub ? sansLieu(status.labelKey) : text;
+		// The place is on the line below now, so the sentence above stops naming
+		// it - unless the app worded this kind itself, which outranks both.
+		const title = selonLeType(status.labelKey) ?? (sub ? sansLieu(status.labelKey) : text);
 		put(
 			into,
 			h(

@@ -63,6 +63,9 @@ const ACCOUNT_STYLES = `
    of ZERO - the pill collapsed to its dot in a flex header, with the label
    overflowing off screen. Nothing here queries its own width. */
 [part~='stack'] { container-type: normal; display: block; }
+/* A state in the trigger is a line already: no dot of its own, no action - the
+   press opens the menu, where the gesture lives. */
+[part~='account-trigger-status'] [part~='status-action'] { display: none; }
 [part~='account-trigger'] {
 	display: inline-flex;
 	align-items: center;
@@ -173,7 +176,12 @@ const ACCOUNT_STYLES = `
 const TICK_MS = 30_000;
 
 export class SelfstoreAccountElement extends FlowWidget {
+	static get observedAttributes(): string[] {
+		return ['trigger'];
+	}
+
 	#confirm: ((a: DestinationAction) => boolean | Promise<boolean>) | null = null;
+	#trigger: 'destination' | 'status' = 'destination';
 	#open = false;
 	#error: string | null = null;
 	#timer: ReturnType<typeof setInterval> | null = null;
@@ -212,6 +220,24 @@ export class SelfstoreAccountElement extends FlowWidget {
 		this.#confirm = fn;
 	}
 
+	/**
+	 * What the trigger says: the DESTINATION it goes to (default), or the STATE
+	 * it is in.
+	 *
+	 * Naming the place is right when there is a choice - it makes local-first
+	 * visible without opening anything. It says nothing at all when an app
+	 * offers exactly one destination: "a file" where a file is the only thing it
+	 * could ever be. Such an app states a condition instead - saved, unsaved,
+	 * locked - which is the part that changes.
+	 */
+	get trigger(): 'destination' | 'status' {
+		return this.#trigger;
+	}
+	set trigger(v: 'destination' | 'status' | null) {
+		this.#trigger = v === 'status' ? 'status' : 'destination';
+		this.rerender();
+	}
+
 	/** Whether the menu is on screen. Settable, so a host can close it from its
 	 *  own router after the settings item navigated away. */
 	get open(): boolean {
@@ -224,8 +250,17 @@ export class SelfstoreAccountElement extends FlowWidget {
 		this.rerender();
 	}
 
+	attributeChangedCallback(name: string): void {
+		if (name === 'trigger') {
+			const value = this.attr(name);
+			if (value !== null) this.trigger = value as 'destination' | 'status';
+		}
+	}
+
 	connectedCallback(): void {
 		super.connectedCallback();
+		const trigger = this.attr('trigger');
+		if (trigger !== null) this.trigger = trigger as 'destination' | 'status';
 		this.follow(this.hostOf());
 	}
 
@@ -344,6 +379,24 @@ export class SelfstoreAccountElement extends FlowWidget {
 		}
 	}
 
+	/**
+	 * What the trigger reads. The destination by default; the state when an app
+	 * has only one destination to offer, where naming it says nothing that ever
+	 * changes. The state comes from <selfstore-status>'s own words, so the two
+	 * surfaces cannot drift.
+	 */
+	private said(host: FlowHost): string | HTMLElement {
+		if (this.#trigger !== 'status') return this.named(host);
+		const el = document.createElement(
+			siblingTag(this.localName, 'account', 'status')
+		) as HTMLElement & { labels?: WidgetLabels; store?: StoreLike | null };
+		el.setAttribute('variant', 'line');
+		el.setAttribute('part', 'account-trigger-status');
+		el.labels = this.labels;
+		el.store = this.store;
+		return el;
+	}
+
 	private card(host: FlowHost): HTMLElement {
 		const { targetKind } = host.engine.state;
 		const icon = this.icons[targetKind as ConnectKind];
@@ -385,7 +438,7 @@ export class SelfstoreAccountElement extends FlowWidget {
 			// The severity colors the DOT, never the label: a whole line turning
 			// amber reads as a warning about the destination's name.
 			h('span', { part: `account-dot sev-${status.severity}` }),
-			h('span', {}, this.named(host))
+			h('span', { part: 'account-trigger-text' }, this.said(host))
 		);
 		const menu = this.#open
 			? h(

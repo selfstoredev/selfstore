@@ -181,3 +181,27 @@ describe('variant=line, for a menu', () => {
 		el.remove();
 	});
 });
+
+describe('a sentence per destination kind', () => {
+	it('lets an app word "saved" differently for a file and for a server', () => {
+		// A practice says "Fichier a jour" or "Serveur a jour" - not the same
+		// sentence, because it is not the same object, and the file name adds
+		// nothing where only one place is possible. One key for both forced a
+		// choice of which of the two sentences would be wrong.
+		const { engine } = fakeEngine({ targetKind: 'file', label: 'cabinet.zip' });
+		const el = mount(engine);
+		el.labels = {
+			'status.saved.file': 'File up to date',
+			'status.saved.webdav': 'Server up to date'
+		};
+
+		expect(q(el, '[part="title"]')!.textContent).toBe('File up to date');
+
+		// Absent, nothing changes: the shipped sentence speaks, with the place on
+		// the line below.
+		el.labels = {};
+		expect(q(el, '[part="title"]')!.textContent).toBe('Saved');
+		expect(q(el, '[part="sub"]')!.textContent).toContain('cabinet.zip');
+		el.remove();
+	});
+});

@@ -14,8 +14,24 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
-_Nothing yet. Entries land here as they are merged; the release PR stamps them
-with a number and a date._
+### Added
+
+Two things learned from an app the widgets did NOT fit - one destination, a
+password required, and a closed vocabulary. Both are what such an app needs to
+mount them at all.
+
+- **A sentence per destination kind**: `status.<state>.<kind>` outranks the
+  base wording when a host provides it. A practice says "Fichier a jour" or
+  "Serveur a jour" - not the same sentence, because it is not the same object,
+  and the file name adds nothing where only one place is possible. One key for
+  both forced a choice of which of the two sentences would be wrong. Absent,
+  nothing changes.
+- **`<selfstore-account trigger="status">`**: the control states the CONDITION
+  instead of naming the destination. Naming the place is right when there is a
+  choice - it makes local-first visible without opening anything. It says
+  nothing where a file is the only thing it could ever be, and then the state -
+  saved, unsaved, locked - is the part that changes. The words come from
+  `<selfstore-status>`, so a trigger and a menu cannot drift.
 
 ## [1.8.16] - 2026-07-31
 
