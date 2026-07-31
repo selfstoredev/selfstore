@@ -14,8 +14,18 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
-_Nothing yet. Entries land here as they are merged; the release PR stamps them
-with a number and a date._
+### Fixed
+
+- **"Never saved anywhere yet" is no longer said to someone holding the copy
+  they wrote this morning.** Without a durable destination the status ignored
+  exported copies entirely, so an app that let its user export had to keep a
+  memo of its own to avoid the lie - and each one that did keep it in memory,
+  where a reload made a stale copy read as current. With a copy on record the
+  sentence follows the facts (`status.copy` / `status.copyStale`, the moment
+  filled into `{when}`) and the alarm follows too: calm while the copy carries
+  everything, amber once it does not. The state stays `cache-only` and the
+  gesture stays "choose a destination" - none is attached, and that is what it
+  is for.
 
 ## [1.8.17] - 2026-07-31
 

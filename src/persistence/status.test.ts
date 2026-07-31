@@ -64,3 +64,33 @@ describe('deriveStatus', () => {
 		expect(deriveStatus({ ...base, targetKind: 'file-manual' }).state).toBe('saved');
 	});
 });
+
+describe('a copy is not nothing', () => {
+	it('stops saying "never saved anywhere" to someone holding this morning copy', () => {
+		// Announcing that to a user looking at the backup they exported an hour
+		// ago is what costs an app its credibility - and every consumer that hit
+		// it kept a memo of its own to work around it.
+		const base = {
+			persistent: true,
+			targetKind: 'device',
+			saving: false,
+			needsAttention: false,
+			locked: false,
+			pendingDownload: false
+		};
+
+		expect(deriveStatus(base).labelKey).toBe('status.cacheOnly');
+
+		const fresh = deriveStatus({ ...base, copy: { at: 1, stale: false } });
+		expect(fresh.labelKey).toBe('status.copy');
+		expect(fresh.severity).toBe('ok');
+		// The gesture stays: no durable destination is attached, and that is
+		// exactly what it is for.
+		expect(fresh.action).toBe('choose-destination');
+		expect(fresh.state).toBe('cache-only');
+
+		const stale = deriveStatus({ ...base, copy: { at: 1, stale: true } });
+		expect(stale.labelKey).toBe('status.copyStale');
+		expect(stale.severity).toBe('warn');
+	});
+});

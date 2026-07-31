@@ -17,6 +17,8 @@ const EN: WidgetLabels = {
 	'status.justNow': 'just now',
 	'status.ephemeral': 'Nothing is saved',
 	'status.cacheOnly': 'Never saved anywhere yet',
+	'status.copy': 'Last copy written {when}. Nothing has changed since.',
+	'status.copyStale': 'Last copy written {when}. What you typed since is not in it.',
 	'status.saving': 'Saving...',
 	'status.saved': 'Saved to {label}, at every change',
 	'status.needsAttention': 'Reconnect to continue',
@@ -36,6 +38,8 @@ const FR: WidgetLabels = {
 	'status.justNow': "a l'instant",
 	'status.ephemeral': "Rien n'est enregistré",
 	'status.cacheOnly': "Vos données n'ont jamais été enregistrées ailleurs",
+	'status.copy': "Dernière copie écrite {when}. Rien n'a changé depuis.",
+	'status.copyStale': "Dernière copie écrite {when}. Vos saisies depuis n'y sont pas.",
 	'status.saving': 'Enregistrement...',
 	'status.saved': 'Enregistré dans {label}, à chaque changement',
 	'status.needsAttention': 'Accès à retrouver',
@@ -98,9 +102,9 @@ export class SelfstoreStatusElement extends FlowWidget {
 		// placeless twin - otherwise it would render the placeholder itself.
 		const sansLieu = (cle: string): string => {
 			const jumelle = `${cle}.placeless`;
-			const copie = this.t(jumelle);
+			const copie = this.t(jumelle, vars);
 			// Pas de jumelle declaree: la cle de base ne parle deja pas du lieu.
-			return copie === jumelle ? this.t(cle) : copie;
+			return copie === jumelle ? this.t(cle, vars) : copie;
 		};
 		/**
 		 * La jumelle PAR TYPE de destination, quand une application en donne une.
@@ -113,13 +117,19 @@ export class SelfstoreStatusElement extends FlowWidget {
 		 */
 		const selonLeType = (cle: string): string | null => {
 			const jumelle = `${cle}.${targetKind}`;
-			const copie = this.t(jumelle, { label: label ?? '' });
+			const copie = this.t(jumelle, vars);
 			return copie === jumelle ? null : copie;
 		};
-		const { lastSavedAt } = host.engine.state;
+		const { lastSavedAt, lastCopyAt } = host.engine.state;
+		// The words a sentence can ask for: where it was saved, and when the last
+		// copy was written. A pack that mentions neither is unaffected.
+		const vars = {
+			label: label ?? '',
+			when: lastCopyAt ? this.since(lastCopyAt, this.t('status.justNow')) : ''
+		};
 		const text =
 			selonLeType(status.labelKey) ??
-			(label ? this.t(status.labelKey, { label }) : sansLieu(status.labelKey));
+			(label ? this.t(status.labelKey, vars) : sansLieu(status.labelKey));
 		const dot = h('span', {
 			part: `status-dot sev-${status.severity}`,
 			'aria-hidden': 'true'

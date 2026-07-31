@@ -1898,7 +1898,8 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 				saving,
 				needsAttention,
 				locked: locked(),
-				pendingDownload
+				pendingDownload,
+				copy: { at: lastCopyAt, stale: copyIsStale }
 			}),
 			lastError,
 			journal,
