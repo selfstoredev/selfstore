@@ -25,13 +25,46 @@ function decode(h: Hlc): Parts {
 	return { wall: Number(h.slice(0, i)), counter: Number(h.slice(i + 1, j)), node: h.slice(j + 1) };
 }
 
-/** A fresh random replica id (one per device). */
+/**
+ * A fresh random replica id (one per device). Not a secret - but two replicas
+ * sharing an id lose the tiebreak that makes the order total, so it comes from
+ * the same source as everything else here. `randomUUID` is exposed only in a
+ * secure context; `getRandomValues` is not, which is why the fallback is that
+ * one and never `Math.random`.
+ */
 export function createNode(): string {
-	return (
-		typeof crypto !== 'undefined' && crypto.randomUUID
-			? crypto.randomUUID()
-			: Math.random().toString(36).slice(2)
-	).replace(/\|/g, '');
+	if (typeof crypto === 'undefined') {
+		throw new TypeError(
+			'createNode(): this platform provides no WebCrypto, so no replica id can be minted ' +
+				'(evergreen browsers, Node 20+).'
+		);
+	}
+	if (crypto.randomUUID) return crypto.randomUUID();
+	const bytes = new Uint8Array(16);
+	crypto.getRandomValues(bytes);
+	return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * How far ahead of local wall time a clock minted elsewhere may sit before this
+ * replica refuses it.
+ *
+ * A hybrid logical clock absorbs the highest value it sees, so ONE impossible
+ * wall time does three things at once: it wins every last-writer-wins
+ * comparison from then on, it raises the clock of every replica that merges it
+ * (and of every replica those merge with, in turn), and it keeps doing so after
+ * whoever sent it has been removed from the group. Five minutes leaves room for
+ * a device whose clock was never synchronised; nothing legitimate needs more.
+ */
+export const MAX_DRIFT_MS = 5 * 60_000;
+
+/** Whether `h` claims a wall time further ahead than the drift bound allows. */
+export function driftedAhead(
+	h: Hlc,
+	wallNow: number = Date.now(),
+	maxDriftMs: number = MAX_DRIFT_MS
+): boolean {
+	return hlcWall(h) > wallNow + maxDriftMs;
 }
 
 /** Issue a clock for a local event. Monotonic per node even if the wall clock moves back. */
