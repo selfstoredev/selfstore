@@ -14,8 +14,12 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
-_Nothing yet. Entries land here as they are merged; the release PR stamps them
-with a number and a date._
+### Added
+
+- **`defaultIcons` is public** (`selfstore/widgets`): the neutral destination
+  glyphs the widgets fall back to. An app that draws a destination card of its
+  own - a chooser, a list of files - was redrawing them, and two drawings of
+  one thing drift. They are deliberately not brand marks.
 
 ## [1.8.14] - 2026-07-31
 
