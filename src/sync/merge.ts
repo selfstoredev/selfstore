@@ -17,7 +17,8 @@
  * in the snapshot instead; this engine stops short of sequence CRDTs.
  */
 
-import { type Hlc, issue, max, compare, createNode, hlcWall } from './hlc';
+import { type Hlc, issue, max, compare, createNode, hlcWall, driftedAhead } from './hlc';
+import { SelfstoreError } from '../selfstore/errors';
 
 export type { Hlc } from './hlc';
 export type Id = string;
@@ -272,7 +273,41 @@ type State = ReplicaState;
  * optional `base` lets 'manual' tell a true concurrent conflict from a one-sided
  * change; without it, 'manual' errs toward surfacing.
  */
+/** Every clock a replica carries, flattened: meta, records, tombstones, fields. */
+function* allClocks(meta: SyncMeta): Generator<Hlc> {
+	if (meta.clock) yield meta.clock;
+	for (const col of Object.values(meta.cols)) {
+		yield* Object.values(col.clocks);
+		yield* Object.values(col.deleted);
+		for (const fields of Object.values(col.fields ?? {})) {
+			for (const [clock] of Object.values(fields)) yield clock;
+		}
+	}
+}
+
+/**
+ * Refuse a replica whose clocks cannot be real. `b` is the incoming side by
+ * signature, and only it is checked: a local replica that already absorbed a
+ * bad clock must still be able to merge, or the fix would strand exactly the
+ * stores it exists to protect. Refusing rather than clamping is deliberate -
+ * a silently lowered clock would leave two replicas each convinced they hold
+ * the later write.
+ */
+function assertNoDrift(meta: SyncMeta, wallNow: number): void {
+	for (const clock of allClocks(meta)) {
+		if (driftedAhead(clock, wallNow)) {
+			throw new SelfstoreError(
+				'CLOCK_DRIFT',
+				`This copy carries a clock ${Math.round((hlcWall(clock) - wallNow) / 60_000)} minutes ` +
+					'ahead of this device. Check the clock of the device that wrote it: merging would ' +
+					'let those writes win every future conflict, on every device.'
+			);
+		}
+	}
+}
+
 export function merge(a: State, b: State, config: SyncConfig, base?: SyncMeta): MergeResult {
+	assertNoDrift(b.meta, Date.now());
 	const conflicts: Conflict[] = [];
 	const outCols: Record<string, unknown[]> = {};
 	const outMeta: SyncMeta = {
