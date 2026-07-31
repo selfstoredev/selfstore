@@ -25,7 +25,9 @@ export type SelfstoreErrorCode =
 	| 'IDENTITY_REQUIRED' // group-encrypted copy opened without a member identity
 	| 'SIGNATURE_INVALID' // copy/manifest signature failed, or author not a trusted member
 	| 'NOT_A_RECIPIENT' // valid group copy, but no envelope for this identity
-	| 'MANIFEST_ROLLBACK'; // membership manifest older than one already applied
+	| 'MANIFEST_ROLLBACK' // membership manifest older than one already applied
+	// multi-device merge
+	| 'CLOCK_DRIFT'; // an incoming replica carries a clock too far ahead of local time to be real
 
 /**
  * i18n key for an error code: lower-camel-cased under `error.`, e.g.
