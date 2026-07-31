@@ -94,7 +94,8 @@
 		"dup": "jscpd src --format typescript,javascript --ignore \"**/*.test.ts\" --threshold 3",
 		"gate": "npm run format:check && npm run lint && npm run typecheck && npm run knip && npm run dup && npm run test:coverage",
 		"prepare": "simple-git-hooks",
-		"prepublishOnly": "npm run typecheck && npm test && npm run build"
+		"prepublishOnly": "npm run typecheck && npm test && npm run build",
+		"consumers": "node scripts/verify-consumers.mjs"
 	},
 	"simple-git-hooks": {
 		"pre-commit": "npx lint-staged"

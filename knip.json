@@ -5,6 +5,7 @@
 		"src/entries/*.ts",
 		"examples/*.ts",
 		"examples/playground/main.ts",
-		"spec/generate-vectors.mjs"
+		"spec/generate-vectors.mjs",
+		"scripts/*.mjs"
 	]
 }
