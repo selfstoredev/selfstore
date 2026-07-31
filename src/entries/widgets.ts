@@ -21,6 +21,11 @@ export { SelfstoreDestinationElement, type DestinationAction } from '../widgets/
 export { SelfstoreStorageElement } from '../widgets/storage';
 export { SelfstoreAccountElement } from '../widgets/account';
 export { FlowWidget, type WidgetLabels } from '../widgets/base';
+/** The neutral destination glyphs the widgets fall back to. Public because an
+ *  app that draws a destination card of its own - a chooser, a list of files -
+ *  otherwise redraws them, and two drawings of one thing drift. They are
+ *  deliberately not brand marks: see widgets/icons.ts. */
+export { defaultIcons } from '../widgets/icons';
 
 import { SelfstoreConnectElement } from '../widgets/connect';
 import { SelfstoreShareElement } from '../widgets/share';
