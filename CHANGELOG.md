@@ -14,6 +14,11 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+_Nothing yet. Entries land here as they are merged; the release PR stamps them
+with a number and a date._
+
+## [1.8.15] - 2026-07-31
+
 ### Added
 
 - **`defaultIcons` is public** (`selfstore/widgets`): the neutral destination
