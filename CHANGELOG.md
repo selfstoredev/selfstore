@@ -14,6 +14,16 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+### Security
+
+- **The workflows that build, tag and publish this package pin every action to
+  a commit SHA**, the gate declares `contents: read` instead of inheriting the
+  account default, and the checkout no longer leaves a git credential in the
+  runner's config. A moving tag is a mutable dependency: the two workflows that
+  carry `id-token: write` for npm provenance and `contents: write` for tagging
+  were one repointed tag away from running someone else's code. Nothing in the
+  library itself changes.
+
 ## [1.8.20] - 2026-08-01
 
 ### Added
