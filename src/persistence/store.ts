@@ -149,6 +149,24 @@ export interface LocalStoreState {
 	locked: boolean;
 	saving: boolean;
 	lastSavedAt: number | null;
+	/**
+	 * When a PORTABLE COPY was last written (an export the user asked for), or
+	 * null if never. Distinct from `lastSavedAt`, which is the durable
+	 * destination: a copy is a snapshot that leaves, a destination is kept up to
+	 * date.
+	 */
+	lastCopyAt: number | null;
+	/**
+	 * Entries have been recorded since that copy was written.
+	 *
+	 * The store knew this only in its download-only mode, where the copy IS the
+	 * save. Everywhere else nobody followed it, so an app that let its user
+	 * export could say nothing about a copy going stale - and one of them found
+	 * out the hard way that a copy written in the morning was still announced as
+	 * up to date in the evening. False while no copy was ever written: there is
+	 * nothing to be stale.
+	 */
+	copyIsStale: boolean;
 	status: StatusDescriptor;
 	/** The last durable-target problem (upload/refresh), or null. */
 	lastError: StoreError | null;
@@ -399,6 +417,10 @@ const KEY = {
 	version: 'version',
 	syncMeta: 'syncMeta',
 	lastSavedAt: 'lastSavedAt',
+	// When a portable copy was last written, and whether anything has been
+	// entered since. See the state fields of the same name.
+	copyAt: 'copyAt',
+	copyStale: 'copyStale',
 	enc: 'enc',
 	targetKind: 'targetKind',
 	remoteVersion: 'remoteVersion',
@@ -514,6 +536,8 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 	let lastError: StoreError | null = null;
 	let pendingDownload = false;
 	let lastSavedAt: number | null = null;
+	let lastCopyAt: number | null = null;
+	let copyIsStale = false;
 	let ready = false;
 	let saving = false;
 	// SHA-256 of the content last persisted to the remote (seeded from kv on
@@ -1096,6 +1120,8 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 		meta = (await kv.get<SyncMeta>(KEY.syncMeta)) ?? createMeta();
 		baseMeta = (await kv.get<SyncMeta>(KEY.baseMeta)) ?? null;
 		lastSavedAt = (await kv.get<number>(KEY.lastSavedAt)) ?? null;
+		lastCopyAt = (await kv.get<number>(KEY.copyAt)) ?? null;
+		copyIsStale = (await kv.get<boolean>(KEY.copyStale)) ?? false;
 		remoteVersion = (await kv.get<string>(KEY.remoteVersion)) ?? null;
 		// Adopt the other tab's remote fingerprint too (it pushed, or forgot and
 		// cleared it): keeping our own stale hash would wrongly skip a needed push.
@@ -1353,6 +1379,13 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 		notify();
 		try {
 			await persistLocal();
+			// The content just changed, so any copy written earlier no longer
+			// carries it. Only meaningful once a copy exists: with none, there is
+			// nothing to be stale.
+			if (lastCopyAt !== null && !copyIsStale) {
+				copyIsStale = true;
+				kvSetSafe(KEY.copyStale, true, 'copyStale');
+			}
 			if (editSeq === seq) pendingEdit = false; // an edit that arrived mid-persist stays in flight
 			if (targetKind === 'file-manual') {
 				// No remote to reach: the downloaded file is the copy. Remember the
@@ -1857,6 +1890,8 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 			locked: locked(),
 			saving,
 			lastSavedAt,
+			lastCopyAt,
+			copyIsStale,
 			status: deriveStatus({
 				persistent: mode === 'persistent',
 				targetKind,
@@ -1926,6 +1961,11 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 			}
 
 			lastSavedAt = (await kv.get<number>(KEY.lastSavedAt)) ?? null;
+			// When a portable copy last left, and whether anything was entered
+			// since. A memo living in memory told the practitioner, every morning,
+			// that his copy was current.
+			lastCopyAt = (await kv.get<number>(KEY.copyAt)) ?? null;
+			copyIsStale = (await kv.get<boolean>(KEY.copyStale)) ?? false;
 			// The fingerprint of what we last pushed: a passive save that matches it
 			// (a reactive touch after boot, no real edit) is a no-op, but a local
 			// edit that never reached the remote hashes differently and still saves.
@@ -2430,6 +2470,11 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 
 		markDownloaded() {
 			pendingDownload = false;
+			// A copy has just left: it is current until the next entry.
+			lastCopyAt = Date.now();
+			copyIsStale = false;
+			kvSetSafe(KEY.copyAt, lastCopyAt, 'copyAt');
+			kvSetSafe(KEY.copyStale, false, 'copyStale');
 			// A download IS the save on a browser that cannot hold a file: recording
 			// when it happened is what lets a host say "saved 2 hours ago" instead of
 			// a bare state word. Without it, every host had to keep its own memo of
