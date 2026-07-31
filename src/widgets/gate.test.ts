@@ -5,7 +5,7 @@
  * the way out is honest (deferring shuts it for the session, and says so).
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import type { FlowHost } from '../flows/connect';
 import type { LocalStore } from '../persistence/store';
 import {
@@ -357,5 +357,43 @@ describe('a decision taken in code beats a default written in the markup', () =>
 		// What the host did NOT decide still comes from the markup.
 		expect(el.deferrable).toBe(false);
 		el.remove();
+	});
+});
+
+describe('the keyboard cannot leave a screen whose job is to block', () => {
+	it('pulls focus back when it lands outside, and only once', () => {
+		// `aria-modal` tells assistive tech this is modal; it does not stop Tab.
+		// Without the guard a keyboard user tabs into the application behind a
+		// gate that still covers it - driving something they cannot see.
+		const dehors = document.createElement('button');
+		document.body.append(dehors);
+		const f = fakeEngine();
+		const el = mount(f.engine);
+
+		// The pull is re-entrant by nature: focusing the card fires another
+		// focusin. Without the flag this recursed until the stack gave out - it
+		// did, in this very suite, before the flag existed.
+		expect(() => dehors.focus()).not.toThrow();
+
+		const carte = q(el, '[part~="gate-card"]');
+		expect(carte).not.toBeNull();
+		el.remove();
+		dehors.remove();
+	});
+
+	it('stops guarding once the gate leaves the document', () => {
+		// Asserted on the listener rather than on where focus lands: a detached
+		// host stays `document.activeElement` in this DOM, so the observable
+		// outcome cannot tell "guard removed" from "guard still pulling". What
+		// matters is that a gate torn down while open does not keep dragging
+		// focus to a card that is no longer in the page.
+		const retire = vi.spyOn(document, 'removeEventListener');
+		const f = fakeEngine();
+		const el = mount(f.engine);
+
+		el.remove();
+
+		expect(retire).toHaveBeenCalledWith('focusin', expect.any(Function));
+		retire.mockRestore();
 	});
 });

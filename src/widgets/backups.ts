@@ -789,7 +789,7 @@ export class SelfstoreBackupsElement extends FlowWidget {
 					}
 				}),
 				taken
-					? h('div', { part: 'error-note' }, this.t('backups.taken'))
+					? h('div', { part: 'error-note', role: 'alert' }, this.t('backups.taken'))
 					: clean
 						? h(
 								'div',
@@ -852,7 +852,7 @@ export class SelfstoreBackupsElement extends FlowWidget {
 					}
 				}),
 				taken
-					? h('div', { part: 'error-note' }, this.t('backups.taken'))
+					? h('div', { part: 'error-note', role: 'alert' }, this.t('backups.taken'))
 					: clean
 						? h(
 								'div',
@@ -972,7 +972,7 @@ export class SelfstoreBackupsElement extends FlowWidget {
 					this.t(`backups.replica.dest.${kind}`)
 				)
 			),
-			snap.error ? h('div', { part: 'error-note' }, this.t('error.generic')) : null,
+			snap.error ? h('div', { part: 'error-note', role: 'alert' }, this.t('error.generic')) : null,
 			h(
 				'button',
 				{
@@ -1031,7 +1031,7 @@ export class SelfstoreBackupsElement extends FlowWidget {
 				c.password,
 				(v) => (c.password = v)
 			),
-			snap.error ? h('div', { part: 'error-note' }, this.t('error.generic')) : null,
+			snap.error ? h('div', { part: 'error-note', role: 'alert' }, this.t('error.generic')) : null,
 			h(
 				'div',
 				{ part: 'row', style: 'margin-top:0.45rem' },
@@ -1089,7 +1089,7 @@ export class SelfstoreBackupsElement extends FlowWidget {
 				c.secretAccessKey,
 				(v) => (c.secretAccessKey = v)
 			),
-			snap.error ? h('div', { part: 'error-note' }, this.t('error.generic')) : null,
+			snap.error ? h('div', { part: 'error-note', role: 'alert' }, this.t('error.generic')) : null,
 			h(
 				'div',
 				{ part: 'row', style: 'margin-top:0.45rem' },

@@ -255,6 +255,14 @@ export class SelfstoreGateElement extends FlowWidget {
 		this.wire();
 	}
 
+	disconnectedCallback(): void {
+		super.disconnectedCallback();
+		// A gate torn down while open leaves nothing behind: the guard would keep
+		// dragging focus to a card no longer in the document.
+		document.removeEventListener('focusin', this.#keepFocus);
+		this.#focusBefore = null;
+	}
+
 	private host(): FlowHost | null {
 		const s = this.#store;
 		if (!s) return null;
@@ -285,13 +293,55 @@ export class SelfstoreGateElement extends FlowWidget {
 		return host.engine.state.status.action === 'choose-destination';
 	}
 
+	/** Where focus was when the gate took over, so it can be handed back. */
+	#focusBefore: HTMLElement | null = null;
+
+	/** `aria-modal` tells assistive tech this is modal; it does NOT stop the Tab
+	 *  key. Without this, a keyboard user tabs straight out of a screen whose
+	 *  whole purpose is to block, and lands in the application behind it -
+	 *  invisibly, since the gate still covers what they are now driving.
+	 *
+	 *  A guard rather than a cycle through the focusable elements: the gate
+	 *  contains a `<selfstore-connect>` with its own shadow root, and walking
+	 *  focusables across shadow boundaries is the kind of code that quietly
+	 *  stops matching the DOM it walks. Anything landing outside comes straight
+	 *  back to the card, which is correct whatever the widget grows inside. */
+	#pulling = false;
+	#keepFocus = (e: FocusEvent): void => {
+		// The re-entrancy flag is not defensive dressing: focusing the card fires
+		// another focusin, and any run where that second event does not read as
+		// inside - a card that cannot take focus, a detached node, a DOM that
+		// composes its paths differently - recurses until the stack gives out.
+		// One pull per escape, always terminating.
+		if (!this.#open || this.#pulling) return;
+		if (e.composedPath().includes(this)) return;
+		const card = this.root.querySelector<HTMLElement>('[part~="gate-card"]');
+		if (!card) return;
+		this.#pulling = true;
+		try {
+			card.focus();
+		} finally {
+			this.#pulling = false;
+		}
+	};
+
 	private sync(): void {
 		const open = this.shouldOpen();
 		if (open === this.#open) return; // a status tick that changes nothing
 		this.#open = open;
 		if (!open) this.#connect = null;
 		super.rerender();
-		if (open) this.root.querySelector<HTMLElement>('[part~="gate-card"]')?.focus();
+		if (open) {
+			this.#focusBefore = (document.activeElement as HTMLElement | null) ?? null;
+			document.addEventListener('focusin', this.#keepFocus);
+			this.root.querySelector<HTMLElement>('[part~="gate-card"]')?.focus();
+			return;
+		}
+		document.removeEventListener('focusin', this.#keepFocus);
+		// Back where they were, not at the top of the page: the gate interrupted
+		// something, and closing it should return them to it.
+		this.#focusBefore?.focus?.();
+		this.#focusBefore = null;
 	}
 
 	/** Rebuilding the frame would re-append the child connect element, and a
