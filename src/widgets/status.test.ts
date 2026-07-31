@@ -205,3 +205,26 @@ describe('a sentence per destination kind', () => {
 		el.remove();
 	});
 });
+
+describe('the moment a copy was written', () => {
+	it('fills {when} into the sentence, so a host never formats a date itself', () => {
+		const { engine } = fakeEngine({
+			targetKind: 'device',
+			label: null,
+			lastCopyAt: Date.now() - 3 * 60_000,
+			status: {
+				state: 'cache-only',
+				severity: 'ok',
+				actionable: true,
+				action: 'choose-destination',
+				labelKey: 'status.copy'
+			}
+		} as unknown as Partial<LocalStore['state']>);
+		const el = mount(engine);
+
+		expect(q(el, '[part="title"]')!.textContent).toBe(
+			'Last copy written 3 minutes ago. Nothing has changed since.'
+		);
+		el.remove();
+	});
+});

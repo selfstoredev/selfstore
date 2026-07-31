@@ -14,8 +14,29 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
-_Nothing yet. Entries land here as they are merged; the release PR stamps them
-with a number and a date._
+### Added
+
+- One register function per widget, so an app stops shipping the widgets it
+  never renders. `defineSelfstoreWidgets()` names all nine elements, which is
+  exactly what pins them in a bundle: no tree-shaker may drop a class the code
+  references. An app showing only a status line paid for the backups manager,
+  the share panel and the join screen all the same.
+
+  `defineConnect`, `defineStatus`, `defineShare`, `defineJoin`,
+  `defineBackups`, `defineGate`, `defineDestination`, `defineStorage` and
+  `defineAccount` each register their own element and, when they compose
+  another, the elements they compose - the composition happens by tag name, so
+  a missing child would render as an inert unknown element rather than fail
+  where anyone could see it.
+
+  Measured on a bundle built from source, brotli: the full barrel is 101.5 kB
+  over 39 modules. `defineStatus` alone is **5.1 kB over 5 modules**, and
+  `defineAccount` alone 7.0 kB. An app that needs the first-run gate keeps most
+  of it (90.9 kB), since the gate builds a connect child and connect carries the
+  whole journey - the saving there is the 11 kB of widgets it no longer names.
+
+  `defineSelfstoreWidgets()` is unchanged and still registers all nine, so
+  nothing existing moves.
 
 ## [1.8.19] - 2026-07-31
 

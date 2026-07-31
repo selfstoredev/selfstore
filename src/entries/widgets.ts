@@ -37,28 +37,99 @@ import { SelfstoreDestinationElement } from '../widgets/destination';
 import { SelfstoreStorageElement } from '../widgets/storage';
 import { SelfstoreAccountElement } from '../widgets/account';
 
-/** Register the elements as <PREFIX-connect>, <PREFIX-share>, <PREFIX-join>,
- *  <PREFIX-status>, <PREFIX-backups>, <PREFIX-gate> and
- *  <PREFIX-destination> (default prefix 'selfstore'). Safe to call twice;
- *  throws in environments without custom elements (browser code only). */
+function register(prefix: string, tags: Record<string, CustomElementConstructor>): void {
+	for (const [name, ctor] of Object.entries(tags)) {
+		const tag = `${prefix}-${name}`;
+		if (!customElements.get(tag)) customElements.define(tag, ctor);
+	}
+}
+
+// Each widget gets its own register function, and none of them mentions a
+// widget it does not need. That is the whole point: `defineSelfstoreWidgets`
+// names all nine elements, so no bundler can drop any of them, and an app that
+// shows a first-run screen still ships the backups manager it never renders.
+// Import one of these instead and the rest tree-shakes away.
+//
+// A widget that COMPOSES another registers it too - the composition happens by
+// tag name, so a missing child would render as an empty element rather than
+// fail loudly.
+
+/** Register <PREFIX-connect>: the "where does my data live" journey. */
+export function defineConnect(prefix = 'selfstore'): void {
+	register(prefix, { connect: SelfstoreConnectElement });
+}
+
+/** Register <PREFIX-status>: the live storage status line. */
+export function defineStatus(prefix = 'selfstore'): void {
+	register(prefix, { status: SelfstoreStatusElement });
+}
+
+/** Register <PREFIX-share>: publishing an invitation. */
+export function defineShare(prefix = 'selfstore'): void {
+	register(prefix, { share: SelfstoreShareElement });
+}
+
+/** Register <PREFIX-join>: accepting an invitation. */
+export function defineJoin(prefix = 'selfstore'): void {
+	register(prefix, { join: SelfstoreJoinElement });
+}
+
+/** Register <PREFIX-backups>: the named-backup manager. */
+export function defineBackups(prefix = 'selfstore'): void {
+	register(prefix, { backups: SelfstoreBackupsElement });
+}
+
+/** Register <PREFIX-gate>, the blocking first-run screen, with the
+ *  <PREFIX-connect> child it builds for itself. */
+export function defineGate(prefix = 'selfstore'): void {
+	register(prefix, { connect: SelfstoreConnectElement, gate: SelfstoreGateElement });
+}
+
+/** Register <PREFIX-destination>, the storage panel, with the connect and
+ *  status elements it composes. */
+export function defineDestination(prefix = 'selfstore'): void {
+	register(prefix, {
+		connect: SelfstoreConnectElement,
+		status: SelfstoreStatusElement,
+		destination: SelfstoreDestinationElement
+	});
+}
+
+/** Register <PREFIX-storage>: the whole journey in one tag. It chooses between
+ *  the gate and the destination panel from the engine's own status, so both
+ *  come with it. */
+export function defineStorage(prefix = 'selfstore'): void {
+	defineGate(prefix);
+	defineDestination(prefix);
+	register(prefix, { storage: SelfstoreStorageElement });
+}
+
+/** Register <PREFIX-account>, the header control, with the status row it
+ *  composes for anything needing attention. */
+export function defineAccount(prefix = 'selfstore'): void {
+	register(prefix, {
+		status: SelfstoreStatusElement,
+		account: SelfstoreAccountElement
+	});
+}
+
+/** Register all nine elements at once (default prefix 'selfstore'). Safe to
+ *  call twice; throws in environments without custom elements (browser code
+ *  only).
+ *
+ *  Convenient, and the reason a small app ships every widget: naming all nine
+ *  here is what pins them in the bundle. Reach for the single-widget functions
+ *  above when size matters. */
 export function defineSelfstoreWidgets(prefix = 'selfstore'): void {
-	const define = (name: string, ctor: CustomElementConstructor): void => {
-		if (!customElements.get(name)) customElements.define(name, ctor);
-	};
-	define(`${prefix}-connect`, SelfstoreConnectElement);
-	define(`${prefix}-share`, SelfstoreShareElement);
-	define(`${prefix}-join`, SelfstoreJoinElement);
-	define(`${prefix}-status`, SelfstoreStatusElement);
-	define(`${prefix}-backups`, SelfstoreBackupsElement);
-	// The gate builds its own connect child and reads the prefix back off its
-	// own tag name, so a custom prefix keeps the pair together. The destination
-	// panel composes both connect and status the same way.
-	define(`${prefix}-gate`, SelfstoreGateElement);
-	define(`${prefix}-destination`, SelfstoreDestinationElement);
-	// The whole journey in one tag: it composes the gate and the panel above,
-	// choosing between them from the engine's own status.
-	define(`${prefix}-storage`, SelfstoreStorageElement);
-	// The header control, which composes the status row for anything that needs
-	// attention rather than wording it a second time.
-	define(`${prefix}-account`, SelfstoreAccountElement);
+	register(prefix, {
+		connect: SelfstoreConnectElement,
+		share: SelfstoreShareElement,
+		join: SelfstoreJoinElement,
+		status: SelfstoreStatusElement,
+		backups: SelfstoreBackupsElement,
+		gate: SelfstoreGateElement,
+		destination: SelfstoreDestinationElement,
+		storage: SelfstoreStorageElement,
+		account: SelfstoreAccountElement
+	});
 }
