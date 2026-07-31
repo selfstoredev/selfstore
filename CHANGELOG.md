@@ -16,6 +16,25 @@ version number is not asking you to trust.
 
 ### Security
 
+- **A replica whose clock cannot be real is now refused instead of merged.**
+  A hybrid logical clock absorbs the highest wall time it sees, so a single
+  impossible value did three things at once: it won every last-writer-wins
+  comparison from then on, it raised the clock of every replica that merged it
+  and of every replica those merged with, and it kept doing so after its author
+  was removed from the group. `merge()` now throws `CLOCK_DRIFT` when the
+  INCOMING side carries a clock more than five minutes ahead of local time.
+  Only the incoming side is checked: a replica that already absorbed a bad
+  clock must still be able to merge, or the guard would strand exactly the
+  stores it exists to protect. Refusing rather than silently lowering the value
+  is deliberate - a clamped clock would leave two replicas each convinced they
+  hold the later write. A clock in the PAST is never refused: it cannot be told
+  apart from a device that was offline for a week.
+- **A replica id no longer falls back to `Math.random`.** `crypto.randomUUID`
+  is exposed only in a secure context, so the fallback ran exactly where it was
+  least wanted; it now uses `crypto.getRandomValues`, and a platform with no
+  WebCrypto at all gets a clear refusal rather than a weak id. Two replicas
+  sharing an id lose the tiebreak that makes the order total.
+
 - **The workflows that build, tag and publish this package pin every action to
   a commit SHA**, the gate declares `contents: read` instead of inheriting the
   account default, and the checkout no longer leaves a git credential in the
