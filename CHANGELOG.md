@@ -14,6 +14,11 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+_Nothing yet. Entries land here as they are merged; the release PR stamps them
+with a number and a date._
+
+## [1.8.19] - 2026-07-31
+
 ### Added
 
 - **`selfstore/passkey` - open a store with the device instead of the keyboard.**
@@ -954,9 +959,10 @@ gating the store), typed errors with stable i18n label keys, and a headless
 status descriptor plus optional web-component widgets over the
 connect/share/join/backups flows.
 
-The public API is frozen under semantic versioning: the eight subpath
+The public API is frozen under semantic versioning: the nine subpath
 entries (`.`, `/advanced`, `/backups`, `/flows`, `/groups`, `/households`,
-`/sync`, `/widgets`) and their exported types are the supported surface.
+`/passkey`, `/sync`, `/widgets`) and their exported types are the supported
+surface.
 Container formats are numbered 1 (plain), 2 (group) and 3 (password
 envelope); a reader rejects anything else. Breaking changes wait for a
 2.0.0.
