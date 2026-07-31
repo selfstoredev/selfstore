@@ -544,3 +544,71 @@ describe('a connection learns whose it is, even with no connect to learn from', 
 		vi.unstubAllGlobals();
 	});
 });
+
+describe('getting your data out in the clear', () => {
+	it('exports a readable copy of a PROTECTED store, without touching it', async () => {
+		// The question this answers: "can I actually read my own data?" The only
+		// way before was unprotect(), which rewrites the destination and leaves
+		// the real backup readable until you remember to undo it.
+		const { store } = await makeStore();
+		const t = fakeTarget();
+		await store.connectTarget(t.target);
+		await store.put('todos', { id: 't1', text: 'lisible' });
+		await store.protect('un-mot-de-passe-long');
+		await store.flush();
+
+		const clair = await store.exportBackup({ plaintext: true });
+
+		expect(await restore(clair).isEncrypted()).toBe(false);
+		const relu = await restore(clair).read();
+		expect((relu.collections.todos as { text: string }[])[0].text).toBe('lisible');
+
+		// Nothing moved: the store is still protected and what sits on the
+		// destination is still encrypted.
+		expect(store.state.encrypted).toBe(true);
+		expect(await restore(await store.exportBackup()).isEncrypted()).toBe(true);
+		expect(await restore(t.blob()!).isEncrypted()).toBe(true);
+	});
+
+	it('still encrypts by default, so the flag is the only way to cleartext', async () => {
+		const { store } = await makeStore();
+		const t = fakeTarget();
+		await store.connectTarget(t.target);
+		await store.protect('un-mot-de-passe-long');
+
+		expect(await restore(await store.exportBackup()).isEncrypted()).toBe(true);
+	});
+
+	it('refuses while locked: there is nothing readable to write', async () => {
+		const cache = memoryCache();
+		const a = await selfstore<Schema>('simple-test', { cache });
+		const t = fakeTarget();
+		await a.connectTarget(t.target);
+		await a.put('todos', { id: 't1', text: 'secret' });
+		await a.protect('un-mot-de-passe-long');
+		await a.flush();
+		a.dispose();
+
+		// A fresh session over the same destination lands locked.
+		const b = await selfstore<Schema>('simple-test', { cache: memoryCache() });
+		open.push(b);
+		await expect(b.connectTarget(t.target)).rejects.toMatchObject({
+			code: 'PASSWORD_REQUIRED'
+		});
+	});
+
+	it('is refused outright on a store that must never produce cleartext', async () => {
+		// requireEncryption is the host saying "this store has no plaintext
+		// form". An escape hatch would make that a lie, so the flag wins.
+		const store = await selfstore<Schema>('simple-required', {
+			cache: memoryCache(),
+			requireEncryption: true
+		});
+		open.push(store);
+		await store.put('todos', { id: 't1', text: 'x' });
+
+		await expect(store.exportBackup({ plaintext: true })).rejects.toMatchObject({
+			code: 'ENCRYPTION_REQUIRED'
+		});
+	});
+});

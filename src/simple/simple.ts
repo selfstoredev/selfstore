@@ -176,8 +176,20 @@ export interface SimpleStore<
 	reconnect(): Promise<boolean>;
 
 	// --- Portable backups ---------------------------------------------------
-	/** The portable backup file (a real ZIP; encrypted when protect() is on). */
-	exportBackup(): Promise<Blob>;
+	/** The portable backup file (a real ZIP; encrypted when protect() is on).
+	 *
+	 *  `{ plaintext: true }` asks for a READABLE copy of a protected store: the
+	 *  same ZIP with `selfstore.json` in the clear, which any tool can open and
+	 *  git can diff. It is the answer to "can I actually get my data out", and
+	 *  it costs nothing: the store, its password and its destination are
+	 *  untouched, so the real backup stays encrypted. Before this, the only way
+	 *  out was `unprotect()`, which rewrites the destination and leaves it
+	 *  readable until you remember to undo it.
+	 *
+	 *  Refused while locked (there is nothing readable to write), and refused on
+	 *  a store created with `requireEncryption` - that flag means this store
+	 *  never produces cleartext, and an escape hatch would make it a lie. */
+	exportBackup(opts?: { plaintext?: boolean }): Promise<Blob>;
 	/** Download the backup (also resolves the 'manual' file mode's pending flag).
 	 *  False when the user closed the save dialog: nothing was written, the
 	 *  pending flag stands, and the app must not record a backup. */
@@ -634,7 +646,7 @@ export async function selfstore<
 		unlock: (password: string) => store.unlock(password),
 		reconnect: () => store.reconnect(),
 
-		exportBackup: () => store.exportBlob(),
+		exportBackup: (opts?: { plaintext?: boolean }) => store.exportBlob(opts),
 		async downloadBackup(filename?: string): Promise<boolean> {
 			const written = await saveToDisk(await store.exportBlob(), filename ?? backupName);
 			// Clearing the pending flag on a cancelled dialog would drop the very
