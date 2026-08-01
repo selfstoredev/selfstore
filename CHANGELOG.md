@@ -43,6 +43,22 @@ version number is not asking you to trust.
   were one repointed tag away from running someone else's code. Nothing in the
   library itself changes.
 
+### Fixed
+
+- **Dimmed text in the widgets was under the contrast minimum on a light page.**
+  `--selfstore-muted` defaults to an alpha over the host's own ink, and 55% of a
+  near-black ink composited on white lands at **3.99:1** - below the 4.5:1 that
+  WCAG 1.4.3 asks of text. It is not decoration: it words every `sub`, `hint`
+  and field label a widget renders, so it is the sentence someone has to read to
+  know what a control does. Now 62%, which measures 5.0:1 on a light page and
+  6.3:1 on a dark one while still reading a clear step below the main ink. A
+  host that sets `--selfstore-muted` itself is unaffected.
+
+  The palette test only ever checked tokens declared as a hex, which is how an
+  alpha slipped past it: an alpha says nothing until it is painted over a page.
+  It now composites the default over a light page and a dark one and asserts
+  both.
+
 ## [1.8.20] - 2026-08-01
 
 ### Added
