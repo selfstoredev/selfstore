@@ -29,7 +29,12 @@ export const baseStyles = `
 	color: inherit;
 	--_accent: var(--selfstore-accent, #2563eb);
 	--_accent-ink: var(--selfstore-accent-contrast, #ffffff);
-	--_ink-dim: var(--selfstore-muted, color-mix(in srgb, currentColor 55%, transparent));
+	/* Dimmed ink is TEXT too - it words every sub, hint and field label - so it
+	   answers to 4.5:1, and an alpha over the host background is what decides
+	   that. At 55% a near-black ink on white composited to 3.99:1 and failed;
+	   62% lands at 5.0:1 there and at 6.3:1 for a near-white ink on a near-black
+	   page, while still reading a clear step below the main ink. */
+	--_ink-dim: var(--selfstore-muted, color-mix(in srgb, currentColor 62%, transparent));
 	--_border: var(--selfstore-border, color-mix(in srgb, currentColor 16%, transparent));
 	--_radius: var(--selfstore-radius, 12px);
 	--_gap: var(--selfstore-gap, 0.6rem);

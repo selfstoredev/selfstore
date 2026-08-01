@@ -33,6 +33,26 @@ function fallbackOf(name: string): string {
 	return m[1];
 }
 
+/** The alpha baked into `var(--selfstore-NAME, color-mix(... currentColor N%, transparent))`. */
+function alphaOf(name: string): number {
+	const m = new RegExp(`--selfstore-${name},\\s*color-mix\\([^)]*currentColor (\\d+)%`).exec(
+		baseStyles
+	);
+	if (!m) throw new Error(`no color-mix default declared for --selfstore-${name}`);
+	return Number(m[1]) / 100;
+}
+
+/** What the browser paints for a partly transparent ink over an opaque page. */
+function composite(ink: string, page: string, alpha: number): string {
+	const channel = (i: number) =>
+		Math.round(
+			parseInt(ink.slice(i, i + 2), 16) * alpha + parseInt(page.slice(i, i + 2), 16) * (1 - alpha)
+		)
+			.toString(16)
+			.padStart(2, '0');
+	return `#${channel(1)}${channel(3)}${channel(5)}`;
+}
+
 describe('the default palette is readable', () => {
 	// A widget renders on the host's background; white is the one every light
 	// theme lands on, and the worst case for these two hues.
@@ -42,6 +62,17 @@ describe('the default palette is readable', () => {
 			expect(contrast(fallbackOf(name), '#ffffff')).toBeGreaterThanOrEqual(4.5);
 		}
 	);
+
+	// The severity cases above read a hex straight out of the stylesheet, which
+	// is why the dimmed ink escaped them for so long: it is an alpha, and an
+	// alpha says nothing until it is painted over a page. These two are the
+	// pages a widget actually lands on.
+	it.each([
+		['a light page', '#0f172a', '#ffffff'],
+		['a dark page', '#e9e6e1', '#100f0d']
+	])('--selfstore-muted clears 4.5:1 on %s, because subs and hints are text', (_, ink, page) => {
+		expect(contrast(composite(ink, page, alphaOf('muted')), page)).toBeGreaterThanOrEqual(4.5);
+	});
 
 	it('does not lean on hue to separate two colors of equal lightness', () => {
 		// Both were darkened to land just over the same threshold, so they now
