@@ -14,6 +14,42 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+### Added
+
+- **Files on the simple store: `putFile`, `getFile`, `allFiles`, `removeFile`.**
+  Bytes already rode along in every save, backup and merge, but only an app on
+  the advanced store could put them there - the facade carried them and offered
+  no way in. The gap mattered more than it looked: it is the reason "keep a Yjs
+  or Automerge document in the snapshot", which the README has recommended for
+  a while, was not something a simple-store app could actually do.
+
+  `putFile` defaults a file's id to the **SHA-256 of its bytes**, and that
+  default is the feature. Files merge by a union on their id with no clock to
+  order two bodies, so two devices holding DIFFERENT bytes under the SAME id
+  lose one of them - silently, since at that level there is nothing to compare
+  and no conflict to report. A content id makes the case unreachable: different
+  bytes are a different file, and the union keeps both. So an id you name
+  yourself is held to the rule it implies - identical bytes are a no-op,
+  different bytes throw a TypeError naming the way out - and `{ replace: true }`
+  performs it anyway, which is correct for a body only ever written on one
+  device and a silent loser as soon as two devices write it.
+
+  That union is also what makes a real CRDT safe to carry: Yjs and Automerge
+  updates are commutative and idempotent, so storing each update under its
+  content id turns the union INTO the CRDT merge - no device's update is lost
+  when the copies meet. `examples/yjs-document.ts` is the complete integration,
+  concurrent-edit merging included, still with no server anywhere.
+
+### Documentation
+
+- **The file rules are stated where they can be acted on.** The README's advice
+  to embed a CRDT document as a binary file did not say what happens when it is
+  done with a stable id, which is data loss with no error. It now does, next to
+  the API and the example. The limits section also states plainly that file
+  DELETIONS do not propagate (there are no tombstones for files), so a device
+  that was offline re-contributes files another device removed - tie a file's
+  lifetime to a record and let the record's deletion drive the cleanup.
+
 ### Security
 
 - **A replica whose clock cannot be real is now refused instead of merged.**

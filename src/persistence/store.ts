@@ -27,6 +27,7 @@ import {
 	type BoxEnvelope
 } from '../selfstore/box';
 import { mintSlot, openSlot, mintExternalSlot, MAX_KEY_SLOTS } from '../selfstore/crypto';
+import { sha256Hex } from '../selfstore/digest';
 import {
 	GROUP_KEYING,
 	openManifest,
@@ -1387,8 +1388,7 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 			buf.set(p, off);
 			off += p.length;
 		}
-		const digest = await crypto.subtle.digest('SHA-256', buf);
-		return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+		return sha256Hex(buf);
 	}
 
 	async function doSave(): Promise<void> {

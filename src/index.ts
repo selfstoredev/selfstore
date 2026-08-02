@@ -19,7 +19,9 @@ export {
 	type SimpleRecord,
 	type SimpleOptions,
 	type CacheUnlock,
-	type ConnectOutcome
+	type ConnectOutcome,
+	type FileBytes,
+	type PutFileInput
 } from './simple/simple';
 
 // --- Portable backup files, fluent ---

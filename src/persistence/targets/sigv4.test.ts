@@ -3,7 +3,8 @@
 // signature byte for byte, or the request would be rejected by every S3 server.
 
 import { describe, it, expect } from 'vitest';
-import { signS3, encodeS3Path, sha256Hex, EMPTY_PAYLOAD_SHA256 } from './sigv4';
+import { signS3, encodeS3Path, EMPTY_PAYLOAD_SHA256 } from './sigv4';
+import { sha256Hex } from '../../selfstore/digest';
 
 describe('signS3', () => {
 	it('reproduces the AWS documented GET Object signature', async () => {

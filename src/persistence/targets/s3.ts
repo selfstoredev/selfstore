@@ -26,7 +26,8 @@ import type { KV } from '../cache';
 import { seal, unseal, isEnvelope, newDeviceKey } from '../cache-crypto';
 import { boundedSignal, lifeLine } from './abort';
 import { AuthExpiredError, SelfstoreError } from '../../selfstore';
-import { signS3, sha256Hex, EMPTY_PAYLOAD_SHA256 } from './sigv4';
+import { signS3, EMPTY_PAYLOAD_SHA256 } from './sigv4';
+import { sha256Hex } from '../../selfstore/digest';
 
 const CONFIG_KEY = 's3Config';
 const KEY_KEY = 's3Key';

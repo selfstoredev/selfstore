@@ -8,17 +8,9 @@
 // overriding it, so we sign the host derived from that same URL - the value the
 // browser will send - and never try to set the header.
 
+import { hex, sha256Hex } from '../../selfstore/digest';
+
 const encoder = new TextEncoder();
-
-function hex(bytes: Uint8Array): string {
-	let out = '';
-	for (const b of bytes) out += b.toString(16).padStart(2, '0');
-	return out;
-}
-
-export async function sha256Hex(bytes: Uint8Array): Promise<string> {
-	return hex(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes as BufferSource)));
-}
 
 /** SHA-256 of the empty body: the payload hash for every GET/HEAD. */
 export const EMPTY_PAYLOAD_SHA256 =

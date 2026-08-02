@@ -90,6 +90,35 @@ const store = await selfstore('crm', { sync: { ids: { contacts: 'uuid' } } });
 Everything else about your records is your business: plain JSON in, plain JSON
 out, no proxies, no injected fields, no ORM to fight.
 
+## Files
+
+Bytes ride in the same store, the same backup and the same merge:
+
+```ts
+const id = await store.putFile({ bytes, name: 'scan.pdf', mime: 'application/pdf' });
+store.getFile(id);   // { id, name, mime, bytes }
+store.allFiles();    // every file
+await store.removeFile(id);
+```
+
+The id defaults to the **SHA-256 of the bytes**, and that default is load
+bearing. Files are merged by a union on their id, with no clock to order two
+bodies: when two devices hold DIFFERENT bytes under the SAME id, one is kept
+and the other is dropped - silently, because at that level there is nothing to
+compare and nothing to report. A content id makes that impossible, since
+different bytes are a different file and the union keeps both.
+
+So `putFile` refuses different bytes under an id you named (identical bytes are
+a no-op), and `{ replace: true }` says you meant it - correct for a body only
+ever written on one device, a silent loser as soon as two devices write it.
+
+That union is also what makes a CRDT safe to carry here. Yjs and Automerge
+updates are commutative and idempotent, so storing each update under its
+content id turns the union INTO the CRDT merge: no device's update is lost when
+the copies meet, and folding them is the entire read path.
+`examples/yjs-document.ts` is a complete, typechecked integration - real
+concurrent-edit merging, still no server.
+
 ## Status and errors are headless
 
 The store never ships UI copy. It exposes a status descriptor
@@ -228,8 +257,9 @@ losing value is surfaced in the sync journal's conflicts, not merged. In
 `lww-map`, a record deleted on one replica while another edits one of its
 fields resurrects with the surviving side's fields only. Change detection
 hashes content with 32-bit FNV-1a: a collision (~2^-32 per edit) would miss an
-edit. If concurrent-edit losslessness is your requirement, embed a real CRDT
-document (Yjs/Automerge) as a binary file in the snapshot.
+edit. If concurrent-edit losslessness is your requirement, keep a real CRDT
+document (Yjs/Automerge) and let the store carry it - see "Files" below;
+`examples/yjs-document.ts` is the whole integration.
 
 ## Sharing between people: peers
 
@@ -364,8 +394,10 @@ data-only (connections and mode switches apply to other tabs on reload;
 `multiTab: false` opts out); deletion tombstones grow unless you opt in to
 compaction (`tombstoneHorizonMs` on the advanced store - safe only if the
 horizon exceeds the longest a device stays offline); binary files merge by id
-union (no clocks: use content-addressed ids and tie file lifetime to a
-record). In Vite DEV, if the KDF worker 404s under dependency pre-bundling,
+union and their DELETIONS do not propagate (no tombstones), so a device that
+was offline re-contributes files another device removed - tie a file's lifetime
+to a record and let the record's deletion drive the cleanup. In Vite DEV, if
+the KDF worker 404s under dependency pre-bundling,
 add `optimizeDeps: { exclude: ['selfstore'] }`.
 
 ## Testing your integration

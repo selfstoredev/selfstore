@@ -558,6 +558,44 @@ hides an optional heading. Every widget also takes `options` for its flow:
 backup without asking, and `joinEl.options = { deadlineMs: 120000 }` keeps a
 join whose engine opens an account chooser from timing out mid-popup.
 
+## 15. Files, and a real CRDT document inside the store
+
+```ts
+const id = await store.putFile({ bytes, name: 'scan.pdf', mime: 'application/pdf' });
+store.getFile(id);        // { id, name, mime, bytes }
+store.allFiles();
+await store.removeFile(id);
+```
+
+The id defaults to the **SHA-256 of the bytes**. Keep that default: files merge
+by a union on their id with no clock to order two bodies, so different bytes
+under the same id means one device's copy is dropped, silently. `putFile`
+refuses that (identical bytes are a no-op); `{ replace: true }` is the explicit
+opt-out, right only for a body written on one device.
+
+Deletions do not propagate, so tie a file's lifetime to a record and let the
+record's deletion drive the cleanup.
+
+That same union is what lets a sequence CRDT live here, which is the answer to
+"two people typing in one paragraph" that LWW cannot give. Yjs updates are
+commutative and idempotent, so under content ids the union IS the merge:
+
+```ts
+const doc = new Y.Doc();
+const fold = () => {
+  for (const f of store.allFiles()) if (f.mime === UPDATE_MIME) Y.applyUpdate(doc, f.bytes, FOLDED);
+};
+fold();                                   // read path: everything we hold
+store.onChange(fold);                     // and everything that arrives
+doc.on('update', (u, origin) => {         // write path: one immutable update each
+  if (origin !== FOLDED) void store.putFile({ bytes: u, mime: UPDATE_MIME });
+});
+```
+
+Never one stable id for the document: that is exactly the case where the union
+drops an edit. `examples/yjs-document.ts` is the complete version, with the
+compaction pass and its honest limit.
+
 Test/SSR tip: the simple store already falls back to memory with no IndexedDB;
 on the advanced store swap `indexedDbCache('my-app')` for `memoryCache()`. See
 the API surface in `llms.txt`, the container layout in `SPEC.md`, and the
