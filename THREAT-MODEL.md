@@ -303,3 +303,9 @@ per-member keys. What it adds, and what it honestly cannot:
   wiped together with the data it protects. The kv bookkeeping stays in the
   clear. Defense-in-depth against forensics and partial exfiltration, not
   against a full-profile copy or the origin (see T13).
+
+This document says what is defended and what is not. **Why each of those
+primitives was chosen over its alternatives** - and where the author would
+attack the result first - is in
+[CRYPTO-RATIONALE.md](./CRYPTO-RATIONALE.md), which is the document to read
+before reviewing the code.

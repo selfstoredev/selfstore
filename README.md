@@ -378,6 +378,11 @@ const persistence = {
   the app cannot forget to check.
 - The full analysis - assets, trust boundaries, threats and explicit non-goals
   (XSS, rollback replay, metadata) - is in [THREAT-MODEL.md](./THREAT-MODEL.md).
+- WHY each of those choices, with the alternative it rejected and where its
+  author would attack it first, is in
+  [CRYPTO-RATIONALE.md](./CRYPTO-RATIONALE.md). Written to be argued with:
+  review is wanted, and a case that a decision is wrong is worth more here than
+  a bug report.
 
 ## When not to use selfstore
 
