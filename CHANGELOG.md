@@ -40,6 +40,29 @@ version number is not asking you to trust.
   when the copies meet. `examples/yjs-document.ts` is the complete integration,
   concurrent-edit merging included, still with no server anywhere.
 
+### Changed
+
+- **The WebDAV and S3 destinations now load on the gesture that uses them**, so
+  "destinations are opt-in" is true of the shipped bytes and not only of the
+  API. It was not: `connectFlow` imported both connectors at module level, and
+  every widget is built on that flow, so an app offering Google Drive and a disk
+  file - the common shape - shipped the SigV4 request signer and the WebDAV
+  client to every visitor. Measured on the built package, the two chunks an app
+  like that no longer pulls into its initial graph come to **4.4 KB gzipped**
+  (2.7 for S3, 1.7 for WebDAV).
+
+  These two and not all four: Drive and the disk file open a picker or a consent
+  popup, and a browser only allows that inside the transient activation of the
+  user's click - an `await import()` before the call can spend that activation
+  and turn a working button into a silently blocked popup. A WebDAV or S3
+  connection is plain fetch behind a form the user already submitted.
+
+  Nothing changes for a caller: same functions, same arguments, same results,
+  and a chunk that fails to arrive surfaces as `TARGET_UNAVAILABLE` - the code a
+  silent server already produces - rather than as a bare Error. The
+  `webdavTarget` and `s3Target` namespaces on `selfstore/advanced` stay static:
+  naming one of those IS the opt-in.
+
 ### Documentation
 
 - **The file rules are stated where they can be acted on.** The README's advice

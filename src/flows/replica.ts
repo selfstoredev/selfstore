@@ -18,16 +18,15 @@ import {
 	connect as fileConnect,
 	fromSession as fileFromSession
 } from '../persistence/targets/file';
+// WebDAV and S3 arrive on the gesture that uses them - see targets/servers.ts.
 import {
-	connect as webdavConnect,
-	fromSession as webdavFromSession,
-	type WebdavConfig
-} from '../persistence/targets/webdav';
-import {
-	connect as s3Connect,
-	fromSession as s3FromSession,
-	type S3Config
-} from '../persistence/targets/s3';
+	webdavConnect,
+	webdavFromSession,
+	s3Connect,
+	s3FromSession
+} from '../persistence/targets/servers';
+import type { WebdavConfig } from '../persistence/targets/webdav';
+import type { S3Config } from '../persistence/targets/s3';
 
 /** The one replica this flow manages, as its id on the engine. */
 export const REPLICA_ID = 'replica';

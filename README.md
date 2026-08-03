@@ -303,6 +303,12 @@ and retried. `examples/custom-target.ts` is a complete one in ~30 lines.
 > Drive connection needs a small refresh-token broker. WebDAV and S3 need only
 > a CORS rule on the server/bucket for your app origin.
 
+Opt-in is about the bytes too: WebDAV and S3 arrive on the gesture that opens
+them, so an app offering only Drive and a disk file never ships the SigV4
+signer or the WebDAV client (4.4 KB gzipped it would otherwise carry). Drive and
+the disk file stay eager on purpose - both open a picker inside the transient
+activation of the user's click, which an `await import()` can spend.
+
 For resilience, `store.addReplica(target)` keeps a SECOND destination in sync
 with the same backup - Drive as the primary, an S3 bucket as the synced copy -
 so losing one home never loses the data. For locked-down deployments,
