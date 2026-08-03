@@ -6,13 +6,24 @@ OWN storage, hands the group a READ-ONLY link to it, and attaches the other
 members' links as peers. That is the whole trick: read-write sharing emerges
 from crossed read-only links.
 
-Status: shipped. Two group crypto modes:
+Two group crypto modes:
 
-- **Passphrase (phase 1):** every copy encrypted with ONE shared passphrase,
-  exchanged once out of band. Ordinary format-2 boxes, zero new crypto.
-- **Passwordless (phase 2):** per-member keys - every copy is Ed25519-SIGNED
-  by its author and sealed for each member (X25519 envelopes), membership is
-  a manifest signed by one admin. Format generation 3 (SPEC.md section 12).
+- **Passphrase (phase 1):** shipped. Every copy encrypted with ONE shared
+  passphrase, exchanged once out of band. Ordinary encrypted boxes, zero new
+  crypto.
+- **Passwordless (phase 2):** shipped but **experimental**. Per-member keys -
+  every copy is Ed25519-SIGNED by its author and sealed for each member (X25519
+  envelopes), membership is a manifest signed by one admin. Format generation 2
+  (SPEC.md section 12).
+
+  Experimental means the `selfstore/groups` API sits outside the package's
+  semver promise: it may change shape, or be withdrawn, in a minor release. No
+  application has shipped it, so it has never been tested by a second pair of
+  hands - and this is the most security-sensitive surface in the package, where
+  a contract nobody has exercised is a promise rather than a fact. The FILE is
+  not experimental: generation 2 is specified with a canonical test vector and
+  keeps the guarantee every backup gets, so what is at risk is a recompile,
+  never anyone's data.
 
 ## Why this topology
 

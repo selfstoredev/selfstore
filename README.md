@@ -193,7 +193,7 @@ too, as subpaths of the same install:
 | `selfstore/flows` | the user journeys (connect a destination, share panel, join an invitation) as headless, tested state machines | you are building the connect/share/join UI and want the ordering and failure rules - one popup per gesture, password proven before attach, merge by default - already right |
 | `selfstore/widgets` | the same journeys as drop-in web components (`<selfstore-storage>` for the whole journey in one tag, or `<selfstore-connect>`, `<selfstore-gate>`, `<selfstore-destination>`, `<selfstore-account>`, `<selfstore-share>`, `<selfstore-join>` on their own) - framework-free, themable via CSS custom properties and `::part()`, reworded/localized via a `labels` map | you want the screens ready-made and your app's look on top |
 | `selfstore/advanced` | the pull-model store (`createLocalStore`), custom `BackupTarget`s, caches, headless status derivation, functional codec | your state lives in its own reactive model (Svelte runes, Redux), or you are writing a destination (S3, your KV...) |
-| `selfstore/groups` | passwordless group encryption: per-member identities, sealed envelopes, signed membership manifests | several PEOPLE share one encrypted store without a shared password ([PEERS.md](./PEERS.md)) |
+| `selfstore/groups` **(experimental)** | passwordless group encryption: per-member identities, sealed envelopes, signed membership manifests | several PEOPLE share one encrypted store without a shared password ([PEERS.md](./PEERS.md)) - see [Stability](#stability) for what experimental costs you |
 | `selfstore/sync` | the bare merge engine (HLC + per-collection strategies, no CRDT runtime) | you only want the algorithm inside your own persistence ([SYNC docs in SPEC.md](./SPEC.md)) |
 
 `store.advanced` on the simple store IS the `selfstore/advanced` store - same
@@ -274,12 +274,12 @@ enough). Peer problems are recorded per peer on `state.peers` and never gate
 your own saves.
 
 Group crypto, two options: ONE shared passphrase (exchanged once out of band),
-or **passwordless groups** (`selfstore/groups`): a keypair per member, every
-copy Ed25519-signed by its author and sealed per recipient (X25519 envelopes),
-membership governed by an admin-signed manifest with rollback protection. The
-full model, the failure table and the operational notes live in
-[PEERS.md](./PEERS.md); the trust analysis in
-[THREAT-MODEL.md](./THREAT-MODEL.md).
+or **passwordless groups** (`selfstore/groups`, experimental - see
+[Stability](#stability)): a keypair per member, every copy Ed25519-signed by its
+author and sealed per recipient (X25519 envelopes), membership governed by an
+admin-signed manifest with rollback protection. The full model, the failure
+table and the operational notes live in [PEERS.md](./PEERS.md); the trust
+analysis in [THREAT-MODEL.md](./THREAT-MODEL.md).
 
 ## Destinations
 
@@ -445,6 +445,17 @@ For the package itself: semver, with a major reserved for a change that stops
 an app compiling or alters what it already does - a new default counts. Releases
 are deliberate and batched, not one per merge. The rules, and what the version
 history reads like, are in [RELEASING.md](./RELEASING.md).
+
+**One exception, named rather than hidden: `selfstore/groups` is
+experimental.** Its exports may change shape, or be withdrawn, in a MINOR
+release; every other entry waits for a major. The reason is evidence: no
+application has shipped that API, so it has never been tested by a second pair
+of hands, and it is the most security-sensitive surface here - a contract
+nobody has exercised is a promise, not a fact. What it does NOT put at risk is
+anyone's data: group mode is format generation 2, specified in
+[SPEC.md](./SPEC.md) section 12 with a canonical test vector, and it keeps the
+guarantee above. An app that adopts it today may have to recompile; its users'
+files stay readable forever either way.
 
 Published versions are never unpublished. A superseded one stays installable;
 the tool for a release that should not be used is `npm deprecate`, and the tool

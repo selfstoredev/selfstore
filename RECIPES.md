@@ -340,7 +340,14 @@ A keyed peer refuses a plaintext blob in its place (per-peer substitution
 guard), and the mirror's envelope is minted once, so publishing costs no
 KDF pass. Like peers, mirrors are not persisted: re-attach at boot.
 
-## 12. Passwordless group: per-member keys, no shared secret
+## 12. Passwordless group: per-member keys, no shared secret (experimental)
+
+> `selfstore/groups` is the one subpath outside the semver promise: it may
+> change shape, or be withdrawn, in a MINOR release, because no application has
+> shipped it yet. The FILE is not experimental - group mode is format
+> generation 2, specified with a canonical vector, and stays readable forever.
+> Take this recipe if the model fits and you can absorb a recompile; take
+> recipe 11 (one shared passphrase) if you cannot.
 
 Same topology as recipe 11, but nobody types or shares a passphrase: every
 copy is SIGNED by its author and sealed for each member. Membership is a

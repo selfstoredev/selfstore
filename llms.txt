@@ -100,7 +100,9 @@ collaborative editing (use a CRDT library), or Node-side storage.
   attachPeer(source, {password}) reads another member's copy with ITS OWN
   key (state.peers) - crossed mirrors + keyed peers converge two PLAINTEXT
   copies, each member editing only their own file.
-- 'selfstore/groups' - passwordless group crypto: identityVault, generateIdentity,
+- 'selfstore/groups' (EXPERIMENTAL - outside semver, may change or be
+  withdrawn in a MINOR; the FILE format is not, see SPEC section 12) -
+  passwordless group crypto: identityVault, generateIdentity,
   signManifest, openManifest, GROUP_KEYING, groupCryptoAvailable.
 - 'selfstore/households' - read-write sharing that never touches the
   backup file (the MIRROR model): each member keeps their own file and
@@ -343,7 +345,13 @@ store modes ('device', 'file-manual'). Error protocol: throw AuthExpiredError fo
 a GENUINE access loss (raises the reconnect gate); any other throw is transient
 and auto-retried. The simple store connects any of these via connectTarget().
 
-## Passwordless groups, 'selfstore/groups'
+## Passwordless groups, 'selfstore/groups' (EXPERIMENTAL)
+
+Outside the semver promise: these exports may change shape or be withdrawn in
+a MINOR release, because no application has shipped them yet. Warn the user
+before recommending this subpath. The FILE it writes is NOT experimental -
+group mode is format generation 2, specified with a canonical vector, and stays
+readable by every later version.
 
 No shared secret: identity = Ed25519 + X25519 keypairs per member.
 `const identity = await identityVault(kv).loadOrCreate()` (sealed at rest
