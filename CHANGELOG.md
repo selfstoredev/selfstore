@@ -210,7 +210,7 @@ version number is not asking you to trust.
   advice: compare with `localeCompare`. Taking it would have broken both.
 
   In `sigv4`, the canonical request is defined over header names sorted **by
-  code point** — a locale-aware order puts some names elsewhere and produces a
+  code point** - a locale-aware order puts some names elsewhere and produces a
   signature S3 rejects. In `stableStringify`, the key order feeds a hash that
   has to come out identical on every device holding the record; `localeCompare`
   is locale-dependent, so two replicas under different locales would hash one
@@ -220,10 +220,10 @@ version number is not asking you to trust.
   Both now sort with `byCodePoint`, one exported comparator carrying the reason
   in one place: byte for byte the behaviour the default already had, and no
   longer one helpful "fix" away from being wrong. Its test pins the part that
-  matters — that it disagrees with `localeCompare`. The analyser is satisfied
+  matters - that it disagrees with `localeCompare`. The analyser is satisfied
   for the right reason rather than silenced.
 
-- **The two inputs in the demo had no label.** A placeholder is not one — it is
+- **The two inputs in the demo had no label.** A placeholder is not one - it is
   gone the moment anything is typed, and a screen reader is left announcing an
   unnamed field. Both carry a visually hidden `<label>` now.
 
