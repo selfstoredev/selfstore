@@ -41,12 +41,17 @@ collaborative editing (use a CRDT library), or Node-side storage.
   defineSelfstoreWidgets() registers <selfstore-connect>, <selfstore-gate>,
   <selfstore-share>, <selfstore-join>, <selfstore-status>,
   <selfstore-backups>, <selfstore-destination>, <selfstore-storage>.
-  START WITH <selfstore-storage>: assign .store and the whole journey is wired -
+  START WITH <selfstore-storage> when the app's data means nothing until the
+  user says where it lives: assign .store and the whole journey is wired -
   it shows the gate while there is no home and the destination panel once there
   is, taking destinations (store.destinations()), the resume card
   (store.resumeOffer()) and the account (store.account) from the store itself;
   targets / manager / confirmAction / deferrable / recommended pass through to
-  the composed widgets. Framework-free
+  the composed widgets. Before a home is chosen it IS the gate, and the gate is
+  a FULL-VIEWPORT MODAL. So do NOT reach for it on a page that must work before
+  any answer (a demo, a scratchpad, a landing page): there, mount
+  <selfstore-destination> (the same panel, no modal) or <selfstore-status>, and
+  put the connect journey behind a control the user reaches deliberately. Framework-free
   custom elements over the flows; theme via
   --selfstore-* CSS custom properties and ::part() selectors; reword/localize
   via the `labels` property (partial map over EN defaults); listen to

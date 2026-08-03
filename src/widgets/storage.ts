@@ -19,6 +19,20 @@
  * a host can still mount separately, with every knob they already had. What is
  * added here is only the CHOICE between them, which follows the engine's own
  * status - the same signal the gate uses to decide whether to be on screen.
+ *
+ * WHERE IT FITS, and where it does not. Before a home is chosen this element IS
+ * the gate, and the gate is a full-viewport modal (measured: it covers the page
+ * at z-index 280 and takes focus). That is right for an app whose data means
+ * nothing until the user answers - a wallet, a record, anything the user will
+ * be told is safe - and it is the reason the question is asked once, up front,
+ * instead of hiding in a settings screen.
+ *
+ * It is wrong for a page that must work before any answer: a landing demo, a
+ * scratchpad, anything whose whole point is that you can type first. There,
+ * mount <selfstore-destination> (the panel on its own, no modal) or
+ * <selfstore-status> (one line), and offer the connect journey from a control
+ * the user reaches deliberately. Both are the same elements this one composes,
+ * so nothing is lost by starting there.
  */
 
 import type { ConnectTargets, FlowHost, StoreLike } from '../flows/connect';
