@@ -27,8 +27,10 @@ import {
 	isSupported as fileIsSupported,
 	openExisting as fileOpenExisting
 } from '../persistence/targets/file';
-import { connect as webdavConnect, type WebdavConfig } from '../persistence/targets/webdav';
-import { connect as s3Connect, type S3Config } from '../persistence/targets/s3';
+// WebDAV and S3 arrive on the gesture that uses them - see targets/servers.ts.
+import { webdavConnect, s3Connect } from '../persistence/targets/servers';
+import type { WebdavConfig } from '../persistence/targets/webdav';
+import type { S3Config } from '../persistence/targets/s3';
 import { makeMachine, toStoreError, withDeadline, type FlowStore } from './machine';
 
 export type ConnectKind = 'drive' | 'file' | 'webdav' | 's3';
