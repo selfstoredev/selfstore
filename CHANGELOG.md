@@ -87,6 +87,19 @@ version number is not asking you to trust.
 
 ### Documentation
 
+- **`<selfstore-storage>` now says where it fits, and where it does not.** The
+  README offered it as the default way in - "the whole journey in one tag" -
+  without mentioning that before a home is chosen it IS the gate, and the gate
+  is a full-viewport modal (measured: it covers the page at z-index 280 and
+  takes focus). That is right for an app whose data means nothing until the user
+  answers, and wrong for a page whose whole point is that you can type first;
+  the difference decides the element, and a reader had no way to know it before
+  mounting the thing. Both alternatives - `<selfstore-destination>` (the same
+  panel, no modal) and `<selfstore-status>` (one line) - are elements this one
+  already composes, so choosing them costs nothing. Stated in the element's own
+  doc, the README table and `llms.txt`, which now tells an agent not to reach
+  for it on a demo or a landing page.
+
 - **The file rules are stated where they can be acted on.** The README's advice
   to embed a CRDT document as a binary file did not say what happens when it is
   done with a stable id, which is data loss with no error. It now does, next to
