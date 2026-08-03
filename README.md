@@ -273,6 +273,28 @@ backup of the group), gossip is transitive (a star around one member is
 enough). Peer problems are recorded per peer on `state.peers` and never gate
 your own saves.
 
+On Google Drive, the file work that topology needs is in `driveTarget`
+(`selfstore/advanced`): `createCompanion` mints a copy file next to the backup,
+`share` / `unshare` publish it on a link and take it back, `owner` says whose
+Drive a copy lives on, and `secondary(opts, fileId)` is a read-write target over
+it whose lifecycle is its own - dropping a shared copy leaves the user's real
+backup and their Drive session alone, where `preview`'s `disconnect` would end
+both. Every failure carries a code, so a refused grant and a lost session read
+differently.
+
+```ts
+const { fileId } = await driveTarget.createCompanion({ auth, fileName: 'my copy.zip' });
+await driveTarget.share({ auth, fileId });                 // link-readable, ciphertext only
+await store.advanced.attachMirror(driveTarget.secondary({ auth, kv, fileName }, fileId),
+                                  { password: linkKey });  // republished on every save
+```
+
+What stays yours: READING another member's copy. The `drive.file` scope only
+sees files this app created or the user picked, so fetching someone else's
+link-shared file needs either the Google Picker (a gesture per file, plus a
+third-party script) or a relay you host - both app decisions, one of them a
+server. `attachPeer` takes whatever `load()` you can provide.
+
 Group crypto, two options: ONE shared passphrase (exchanged once out of band),
 or **passwordless groups** (`selfstore/groups`, experimental - see
 [Stability](#stability)): a keypair per member, every copy Ed25519-signed by its

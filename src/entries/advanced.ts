@@ -126,6 +126,11 @@ import {
 	deleteBackup as driveDeleteBackup,
 	renameBackup as driveRenameBackup,
 	account as driveAccount,
+	createCompanion as driveCreateCompanion,
+	share as driveShare,
+	unshare as driveUnshare,
+	owner as driveOwner,
+	secondary as driveSecondary,
 	FILE_ID_KEY as DRIVE_FILE_ID_KEY
 } from '../persistence/targets/drive';
 
@@ -164,7 +169,17 @@ export const s3Target = {
  *  and the backup-management ops (list the app's files with dates, create a
  *  named empty backup, rename one, delete one for good) - the raw pieces a "my
  *  backups" panel builds on. `account()` names WHICH Google account holds them,
- *  because a brand name is not an address. */
+ *  because a brand name is not an address.
+ *
+ *  The last five are the Drive side of SHARING, on companion files the app
+ *  creates next to the backup: `createCompanion` mints one, `share` publishes it
+ *  on a link, `unshare` makes it private again, `owner` says whose Drive it
+ *  lives on, and `secondary` is a read-write target over it whose lifecycle is
+ *  its own - detaching a shared copy leaves the user's real backup and their
+ *  Drive session untouched. That is what a ShareBackend needs from Drive and
+ *  what every app was rewriting; what stays yours is reading ANOTHER account's
+ *  file, which the drive.file scope cannot do without a Picker gesture or a
+ *  relay you host. */
 export const driveTarget = {
 	connect: driveConnect,
 	fromSession: driveFromSession,
@@ -176,6 +191,11 @@ export const driveTarget = {
 	deleteBackup: driveDeleteBackup,
 	renameBackup: driveRenameBackup,
 	account: driveAccount,
+	createCompanion: driveCreateCompanion,
+	share: driveShare,
+	unshare: driveUnshare,
+	owner: driveOwner,
+	secondary: driveSecondary,
 	FILE_ID_KEY: DRIVE_FILE_ID_KEY
 };
 

@@ -14,6 +14,14 @@
  * implements (where copy files live, how the bulletin is published, how
  * members announce). See the port's docs in this module; a complete in-memory
  * backend lives in the test suite as a reference.
+ *
+ * Building that port over Google Drive: `driveTarget` ('selfstore/advanced')
+ * carries the file work - `createCompanion` for a copy or a bulletin, `share` /
+ * `unshare` for the link, `owner` to label whose Drive a copy sits on,
+ * `secondary` for the read-write target the mirror publishes into, and
+ * `deleteBackup` for teardown. What is left for the app is the part that needs
+ * a server: READING another member's copy, which the drive.file scope cannot do
+ * without a Picker gesture or a relay, and the announce channel.
  */
 
 export {

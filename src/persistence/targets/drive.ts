@@ -22,6 +22,8 @@ export const FILE_ID_KEY = 'driveFileId';
 const DRIVE_UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
 const DRIVE_FILES = 'https://www.googleapis.com/drive/v3/files';
 const DRIVE_ABOUT = 'https://www.googleapis.com/drive/v3/about';
+/** Just enough of a permission to find the link grants and delete them. */
+const PERMISSION_FIELDS = encodeURIComponent('permissions(id,type)');
 
 /** A hung request must not spin forever behind a dead connection - the very
  *  "long moment trying to connect" a stuck backup shows. A deadline turns the
@@ -473,4 +475,139 @@ export async function renameBackup(opts: {
 	);
 	if (r.status === 401) throw new AuthExpiredError('Drive rejected the token (401).');
 	if (!r.ok) throw new SelfstoreError('TARGET_WRITE_FAILED', `Drive rename failed: ${r.status}`);
+}
+
+// --- Companion files: the Drive side of sharing ------------------------------
+//
+// Everything above operates on the user's OWN backup. Sharing needs a second
+// kind of file: a companion the app creates NEXT TO the backup, publishes on a
+// link, and tears down on its own schedule - a member's published copy, an
+// invitation others read before they join.
+//
+// These four calls plus `secondary()` are that whole Drive side. They are here
+// rather than in a consumer because every app that shares over Drive was
+// writing them again, and getting the error protocol wrong on the way: a bare
+// `throw new Error('Drive share failed: 403')` carries no code, so the store
+// cannot tell a lost session from a bad moment, and the app cannot word it.
+//
+// What is deliberately NOT here: reading another account's file. The
+// `drive.file` scope only sees files this app created or the user picked, so a
+// member cannot fetch a link-shared copy from another Drive without either the
+// Google Picker (a user gesture per file, plus a third-party script) or a relay
+// the app hosts. Both are the app's decision, and one of them is a server -
+// this library will not pick either for you. `attachPeer` takes whatever
+// `load()` you can provide.
+
+/** Create an EMPTY companion file in the user's Drive and answer its id.
+ *
+ *  Unlike `createBackup`, it does not refuse a duplicate name: several members
+ *  of several groups can legitimately hold identically named copies, and the id
+ *  is the handle everywhere. The caller remembers the id; nothing here does. */
+export async function createCompanion(opts: {
+	auth: DriveAuth;
+	fileName: string;
+}): Promise<{ fileId: string }> {
+	return { fileId: await createFile(await opts.auth.token(), opts.fileName) };
+}
+
+/** Make a file readable by ANYONE holding its link - the capability-link model:
+ *  the file carries ciphertext only, the key travels in the link's fragment, so
+ *  the LINK is the capability and the recipient needs no Google account.
+ *
+ *  Idempotent from the caller's side: Drive accepts a second identical grant.
+ *  Publish an ENCRYPTED file, always - this hands the bytes to whoever has the
+ *  URL, including whoever it gets forwarded to. */
+export async function share(opts: { auth: DriveAuth; fileId: string }): Promise<void> {
+	const r = await driveFetch(opts.auth, (token) =>
+		fetch(`${DRIVE_FILES}/${opts.fileId}/permissions?fields=id`, {
+			method: 'POST',
+			headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+			body: JSON.stringify({ role: 'reader', type: 'anyone' }),
+			signal: AbortSignal.timeout(META_DEADLINE_MS)
+		})
+	);
+	if (r.status === 401) throw new AuthExpiredError('Drive rejected the token (401).');
+	if (!r.ok) throw new SelfstoreError('TARGET_WRITE_FAILED', `Drive share failed: ${r.status}`);
+}
+
+/** Undo `share`: drop every link-reader grant, so the file is private again.
+ *  Named grants (people invited individually) are left alone - this revokes the
+ *  capability, not the invitations.
+ *
+ *  Call it BEFORE any plaintext rewrite of a file that was shared: a decrypted
+ *  copy must never stay link-readable for even one save. A file already private
+ *  is success, not an error. */
+export async function unshare(opts: { auth: DriveAuth; fileId: string }): Promise<void> {
+	const list = await driveFetch(opts.auth, (token) =>
+		fetch(`${DRIVE_FILES}/${opts.fileId}/permissions?fields=${PERMISSION_FIELDS}`, {
+			headers: { Authorization: `Bearer ${token}` },
+			signal: AbortSignal.timeout(META_DEADLINE_MS)
+		})
+	);
+	if (list.status === 401) throw new AuthExpiredError('Drive rejected the token (401).');
+	if (list.status === 404) return; // gone is private enough
+	if (!list.ok) {
+		throw new SelfstoreError('TARGET_UNAVAILABLE', `Drive permissions failed: ${list.status}`);
+	}
+	const data: { permissions?: { id: string; type: string }[] } = await list.json();
+	for (const p of data.permissions ?? []) {
+		if (p.type !== 'anyone') continue;
+		const r = await driveFetch(opts.auth, (token) =>
+			fetch(`${DRIVE_FILES}/${opts.fileId}/permissions/${p.id}`, {
+				method: 'DELETE',
+				headers: { Authorization: `Bearer ${token}` },
+				signal: AbortSignal.timeout(META_DEADLINE_MS)
+			})
+		);
+		if (r.status === 401) throw new AuthExpiredError('Drive rejected the token (401).');
+		if (!r.ok && r.status !== 404) {
+			throw new SelfstoreError('TARGET_WRITE_FAILED', `Drive revoke failed: ${r.status}`);
+		}
+	}
+}
+
+/** Which account OWNS a file - not which one this session belongs to (that is
+ *  `account()`). Used to label a copy that lives on somebody else's Drive: a
+ *  member's published copy is "Google Drive" for everyone, and only the owner's
+ *  address says whose.
+ *
+ *  Best-effort by design: a file that will not say answers nulls rather than
+ *  throwing, because a missing label must never break a sync round. A genuinely
+ *  lost session still throws, like every other call here. */
+export async function owner(opts: { auth: DriveAuth; fileId: string }): Promise<DriveAccount> {
+	const fields = encodeURIComponent('owners(displayName,emailAddress)');
+	const r = await driveFetch(opts.auth, (token) =>
+		fetch(`${DRIVE_FILES}/${opts.fileId}?fields=${fields}`, {
+			headers: { Authorization: `Bearer ${token}` },
+			signal: AbortSignal.timeout(META_DEADLINE_MS)
+		})
+	);
+	if (r.status === 401) throw new AuthExpiredError('Drive rejected the token (401).');
+	if (!r.ok) return { email: null, name: null };
+	const data: { owners?: { displayName?: string; emailAddress?: string }[] } = await r.json();
+	const first = data.owners?.[0];
+	return { email: first?.emailAddress ?? null, name: first?.displayName ?? null };
+}
+
+/** A read-WRITE target over one companion file, for a store mirror or replica.
+ *
+ *  `preview()` also binds a target to a given id, and its save() works - but its
+ *  name says read-only and its `disconnect()` belongs to the primary
+ *  connection: it calls `auth.forget()` and may drop the remembered backup id,
+ *  which is right when the user is leaving Drive and catastrophic when they are
+ *  only dropping a shared copy. This one detaches nothing but itself, and
+ *  carries its own `kind` so a store that persists it never mistakes it for the
+ *  primary destination.
+ *
+ *  Deleting the file is `deleteBackup({ auth, fileId })`; making it private
+ *  again is `unshare`. Do both, in that order, when a member leaves. */
+export function secondary(opts: DriveOptions, fileId: string): BackupTarget {
+	return {
+		...makeTarget(opts, fileId),
+		kind: 'drive-companion',
+		label: 'Google Drive (shared copy)',
+		// The companion's life is its own: leaving a share must not forget the
+		// Drive session the user's real backup still rides on.
+		disconnect: async (): Promise<void> => {}
+	};
 }

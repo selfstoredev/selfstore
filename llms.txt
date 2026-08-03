@@ -345,6 +345,20 @@ the store's restoreTarget option):
   listBackups({ auth, nameContains? }) / createBackup({ auth, fileName }) /
   renameBackup({ auth, fileId, fileName }) / deleteBackup({ auth, fileId }) -
   create and rename refuse a name another owned file carries.
+  SHARING over Drive, on companion files created NEXT TO the backup:
+  createCompanion({ auth, fileName }) -> { fileId } (no duplicate-name refusal,
+  two members may hold identically named copies) / share({ auth, fileId })
+  (anyone-with-the-link READER; publish ciphertext only) /
+  unshare({ auth, fileId }) (drops every link grant, keeps named ones; call it
+  BEFORE any plaintext rewrite) / owner({ auth, fileId }) -> { email, name }
+  (whose Drive a copy lives on; nulls rather than throwing when Drive will not
+  say) / secondary({ auth, kv, fileName }, fileId) -> BackupTarget, read-write
+  over that file with kind 'drive-companion' and a disconnect() that forgets
+  NEITHER the Drive session NOR the backup id - use it for attachMirror, never
+  preview() (whose disconnect ends the primary connection). Teardown = unshare
+  then deleteBackup, in that order. NOT provided, because it needs a server or a
+  gesture: reading ANOTHER account's link-shared file (drive.file only sees what
+  this app created or the user picked) - supply your own load() to attachPeer.
 Custom targets: implement BackupTarget with any `kind` string except the reserved
 store modes ('device', 'file-manual'). Error protocol: throw AuthExpiredError for
 a GENUINE access loss (raises the reconnect gate); any other throw is transient
