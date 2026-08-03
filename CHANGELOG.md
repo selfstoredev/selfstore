@@ -16,6 +16,35 @@ version number is not asking you to trust.
 
 ### Added
 
+- **The Drive side of sharing, in the library: `driveTarget.createCompanion`,
+  `.share`, `.unshare`, `.owner` and `.secondary`.** The peer topology - each
+  member publishes their own copy and reads the others' - needs five things from
+  Drive that the target did not offer: mint a companion file next to the backup,
+  publish it on a link, take that back, name whose Drive a copy sits on, and
+  write to it. Every app doing this was writing all five again.
+
+  Writing them again was not only repetition. The versions that grew in apps
+  throw `new Error('Drive share failed: 403')` - no code, so the store cannot
+  tell a lost session from a bad moment and the app cannot word it. These follow
+  the same protocol as the rest of the target: `AuthExpiredError` for a genuine
+  loss (and only after the stale-token retry), `TARGET_WRITE_FAILED` for a
+  refusal, `TARGET_UNAVAILABLE` for a metadata read that did not land.
+
+  `secondary(opts, fileId)` exists because `preview(opts, fileId)` was the near
+  miss: it binds a target to a given file and its `save()` works, but its name
+  says read-only and its `disconnect()` belongs to the primary connection - it
+  calls `auth.forget()` and can drop the remembered backup id. Right when the
+  user is leaving Drive; catastrophic when they are only dropping a shared copy.
+  The new one detaches nothing but itself and carries `kind: 'drive-companion'`,
+  so a store that persists it never mistakes it for the destination.
+
+  What is deliberately NOT here: reading ANOTHER account's link-shared file. The
+  `drive.file` scope only sees files this app created or the user picked, so it
+  takes either the Google Picker (a gesture per file, plus a third-party script)
+  or a relay the app hosts - one of which is a server, and neither is a choice
+  this library gets to make for you. `attachPeer` takes whatever `load()` you
+  can provide.
+
 - **Files on the simple store: `putFile`, `getFile`, `allFiles`, `removeFile`.**
   Bytes already rode along in every save, backup and merge, but only an app on
   the advanced store could put them there - the facade carried them and offered
