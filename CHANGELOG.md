@@ -50,6 +50,43 @@ version number is not asking you to trust.
   that was offline re-contributes files another device removed - tie a file's
   lifetime to a record and let the record's deletion drive the cleanup.
 
+- **CRYPTO-RATIONALE.md: every cryptographic decision, with the alternative it
+  rejected and why.** The project could already prove a great deal about the
+  FILE - a normative spec, canonical vectors, an independent Python reader run
+  on every change, a published threat model. About the CRYPTOGRAPHY it could
+  prove nothing, because the design was written and reviewed by the same
+  person, and no document existed that a reviewer could argue with. Reading
+  intent out of implementation is work nobody does for free, which made "it
+  looks fine" the only affordable review.
+
+  So the rationale states each choice against its alternatives: AES-256-GCM
+  over XChaCha20-Poly1305 and AES-GCM-SIV (both better on nonces, both a
+  dependency WebCrypto does not carry), Argon2id over PBKDF2 (the one place
+  where "only what WebCrypto ships" was overridden, and one of the library's
+  three runtime dependencies), HKDF rather than Argon2 for external-key slots
+  (stretching a 32-byte passkey PRF output buys nothing), and the age
+  recipient model for groups. It also does the arithmetic a reviewer would ask
+  for rather than assuming it: random 96-bit nonces under a long-lived data key
+  put a collision at roughly 2^-37 after a billion saves.
+
+  Two admissions it makes rather than hides: GCM is not key-committing and the
+  multi-slot open path is where that could matter, and the header is
+  authenticated only for a reader who already holds the key - so the rule for
+  applications is not "the header is unauthenticated" but the sharper "the
+  header is not trustworthy at the moment you are tempted to use it". It closes
+  with the five places its author would attack first, in order.
+
+- **SECURITY.md said "Pre-1.0"** while the package was at 1.8.20 - the first
+  thing a security researcher reads, describing a project that stopped existing
+  eight minors ago. It now states the real policy (fixes land on the latest
+  published version, out of cadence when severity demands, with `npm deprecate`
+  on the vulnerable one since nothing is ever unpublished) and asks explicitly
+  for cryptographic review, pointing at the rationale as the entry point.
+
+- A comment in `crypto.ts` credited the AAD binding to "format 5", a generation
+  that does not exist. It is generation 3. Wrong in the one layer where a
+  reader is deciding whether to trust the author's attention.
+
 ### Security
 
 - **A replica whose clock cannot be real is now refused instead of merged.**

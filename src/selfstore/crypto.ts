@@ -128,11 +128,12 @@ export async function openSlot(slot: PasswordSlot, password: string): Promise<Ui
 // --- Authenticated envelope (format 3) data seal -----------------------------
 
 /**
- * Seal the inner ZIP under the data key with the header bytes as AAD. Format
- * 5 passes the exact meta.json bytes here, which binds the slot table to the
- * ciphertext: write access to the file is not enough to strip or swap a key
- * slot without breaking the tag. The caller generates the iv (it rides in
- * meta.json, hence inside the AAD) so seal and open agree byte for byte.
+ * Seal the inner ZIP under the data key with the header bytes as AAD.
+ * Generation 3 passes the exact meta.json bytes here, which binds the slot
+ * table to the ciphertext: write access to the file is not enough to strip or
+ * swap a key slot without breaking the tag. The caller generates the iv (it
+ * rides in meta.json, hence inside the AAD) so seal and open agree byte for
+ * byte.
  */
 export async function gcmSealAad(
 	key32: Uint8Array,
