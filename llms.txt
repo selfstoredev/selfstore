@@ -133,6 +133,24 @@ collaborative editing (use a CRDT library), or Node-side storage.
     await store.clear('todos');
     store.onChange(render);             // local writes AND external merges; returns unsubscribe
 
+    // Bytes, in the same store / backup / merge. The id DEFAULTS to the
+    // SHA-256 of the bytes - keep that default.
+    const fid = await store.putFile({ bytes, name: 'scan.pdf', mime: 'application/pdf' });
+    store.getFile(fid);                 // { id, name, mime, bytes } or undefined
+    store.allFiles();                   // readonly array
+    await store.removeFile(fid);
+
+Files are merged by a UNION ON ID with no clock, so two devices holding
+different bytes under one id lose one of them silently - hence the content-hash
+default, which puts different bytes on different ids. putFile REFUSES different
+bytes under an id you named (identical bytes: no-op); `{ replace: true }` is the
+explicit opt-out, correct only for a body written on one device. File DELETIONS
+do not propagate: tie a file's lifetime to a record.
+
+This is also how a CRDT rides along: store Yjs/Automerge UPDATES under content
+ids and the union IS the merge (updates are commutative and idempotent); fold
+them with applyUpdate at load. See examples/yjs-document.ts.
+
 The store OWNS the data (collections of plain JSON records). Auto-wired in
 browsers: IndexedDB cache named after the app, debounced auto-save, save on
 tab hide, converge on tab focus / network return / a slow interval. In

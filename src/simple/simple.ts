@@ -35,6 +35,7 @@ import type { ConnectTargets, ResumeOffer } from '../flows/connect';
 import type { BackupsManager } from '../backups/manager';
 import type { Snapshot, SnapshotFile } from '../selfstore/types';
 import { SelfstoreError } from '../selfstore/errors';
+import { sha256Hex } from '../selfstore/digest';
 import { restore, type PasswordPolicy } from '../selfstore';
 import { saveToDisk } from '../selfstore/targets/local';
 import {
@@ -59,6 +60,21 @@ import { connect as s3Connect, type S3Config } from '../persistence/targets/s3';
 /** A record as the simple store sees it: plain JSON with a string id (the id
  *  field name can be remapped per collection via `sync.ids`). */
 export type SimpleRecord = Record<string, unknown>;
+
+/** What a file body may be handed in as. */
+export type FileBytes = Uint8Array | ArrayBuffer | Blob;
+
+/** A file on its way into the store. Omit `id` to get the content hash, which
+ *  is the id that makes the multi-device union safe - see `putFile`. */
+export interface PutFileInput {
+	/** Defaults to the SHA-256 of the bytes. */
+	id?: string;
+	/** Defaults to the id. Cosmetic: nothing keys on it. */
+	name?: string;
+	/** Defaults to 'application/octet-stream'. */
+	mime?: string;
+	bytes: FileBytes;
+}
 
 /** Unlock callback for the ultra-sensitive cacheLock mode: return the session
  *  secret - a password (Argon2id-derived) or an app-provided key (e.g. a passkey
@@ -141,6 +157,35 @@ export interface SimpleStore<
 	/** Called after any data change: your writes, another tab, another device,
 	 *  a restore. Returns an unsubscribe. */
 	onChange(fn: () => void): () => void;
+
+	// --- Your files (bytes that ride along in the same backup) --------------
+	/** Every file (treat as read-only; write via putFile/removeFile). */
+	allFiles(): readonly SnapshotFile[];
+	/** One file by id, or undefined. */
+	getFile(id: string): SnapshotFile | undefined;
+	/**
+	 * Store bytes alongside the collections and return the file's id.
+	 *
+	 * Files are **immutable per id**. The multi-device merge unions them by id
+	 * and has no clock to order two bodies, so when two devices hold DIFFERENT
+	 * bytes under one id, one is kept and the other is dropped - with no
+	 * conflict reported, because at that level there is nothing to compare.
+	 *
+	 * Hence the default id: the SHA-256 of the bytes. Different bytes land on
+	 * different ids and the union keeps both, which is what makes a CRDT
+	 * document (Yjs, Automerge) safe to carry here - store its UPDATES, let the
+	 * union collect them, fold them at load. Tie a file's lifetime to a record
+	 * so deleting the record tells you which files to remove.
+	 *
+	 * Naming the id yourself puts that rule in your hands: identical bytes
+	 * under an existing id are a no-op, different bytes are refused with a
+	 * TypeError. `{ replace: true }` does it anyway - right for a body only
+	 * ever written on one device (a thumbnail, a rendered export), a silent
+	 * loser as soon as two devices write it.
+	 */
+	putFile(file: PutFileInput, opts?: { replace?: boolean }): Promise<string>;
+	/** Delete one file by id (propagates to other devices). Unknown id: no-op. */
+	removeFile(id: string): Promise<void>;
 
 	// --- Where it lives ----------------------------------------------------
 	/** Connect Google Drive as the durable home. An existing backup there is
@@ -285,6 +330,18 @@ function requireStringId(record: SimpleRecord, field: string | null, collection:
 	return id;
 }
 
+/** Blob and ArrayBuffer are accepted because that is what a picker, a fetch and
+ *  a canvas hand back; the snapshot only ever holds Uint8Array. */
+async function toBytes(input: FileBytes): Promise<Uint8Array> {
+	if (input instanceof Uint8Array) return input;
+	if (input instanceof ArrayBuffer) return new Uint8Array(input);
+	return new Uint8Array(await input.arrayBuffer());
+}
+
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+	return a.length === b.length && a.every((v, i) => v === b[i]);
+}
+
 /** True when a browser IndexedDB is available (SSR and plain Node lack it). */
 function hasIndexedDb(): boolean {
 	return typeof indexedDB !== 'undefined';
@@ -377,8 +434,8 @@ export async function selfstore<
 	// into it on restores/folds (apply); the facade's mutators edit it in place
 	// copy-on-write and schedule a save.
 	let collections: Record<string, SimpleRecord[]> = {};
-	// Binary files ride along untouched (a backup that carries them keeps them);
-	// managing them is an advanced-store concern.
+	// Binary files: written through putFile/removeFile, and carried untouched
+	// through every save, backup and merge whoever wrote them.
 	let files: SnapshotFile[] = [];
 
 	const dataSubs = new Set<() => void>();
@@ -506,6 +563,13 @@ export async function selfstore<
 		return Promise.resolve();
 	}
 
+	function mutateFiles(next: SnapshotFile[]): Promise<void> {
+		files = next;
+		emitData();
+		store.schedule();
+		return Promise.resolve();
+	}
+
 	async function connectTarget(
 		target: BackupTarget,
 		opts: { password?: string } = {}
@@ -587,6 +651,50 @@ export async function selfstore<
 		onChange(fn: () => void): () => void {
 			dataSubs.add(fn);
 			return () => dataSubs.delete(fn);
+		},
+
+		allFiles(): readonly SnapshotFile[] {
+			return files;
+		},
+		getFile(id: string): SnapshotFile | undefined {
+			return files.find((f) => f.id === id);
+		},
+		async putFile(file: PutFileInput, opts: { replace?: boolean } = {}): Promise<string> {
+			const bytes = await toBytes(file.bytes);
+			const id = file.id ?? (await sha256Hex(bytes));
+			if (typeof id !== 'string' || id.length === 0) {
+				throw new TypeError(
+					`selfstore: a file needs a non-empty STRING id (got ${JSON.stringify(file.id)}), ` +
+						`or omit it to get the content hash.`
+				);
+			}
+			const at = files.findIndex((f) => f.id === id);
+			// Same bytes under the same id is the normal case for a content id -
+			// re-putting an unchanged body must not schedule a save.
+			if (at !== -1 && !opts.replace) {
+				if (sameBytes(files[at].bytes, bytes)) return id;
+				throw new TypeError(
+					`selfstore: file "${id}" already holds different bytes. Files are immutable per id ` +
+						`because the multi-device merge unions them by id and cannot order two bodies: ` +
+						`the other device's copy would be dropped in silence. Omit the id to get a ` +
+						`content-addressed one, or pass { replace: true } if this file is only ever ` +
+						`written on one device.`
+				);
+			}
+			const entry: SnapshotFile = {
+				id,
+				name: file.name ?? id,
+				mime: file.mime ?? 'application/octet-stream',
+				bytes
+			};
+			await mutateFiles(
+				at === -1 ? [...files, entry] : files.map((f, i) => (i === at ? entry : f))
+			);
+			return id;
+		},
+		removeFile(id: string): Promise<void> {
+			const next = files.filter((f) => f.id !== id);
+			return next.length === files.length ? Promise.resolve() : mutateFiles(next);
 		},
 
 		async connectDrive(auth: DriveAuth, opts?: { password?: string }): Promise<ConnectOutcome> {
