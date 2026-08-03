@@ -19,6 +19,7 @@
 
 import { type Hlc, issue, max, compare, createNode, hlcWall, driftedAhead } from './hlc';
 import { SelfstoreError } from '../selfstore/errors';
+import { byCodePoint } from '../ordering';
 
 export type { Hlc } from './hlc';
 export type Id = string;
@@ -78,7 +79,7 @@ function stableStringify(v: unknown): string {
 	return (
 		'{' +
 		Object.keys(o)
-			.sort()
+			.sort(byCodePoint)
 			.map((k) => JSON.stringify(k) + ':' + stableStringify(o[k]))
 			.join(',') +
 		'}'

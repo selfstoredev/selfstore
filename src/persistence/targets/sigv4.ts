@@ -9,6 +9,7 @@
 // browser will send - and never try to set the header.
 
 import { hex, sha256Hex } from '../../selfstore/digest';
+import { byCodePoint } from '../../ordering';
 
 const encoder = new TextEncoder();
 
@@ -91,7 +92,9 @@ export async function signS3(input: SignS3Input): Promise<SignedS3Request> {
 	for (const [name, value] of Object.entries(input.extraHeaders ?? {})) {
 		headers[name.toLowerCase()] = value;
 	}
-	const signedNames = Object.keys(headers).sort();
+	// BY CODE POINT: that is what the canonical request is defined over, and a
+	// locale-aware order produces a signature the service rejects. See ordering.
+	const signedNames = Object.keys(headers).sort(byCodePoint);
 	const canonicalHeaders = signedNames.map((n) => `${n}:${headers[n].trim()}\n`).join('');
 	const signedHeaders = signedNames.join(';');
 

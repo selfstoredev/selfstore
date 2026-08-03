@@ -181,6 +181,19 @@
 				font-size: 0.85rem;
 				margin: 0.4rem 0 0;
 			}
+			/* Named for a screen reader, invisible on screen: the placeholder
+			   disappears the moment anything is typed, so it was never a label. */
+			.sr-only {
+				position: absolute;
+				width: 1px;
+				height: 1px;
+				padding: 0;
+				margin: -1px;
+				overflow: hidden;
+				clip-path: inset(50%);
+				white-space: nowrap;
+				border: 0;
+			}
 		</style>
 	</head>
 	<body>
@@ -196,6 +209,7 @@
 			</div>
 
 			<div class="row">
+				<label class="sr-only" for="new">Note</label>
 				<input type="text" id="new" placeholder="Write a note, press Enter" autocomplete="off" />
 				<button class="primary" id="add">Add</button>
 			</div>
@@ -210,6 +224,7 @@
 				</p>
 				<selfstore-connect id="connect"></selfstore-connect>
 				<div class="row">
+					<label class="sr-only" for="pw">Backup password</label>
 					<input type="text" id="pw" placeholder="Backup password" autocomplete="off" disabled />
 					<button id="protect" disabled>Encrypt backup</button>
 				</div>

@@ -118,6 +118,28 @@ version number is not asking you to trust.
 
 ### Fixed
 
+- **Two orderings that must never be locale-aware now say so.** The static
+  analysis on `main` was red on a bare `.sort()` in two places, with the usual
+  advice: compare with `localeCompare`. Taking it would have broken both.
+
+  In `sigv4`, the canonical request is defined over header names sorted **by
+  code point** — a locale-aware order puts some names elsewhere and produces a
+  signature S3 rejects. In `stableStringify`, the key order feeds a hash that
+  has to come out identical on every device holding the record; `localeCompare`
+  is locale-dependent, so two replicas under different locales would hash one
+  unchanged record two ways and each would read the other as an edit. In a sync
+  library that is silent data corruption, not a lint warning.
+
+  Both now sort with `byCodePoint`, one exported comparator carrying the reason
+  in one place: byte for byte the behaviour the default already had, and no
+  longer one helpful "fix" away from being wrong. Its test pins the part that
+  matters — that it disagrees with `localeCompare`. The analyser is satisfied
+  for the right reason rather than silenced.
+
+- **The two inputs in the demo had no label.** A placeholder is not one — it is
+  gone the moment anything is typed, and a screen reader is left announcing an
+  unnamed field. Both carry a visually hidden `<label>` now.
+
 - **Dimmed text in the widgets was under the contrast minimum on a light page.**
   `--selfstore-muted` defaults to an alpha over the host's own ink, and 55% of a
   near-black ink composited on white lands at **3.99:1** - below the 4.5:1 that
