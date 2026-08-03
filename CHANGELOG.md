@@ -63,6 +63,28 @@ version number is not asking you to trust.
   `webdavTarget` and `s3Target` namespaces on `selfstore/advanced` stay static:
   naming one of those IS the opt-in.
 
+- **`selfstore/groups` is now marked EXPERIMENTAL**, and it is the only entry
+  that is: its exports may change shape, or be withdrawn, in a MINOR release,
+  while every other subpath keeps waiting for a major.
+
+  The reason is evidence rather than doubt about the cryptography. No
+  application has shipped that API, so its shape has never been tested by a
+  second pair of hands - and it is the most security-sensitive surface in the
+  package, where a contract nobody has exercised is a promise rather than a
+  fact. A stability promise made on nothing is worth less than an honest
+  warning, and this one was being made silently by omission.
+
+  Nothing about the format changes, and nothing an adopter already wrote stops
+  working. Group mode is format generation 2, specified in SPEC.md section 12
+  with a canonical `group.zip` vector, and it keeps the guarantee every backup
+  gets: what any version writes, every later version reads. What is at risk is
+  a recompile, never anyone's data. The shared-passphrase mode (recipe 11) is
+  unaffected and stays fully covered.
+
+- **PEERS.md placed passwordless groups in "format generation 3"**; they are
+  generation 2 (3 is the password-envelope). A wrong generation number in the
+  document a reviewer reads to decide whether the author is paying attention.
+
 ### Documentation
 
 - **The file rules are stated where they can be acted on.** The README's advice
