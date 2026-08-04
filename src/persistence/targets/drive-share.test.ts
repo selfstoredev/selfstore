@@ -11,8 +11,7 @@ import {
 	share,
 	unshare,
 	FILE_ID_KEY,
-	type DriveAuth,
-	type DriveOptions
+	type DriveAuth
 } from './drive';
 import { isAuthExpired, isSelfstoreError } from '../../selfstore';
 import type { KV } from '../cache';
@@ -167,11 +166,8 @@ describe('owner()', () => {
 });
 
 describe('secondary(): a target whose lifecycle is its own', () => {
-	const options = (a: DriveAuth, kv: KV): DriveOptions => ({
-		auth: a,
-		kv,
-		fileName: 'backup.zip'
-	});
+	// No fileName: a target bound to an id never searches or creates by name.
+	const options = (a: DriveAuth, kv: KV): { auth: DriveAuth; kv: KV } => ({ auth: a, kv });
 
 	it('writes to the file it was given, not to the connected backup', async () => {
 		const { kv } = memKV({ [FILE_ID_KEY]: 'my-backup' });

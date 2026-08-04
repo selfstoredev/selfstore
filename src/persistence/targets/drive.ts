@@ -601,9 +601,12 @@ export async function owner(opts: { auth: DriveAuth; fileId: string }): Promise<
  *
  *  Deleting the file is `deleteBackup({ auth, fileId })`; making it private
  *  again is `unshare`. Do both, in that order, when a member leaves. */
-export function secondary(opts: DriveOptions, fileId: string): BackupTarget {
+export function secondary(opts: { auth: DriveAuth; kv: KV }, fileId: string): BackupTarget {
+	// No fileName: a target bound to an id never searches or creates by name, so
+	// asking for one would be a required argument that is read nowhere - and the
+	// first caller would have to invent a value to satisfy it.
 	return {
-		...makeTarget(opts, fileId),
+		...makeTarget({ ...opts, fileName: '' }, fileId),
 		kind: 'drive-companion',
 		label: 'Google Drive (shared copy)',
 		// The companion's life is its own: leaving a share must not forget the
