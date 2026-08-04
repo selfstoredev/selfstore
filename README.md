@@ -276,7 +276,7 @@ your own saves.
 On Google Drive, the file work that topology needs is in `driveTarget`
 (`selfstore/advanced`): `createCompanion` mints a copy file next to the backup,
 `share` / `unshare` publish it on a link and take it back, `owner` says whose
-Drive a copy lives on, and `secondary(opts, fileId)` is a read-write target over
+Drive a copy lives on, and `secondary({ auth, kv }, fileId)` is a read-write target over
 it whose lifecycle is its own - dropping a shared copy leaves the user's real
 backup and their Drive session alone, where `preview`'s `disconnect` would end
 both. Every failure carries a code, so a refused grant and a lost session read
@@ -285,7 +285,7 @@ differently.
 ```ts
 const { fileId } = await driveTarget.createCompanion({ auth, fileName: 'my copy.zip' });
 await driveTarget.share({ auth, fileId });                 // link-readable, ciphertext only
-await store.advanced.attachMirror(driveTarget.secondary({ auth, kv, fileName }, fileId),
+await store.advanced.attachMirror(driveTarget.secondary({ auth, kv }, fileId),
                                   { password: linkKey });  // republished on every save
 ```
 

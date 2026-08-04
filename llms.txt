@@ -352,7 +352,7 @@ the store's restoreTarget option):
   unshare({ auth, fileId }) (drops every link grant, keeps named ones; call it
   BEFORE any plaintext rewrite) / owner({ auth, fileId }) -> { email, name }
   (whose Drive a copy lives on; nulls rather than throwing when Drive will not
-  say) / secondary({ auth, kv, fileName }, fileId) -> BackupTarget, read-write
+  say) / secondary({ auth, kv }, fileId) -> BackupTarget, read-write
   over that file with kind 'drive-companion' and a disconnect() that forgets
   NEITHER the Drive session NOR the backup id - use it for attachMirror, never
   preview() (whose disconnect ends the primary connection). Teardown = unshare

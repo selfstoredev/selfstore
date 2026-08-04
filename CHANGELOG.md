@@ -30,13 +30,17 @@ version number is not asking you to trust.
   loss (and only after the stale-token retry), `TARGET_WRITE_FAILED` for a
   refusal, `TARGET_UNAVAILABLE` for a metadata read that did not land.
 
-  `secondary(opts, fileId)` exists because `preview(opts, fileId)` was the near
-  miss: it binds a target to a given file and its `save()` works, but its name
-  says read-only and its `disconnect()` belongs to the primary connection - it
-  calls `auth.forget()` and can drop the remembered backup id. Right when the
-  user is leaving Drive; catastrophic when they are only dropping a shared copy.
-  The new one detaches nothing but itself and carries `kind: 'drive-companion'`,
-  so a store that persists it never mistakes it for the destination.
+  `secondary({ auth, kv }, fileId)` exists because `preview(opts, fileId)` was
+  the near miss: it binds a target to a given file and its `save()` works, but
+  its name says read-only and its `disconnect()` belongs to the primary
+  connection - it calls `auth.forget()` and can drop the remembered backup id.
+  Right when the user is leaving Drive; catastrophic when they are only dropping
+  a shared copy. The new one detaches nothing but itself and carries `kind:
+  'drive-companion'`, so a store that persists it never mistakes it for the
+  destination. It takes `{ auth, kv }` rather than the target's usual
+  `DriveOptions`: a target bound to an id never searches or creates by name, so
+  a `fileName` would be a required argument read nowhere - the first caller
+  would have had to invent a value to satisfy it.
 
   What is deliberately NOT here: reading ANOTHER account's link-shared file. The
   `drive.file` scope only sees files this app created or the user picked, so it
