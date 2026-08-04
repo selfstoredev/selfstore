@@ -4,7 +4,7 @@
 
 Please do NOT open a public issue for a security problem. Report it privately
 via GitHub's "Report a vulnerability" (Security tab of this repository), or by
-email to florian.mousseau@gmail.com. You will get an acknowledgement within a
+email to contact@selfstore.dev. You will get an acknowledgement within a
 few days; a fix and coordinated disclosure follow as fast as severity demands.
 
 ## Reviewing the cryptography
