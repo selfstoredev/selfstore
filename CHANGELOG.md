@@ -178,6 +178,13 @@ version number is not asking you to trust.
   that does not exist. It is generation 3. Wrong in the one layer where a
   reader is deciding whether to trust the author's attention.
 
+- **SECURITY.md and CODE_OF_CONDUCT.md asked people to write to a personal
+  mailbox.** The two files a researcher and a contributor read first named an
+  individual rather than the project - an address that cannot be delegated,
+  rotated, or read by anyone else the day it matters. Both now point at
+  `contact@selfstore.dev`, which exists and delivers. The personal address
+  stays where it belongs, as the commit author.
+
 ### Security
 
 - **A published tag is now immutable, and a release refuses to publish a tag
