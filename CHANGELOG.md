@@ -14,6 +14,8 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+## [1.8.21] - 2026-08-05
+
 ### Added
 
 - **A skill, so an assistant writes selfstore code that runs the first time.**
