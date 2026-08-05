@@ -80,7 +80,8 @@
 	},
 	"files": [
 		"dist",
-		"llms.txt"
+		"llms.txt",
+		"skills"
 	],
 	"scripts": {
 		"build": "tsup",
@@ -90,9 +91,10 @@
 		"lint": "eslint . --max-warnings 0",
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
+		"skill": "node scripts/skill.mjs",
 		"knip": "knip",
 		"dup": "jscpd src --format typescript,javascript --ignore \"**/*.test.ts\" --threshold 3",
-		"gate": "npm run format:check && npm run lint && npm run typecheck && npm run knip && npm run dup && npm run test:coverage",
+		"gate": "npm run format:check && npm run lint && npm run typecheck && npm run skill && npm run knip && npm run dup && npm run test:coverage",
 		"prepare": "simple-git-hooks",
 		"prepublishOnly": "npm run typecheck && npm test && npm run build",
 		"consumers": "node scripts/verify-consumers.mjs"

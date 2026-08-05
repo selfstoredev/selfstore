@@ -1,0 +1,12 @@
+{
+	"name": "selfstore",
+	"version": "1.8.20",
+	"description": "Local-first storage for a browser app: an IndexedDB working copy, a portable encrypted ZIP backup the user owns, and a serverless multi-device merge.",
+	"author": {
+		"name": "Florian Mousseau",
+		"url": "https://selfstore.dev"
+	},
+	"homepage": "https://selfstore.dev",
+	"repository": "https://github.com/selfstoredev/selfstore",
+	"license": "MIT"
+}

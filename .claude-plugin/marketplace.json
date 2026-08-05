@@ -1,0 +1,20 @@
+{
+	"name": "selfstore",
+	"owner": {
+		"name": "Florian Mousseau",
+		"url": "https://selfstore.dev"
+	},
+	"description": "The selfstore skill: local-first storage for a browser app, with no server and no account.",
+	"plugins": [
+		{
+			"name": "selfstore",
+			"source": "./",
+			"description": "Give a browser app saving, backup, restore and multi-device sync with no server: an IndexedDB working copy and a portable encrypted ZIP the user owns.",
+			"homepage": "https://selfstore.dev",
+			"repository": "https://github.com/selfstoredev/selfstore",
+			"license": "MIT",
+			"category": "development",
+			"keywords": ["local-first", "offline", "indexeddb", "backup", "sync", "typescript"]
+		}
+	]
+}
