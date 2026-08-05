@@ -29,11 +29,22 @@ jobs:
           fetch-depth: 0
           # The release is cut with gh and its own token; git never pushes here.
           persist-credentials: false
+      # EVERY dispatched value reaches the shell through `env`, never through
+      # `${{ }}` inside a `run:` block. The difference is not cosmetic: an
+      # expression is SUBSTITUTED into the script before bash reads it, so a
+      # value carrying a quote and a semicolon becomes a command, in a job that
+      # holds a write token. An `env` entry is passed as data and `"$SHA"` stays
+      # one argument whatever it contains. Found on 2026-08-06 by Sonar rule
+      # githubactions:S7630, as two high findings on a public repository.
       - name: Resolve the target commit and the version
         id: target
+        env:
+          INPUT_SHA: ${{ inputs.sha }}
+          INPUT_VERSION: ${{ inputs.version }}
+          DEFAULT_SHA: ${{ github.sha }}
         run: |
-          sha="${{ inputs.sha }}"
-          [ -z "$sha" ] && sha="${{ github.sha }}"
+          sha="$INPUT_SHA"
+          [ -z "$sha" ] && sha="$DEFAULT_SHA"
           # Expand to a full commit sha: the release API rejects abbreviated ones.
           sha=$(git rev-parse "${sha}^{commit}")
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
@@ -41,11 +52,12 @@ jobs:
           # cost a red run: the changelog heading reads "## [1.8.11]", so a
           # dispatch on "v1.8.11" looked for a section that cannot exist. The
           # prefix is absorbed here, once, for every step that follows.
-          version="${{ inputs.version }}"
-          echo "version=${version#v}" >> "$GITHUB_OUTPUT"
+          echo "version=${INPUT_VERSION#v}" >> "$GITHUB_OUTPUT"
       - name: Extract the changelog section
+        env:
+          VERSION: ${{ steps.target.outputs.version }}
         run: |
-          version="${{ steps.target.outputs.version }}"
+          version="$VERSION"
           awk -v v="$version" '
             $0 ~ ("^## \\[" v "\\]") { grab = 1; next }
             grab && /^## \[/ { exit }
@@ -58,9 +70,11 @@ jobs:
       - name: Create the tag and the release
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.target.outputs.version }}
+          SHA: ${{ steps.target.outputs.sha }}
         run: |
-          version="${{ steps.target.outputs.version }}"
-          sha="${{ steps.target.outputs.sha }}"
+          version="$VERSION"
+          sha="$SHA"
           if gh release view "v$version" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Release v$version already exists; refreshing its notes from the changelog."
             gh release edit "v$version" \
