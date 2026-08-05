@@ -183,8 +183,17 @@ version number is not asking you to trust.
 - **A published tag is now immutable, and a release refuses to publish a tag
   that disagrees with the tree.** `--provenance` attests a commit, so an
   attestation that points at a tag anybody with write access can move attests
-  nothing - `refs/tags/v*` accepts neither deletion nor force-update, with no
-  bypass. The publish workflow gained the check that belongs in front of the
+  nothing - `refs/tags/v*` accepts no update at all, with no bypass.
+
+  Forbidding deletion and force-push was the first attempt, and it is not
+  immutability even though it reads like it: "no force-push" blocks a REWIND,
+  while walking a release tag FORWARD onto a later commit is a fast-forward and
+  goes straight through - and forward is the direction that matters, since
+  `main` advances after every release. Measured by trying it rather than by
+  reading the setting back, on a real released tag, which moved. The rule that
+  closes it is `update`.
+
+  The publish workflow gained the check that belongs in front of the
   one mistake it cannot take back: a version is never unpublished, so a tag
   dispatched by hand whose number is not the number in `package.json` burns
   that number. It also fails now when `NPM_TOKEN` is missing rather than
