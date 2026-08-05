@@ -37,10 +37,17 @@ jobs:
           # On a release event the default checkout is already the tagged commit.
           ref: ${{ inputs.tag || github.ref }}
           persist-credentials: false
+      # No `registry-url`. It looks like the setting that points npm at the
+      # registry, and what it actually does is WRITE AN .npmrc carrying an auth
+      # line - which is precisely what stops npm from reaching for OIDC. npm
+      # only asks the registry to authenticate this workflow when it finds no
+      # credential configured for that registry, so the line left behind by a
+      # helper meant to help is what keeps a token in the loop. Measured: the
+      # first OIDC run still printed npm's bypass-2FA token notice and failed
+      # the same 404, with no OIDC exchange anywhere in the log.
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 20
-          registry-url: https://registry.npmjs.org
           cache: npm
       # Trusted publishing needs npm 11.5.1+, and Node 20 ships npm 10. Raising
       # the npm CLI rather than the Node version keeps the runtime this package
