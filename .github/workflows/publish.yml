@@ -82,9 +82,14 @@ jobs:
       # seconds, before anything else, on both triggers - `github.ref_name` is
       # the tag on a release event.
       - name: The tag and package.json agree
+        # Through `env`, like every dispatched value in this repository since
+        # 2026-08-06: an expression inside a `run:` block is substituted into the
+        # script before bash reads it. Sonar named two such lines in release.yml;
+        # this one is the same defect in the workflow that publishes.
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
         run: |
-          tagged="${{ inputs.tag || github.ref_name }}"
-          tagged="${tagged#v}"
+          tagged="${TAG#v}"
           declared=$(node -p "require('./package.json').version")
           if [ "$tagged" != "$declared" ]; then
             echo "::error::tag $tagged, package.json $declared - one of them is wrong."
