@@ -46,7 +46,13 @@ jobs:
       # the npm CLI rather than the Node version keeps the runtime this package
       # is tested against unchanged - `engines` is what promises Node 20, and a
       # publish job is not the place to start testing a different one.
-      - run: npm install -g npm@^11.5.1
+      #
+      # Pinned exactly, and installed without its lifecycle scripts: this is the
+      # tool that signs the artefact and speaks for this repository to the
+      # registry. A floating range would let a release be minted by a version
+      # nobody chose, and `--ignore-scripts` keeps the install itself from
+      # running code that was never reviewed here.
+      - run: npm install -g --ignore-scripts npm@11.19.0
       - run: npm ci --ignore-scripts
       # The one mistake this cannot take back. A version is never unpublished,
       # so a tag dispatched by hand that disagrees with the tree burns a number:
