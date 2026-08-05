@@ -129,6 +129,30 @@ only kind of rule that survives.
    `package.json`, because that is the one mistake nothing downstream can take
    back.
 
+## What authorises the publish
+
+No token. npmjs.com names this repository and `publish.yml` as a **trusted
+publisher** for the package, and the registry checks the signed claim GitHub
+attaches to the run. There is no secret in this repository to rotate, leak or
+let expire.
+
+That is a deliberate replacement, not a preference. The token path is being
+withdrawn: npm no longer lets a granular token that bypasses two-factor auth
+publish directly, and classic automation tokens can no longer be created. A
+publish workflow authenticated by a token was going to stop working on npm's
+schedule rather than on ours - and the failure it produces is the quiet kind,
+because an expired token makes a dispatch report success while nothing reaches
+the registry.
+
+Two consequences worth knowing before touching the file:
+
+- **Renaming `publish.yml`, or moving the publish job into another workflow,
+  revokes the permission** until the trusted publisher on npmjs.com is updated
+  to name the new file. The registry authorises a workflow, not a repository.
+- **A fork cannot publish.** The claim carries the repository, so a workflow
+  running anywhere else is refused by the registry rather than by a rule
+  someone has to remember to write.
+
 `refs/tags/v*` accepts no update at all, from anybody - not a deletion, not a
 rewind, and not a move forward. That is not tidiness: `--provenance` attests a
 commit, and an attestation that points at a tag somebody can move attests

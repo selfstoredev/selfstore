@@ -10,8 +10,10 @@ name: publish
 # reach npm, and every publish had to be done by hand. Dispatch with the tag to
 # publish it; the checkout resolves the tag rather than the default branch.
 #
-# Gated on the NPM_TOKEN secret: without it the job skips cleanly instead of
-# failing, so the workflow can land before the secret is set.
+# Authenticated by OIDC (npm trusted publishing), not by a secret: npmjs.com
+# names this repository and this workflow file as allowed to publish the
+# package. Renaming this file, or moving the job to another workflow, revokes
+# that permission until the trusted publisher is updated to match.
 
 on:
   release:
@@ -40,6 +42,17 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org
           cache: npm
+      # Trusted publishing needs npm 11.5.1+, and Node 20 ships npm 10. Raising
+      # the npm CLI rather than the Node version keeps the runtime this package
+      # is tested against unchanged - `engines` is what promises Node 20, and a
+      # publish job is not the place to start testing a different one.
+      #
+      # Pinned exactly, and installed without its lifecycle scripts: this is the
+      # tool that signs the artefact and speaks for this repository to the
+      # registry. A floating range would let a release be minted by a version
+      # nobody chose, and `--ignore-scripts` keeps the install itself from
+      # running code that was never reviewed here.
+      - run: npm install -g --ignore-scripts npm@11.19.0
       - run: npm ci --ignore-scripts
       # The one mistake this cannot take back. A version is never unpublished,
       # so a tag dispatched by hand that disagrees with the tree burns a number:
@@ -56,17 +69,22 @@ jobs:
             echo "::error::tag $tagged, package.json $declared - one of them is wrong."
             exit 1
           fi
+      # No token. The registry decides whether this workflow, on this
+      # repository, may publish this package - configured once on npmjs.com
+      # under the package's Settings, and revocable there without touching a
+      # secret here.
+      #
+      # It replaces a token rather than joining it, because the token path is
+      # closing: npm now refuses account changes and direct publishing from the
+      # granular tokens that bypass two-factor auth, and classic automation
+      # tokens can no longer be created at all. A token in this file would be a
+      # credential to rotate, leak or let expire - and an expired one publishes
+      # nothing while the job reports success.
+      #
+      # OIDC also subsumes what `--provenance` needed the `id-token` permission
+      # for: the attestation and the authorisation now come from the same
+      # signed claim about this run.
       - name: Publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          # This used to warn and exit 0, so the workflow could land before the
-          # secret existed. It has existed since July 2026, and the fallback now
-          # only hides the case that matters: a token revoked or expired makes a
-          # dispatch report success while nothing reaches the registry.
-          if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "::error::NPM_TOKEN is not set. Add it in the repository secrets - a granular token with publish rights on this package and nothing else."
-            exit 1
-          fi
           # `npm publish` runs prepublishOnly (typecheck + test + build) first.
           npm publish --provenance --access public
