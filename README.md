@@ -445,6 +445,25 @@ selfstore tests itself.
 
 ## For AI agents
 
+A **skill** ships in the package, so it is on disk at the version installed and
+fires when an assistant writes selfstore code rather than waiting to be pointed
+at a URL:
+
+```sh
+cp -r node_modules/selfstore/skills/selfstore ~/.claude/skills/
+
+# or, to follow the repository
+claude plugin marketplace add selfstoredev/selfstore
+claude plugin install selfstore@selfstore
+```
+
+[`skills/selfstore/SKILL.md`](./skills/selfstore/SKILL.md) is plain markdown
+with no assistant-specific instruction in the body, so it doubles as an
+`AGENTS.md` for anything else that reads one. It carries the decision (is this
+the right tool at all) and the five things a first integration gets wrong, and
+hands over to the reference below for the rest. `npm run skill` fails when it
+names something this package no longer has.
+
 `llms.txt` at the package root summarizes the API with canonical snippets, and
 [RECIPES.md](./RECIPES.md) has copy-paste tasks (the `examples/` folder holds
 the same mini-apps, typechecked). Rules of thumb: every record needs a

@@ -16,6 +16,23 @@ version number is not asking you to trust.
 
 ### Added
 
+- **A skill, so an assistant writes selfstore code that runs the first time.**
+  Most people meet this library through a coding assistant, and until now the
+  only way to hand it the API was for somebody to point at `llms.txt`. A skill
+  fires unasked, at the moment the code is written.
+  [`skills/selfstore/SKILL.md`](skills/selfstore/SKILL.md) ships in the package,
+  so `npm install` puts it on disk at the version installed: copy it into
+  `~/.claude/skills/`, or add the repository as a plugin marketplace. It is a
+  different document from `llms.txt` rather than a shorter one - the decision
+  (is this the right tool at all) and the five things a first integration gets
+  wrong, handing over to the reference for everything else. Plain markdown, no
+  assistant-specific instruction in the body, so it doubles as an `AGENTS.md`.
+- **`npm run skill`, in the gate.** A third copy of an API drifts. It fails when
+  the skill calls something that no longer exists in `src`, names a subpath that
+  is no longer exported (`selfstore/groups` is documented as withdrawable in a
+  minor, so that is not theoretical), or when `.claude-plugin/plugin.json` and
+  `package.json` disagree on the version.
+
 - **The Drive side of sharing, in the library: `driveTarget.createCompanion`,
   `.share`, `.unshare`, `.owner` and `.secondary`.** The peer topology - each
   member publishes their own copy and reads the others' - needs five things from
@@ -72,6 +89,14 @@ version number is not asking you to trust.
   content id turns the union INTO the CRDT merge - no device's update is lost
   when the copies meet. `examples/yjs-document.ts` is the complete integration,
   concurrent-edit merging included, still with no server anywhere.
+
+### Fixed
+
+- **`connectS3` was missing from `llms.txt`.** A public method of the simple
+  store, absent from the one file whose whole job is to tell an assistant what
+  exists - so an assistant reading the reference could not know S3, R2 or MinIO
+  were supported at all. Found by writing the skill against the source instead
+  of against the reference.
 
 ### Changed
 

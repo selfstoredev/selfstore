@@ -120,7 +120,9 @@ only kind of rule that survives.
 
 1. `main` is green, `[Unreleased]` holds something worth installing.
 2. Open the release PR: stamp the section with `X.Y.Z` and the date, bump
-   `package.json`.
+   `package.json` **and `.claude-plugin/plugin.json`**, which carries the same
+   number because the skill it ships documents that surface. `npm run skill`
+   fails when the two disagree, so this is not a step to remember.
 3. Merge, tag `vX.Y.Z` from `main`, GitHub Release from that section.
 4. `npm publish` - from CI, with provenance, and with the tag rather than a
    branch. The workflow refuses a tag whose version disagrees with

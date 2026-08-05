@@ -184,6 +184,8 @@ downloadBackup()):
   // backup" card for connectFlow's options.resume) with no call going out.
     await store.connectFile({ password? });                    // Chromium FSA
     await store.connectWebdav({ url, username, password }, { password? });
+    await store.connectS3({ endpoint, region, bucket, key, accessKeyId,
+      secretAccessKey, forcePathStyle? }, { password? });      // S3, R2, MinIO
     await store.connectTarget(anyBackupTarget, { password? }); // your own
     await store.disconnect();  // back to device-only (remote keeps its last backup)
     store.addReplica(target);  // also write the same encrypted backup there
