@@ -127,10 +127,17 @@ only kind of rule that survives.
    `package.json`, because that is the one mistake nothing downstream can take
    back.
 
-`refs/tags/v*` cannot be deleted or force-updated, by anybody. That is not
-tidiness: `--provenance` attests a commit, and an attestation that points at a
-tag somebody can move attests nothing. Once `vX.Y.Z` exists it points where it
-points, and the way to correct a release is the next release.
+`refs/tags/v*` accepts no update at all, from anybody - not a deletion, not a
+rewind, and not a move forward. That is not tidiness: `--provenance` attests a
+commit, and an attestation that points at a tag somebody can move attests
+nothing. Once `vX.Y.Z` exists it points where it points, and the way to correct
+a release is the next release.
+
+The third one is named on purpose, because forbidding the first two is not
+enough and reads as though it were. "No force-push" only blocks a REWIND;
+walking a release tag FORWARD onto a later commit is a fast-forward and goes
+straight through - and forward is the direction that matters, since `main`
+advances after every release. The rule that closes it is `update`.
 
 An entry that only restates the diff is not an entry: the changelog says what
 changed and **why**, in prose, because the why is the part nobody can recover
