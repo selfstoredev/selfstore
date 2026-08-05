@@ -122,7 +122,15 @@ only kind of rule that survives.
 2. Open the release PR: stamp the section with `X.Y.Z` and the date, bump
    `package.json`.
 3. Merge, tag `vX.Y.Z` from `main`, GitHub Release from that section.
-4. `npm publish` - from CI, with provenance.
+4. `npm publish` - from CI, with provenance, and with the tag rather than a
+   branch. The workflow refuses a tag whose version disagrees with
+   `package.json`, because that is the one mistake nothing downstream can take
+   back.
+
+`refs/tags/v*` cannot be deleted or force-updated, by anybody. That is not
+tidiness: `--provenance` attests a commit, and an attestation that points at a
+tag somebody can move attests nothing. Once `vX.Y.Z` exists it points where it
+points, and the way to correct a release is the next release.
 
 An entry that only restates the diff is not an entry: the changelog says what
 changed and **why**, in prose, because the why is the part nobody can recover
