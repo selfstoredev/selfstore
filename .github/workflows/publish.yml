@@ -41,13 +41,32 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: npm
       - run: npm ci --ignore-scripts
+      # The one mistake this cannot take back. A version is never unpublished,
+      # so a tag dispatched by hand that disagrees with the tree burns a number:
+      # either the wrong commit goes out under the right name, or the release PR
+      # never landed and npm rejects it after the whole gate has run. Two
+      # seconds, before anything else, on both triggers - `github.ref_name` is
+      # the tag on a release event.
+      - name: The tag and package.json agree
+        run: |
+          tagged="${{ inputs.tag || github.ref_name }}"
+          tagged="${tagged#v}"
+          declared=$(node -p "require('./package.json').version")
+          if [ "$tagged" != "$declared" ]; then
+            echo "::error::tag $tagged, package.json $declared - one of them is wrong."
+            exit 1
+          fi
       - name: Publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          # This used to warn and exit 0, so the workflow could land before the
+          # secret existed. It has existed since July 2026, and the fallback now
+          # only hides the case that matters: a token revoked or expired makes a
+          # dispatch report success while nothing reaches the registry.
           if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "::warning::NPM_TOKEN absent, npm publish skipped. Add it in the repo secrets to enable automated publishing."
-            exit 0
+            echo "::error::NPM_TOKEN is not set. Add it in the repository secrets - a granular token with publish rights on this package and nothing else."
+            exit 1
           fi
           # `npm publish` runs prepublishOnly (typecheck + test + build) first.
           npm publish --provenance --access public

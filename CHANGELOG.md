@@ -180,6 +180,23 @@ version number is not asking you to trust.
 
 ### Security
 
+- **A published tag is now immutable, and a release refuses to publish a tag
+  that disagrees with the tree.** `--provenance` attests a commit, so an
+  attestation that points at a tag anybody with write access can move attests
+  nothing - `refs/tags/v*` accepts neither deletion nor force-update, with no
+  bypass. The publish workflow gained the check that belongs in front of the
+  one mistake it cannot take back: a version is never unpublished, so a tag
+  dispatched by hand whose number is not the number in `package.json` burns
+  that number. It also fails now when `NPM_TOKEN` is missing rather than
+  warning and exiting green, which hid the case that matters - a revoked token
+  making a dispatch report success while nothing reached the registry.
+
+  Private vulnerability reporting is on. `SECURITY.md` has been pointing at
+  GitHub's "Report a vulnerability" form since the policy was written, while
+  the form was switched off: a reporter following the policy to the letter
+  found no way in, and the fallback was to open the public issue the same
+  paragraph asks them not to open.
+
 - **A replica whose clock cannot be real is now refused instead of merged.**
   A hybrid logical clock absorbs the highest wall time it sees, so a single
   impossible value did three things at once: it won every last-writer-wins
