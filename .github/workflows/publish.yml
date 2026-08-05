@@ -60,6 +60,20 @@ jobs:
       # nobody chose, and `--ignore-scripts` keeps the install itself from
       # running code that was never reviewed here.
       - run: npm install -g --ignore-scripts npm@11.19.0
+      # A global install does not always win the PATH against the npm bundled
+      # with the Node that setup-node laid down, and npm 10 has no notion of
+      # trusted publishing at all - it would ask for a token and say only that
+      # it needs auth, which is exactly the failure that sent us looking at the
+      # registry instead of at the runner. One line, so the next reader is
+      # never left guessing which npm spoke.
+      - name: Which npm publishes, and can it ask for a token
+        run: |
+          echo "npm $(npm --version) at $(command -v npm)"
+          if [ -z "$ACTIONS_ID_TOKEN_REQUEST_URL" ]; then
+            echo "::error::no OIDC request URL in this job - id-token: write is missing or the runner did not mint one."
+            exit 1
+          fi
+          echo "OIDC request URL present."
       - run: npm ci --ignore-scripts
       # The one mistake this cannot take back. A version is never unpublished,
       # so a tag dispatched by hand that disagrees with the tree burns a number:
