@@ -106,6 +106,14 @@ jobs:
       # for: the attestation and the authorisation now come from the same
       # signed claim about this run.
       - name: Publish
+        env:
+          # A publish that fails says WHY. Without this, npm decides in silence
+          # whether to ask the registry to authenticate this workflow, and a
+          # refusal arrives as a bare "need auth" that reads like a missing
+          # token - which is how three runs got spent looking in the wrong
+          # place. The extra output only ever appears on the one job that
+          # publishes, a few times a month.
+          NPM_CONFIG_LOGLEVEL: verbose
         run: |
           # `npm publish` runs prepublishOnly (typecheck + test + build) first.
           npm publish --provenance --access public
