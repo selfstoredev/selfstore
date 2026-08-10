@@ -4,6 +4,8 @@
 [![npm](https://img.shields.io/npm/v/selfstore)](https://www.npmjs.com/package/selfstore)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+**Back up and restore IndexedDB in the browser, encrypted, in TypeScript.**
+
 **Local-first storage for browser apps, batteries included.** Your data lives
 on the user's device, syncs across their devices without a server, and leaves
 as a portable encrypted backup they actually own.
