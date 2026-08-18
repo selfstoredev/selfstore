@@ -17,6 +17,8 @@ jobs:
   config:
     name: Config
     runs-on: ubuntu-latest
+    # Reads nothing from the repository: it only tests whether a secret is set.
+    permissions: {}
     outputs:
       can_review: ${{ steps.flags.outputs.can_review }}
     steps:
