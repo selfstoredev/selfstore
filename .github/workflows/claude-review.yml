@@ -9,6 +9,12 @@ on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
 
+# The default token permissions apply to any job that does not narrow them:
+# the config job below needs none, so the floor is read-only and the review job
+# raises what it actually needs.
+permissions:
+  contents: read
+
 concurrency:
   group: claude-review-${{ github.event.pull_request.number }}
   cancel-in-progress: true
