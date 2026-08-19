@@ -13,6 +13,19 @@ updates:
           - minor
           - patch
 
+  # The playground example keeps its own lockfile. Without this entry nothing
+  # ever bumps it: the dependency graph reads it, Dependabot's updater does not.
+  - package-ecosystem: npm
+    directory: /examples/playground
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      playground-minor-patch:
+        update-types:
+          - minor
+          - patch
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
