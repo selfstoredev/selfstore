@@ -7,10 +7,10 @@
 		"build": "vite build"
 	},
 	"dependencies": {
-		"selfstore": "^1.8.1"
+		"selfstore": "^1.8.21"
 	},
 	"devDependencies": {
 		"typescript": "^7.0.2",
-		"vite": "^8.1.5"
+		"vite": "^8.2.1"
 	}
 }
