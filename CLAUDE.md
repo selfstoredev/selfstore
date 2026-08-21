@@ -48,6 +48,15 @@ produce false timeouts. A timeout there is an environment signal, not a bug.
   widget so one key can read differently in two widgets), pick the page's
   language on their own, and let a host override any key. Adding a widget
   string means adding it to every pack in the same file.
+- French punctuation is welded. A double sign (`:` `;` `?` `!` `»`) takes a
+  U+00A0 before it and `«` one after, spelled as `\u00A0` and never
+  as the raw character - typed in, it cannot be told from a space when the file
+  is read back, and eslint skips string contents. Never `&nbsp;`: widget text
+  reaches the DOM through `createTextNode`, which decodes no entity and would
+  read the six characters out to the user. English packs take neither the space
+  nor the escape. `src/widgets/typographie.test.ts` enforces all of it. This is
+  a library rule and not a nicety: a host cannot repair a string it does not
+  own, and its own suite never sees one.
 - No dead code. knip fails on unused files, exports and dependencies.
 - No copy-paste above the jscpd threshold: extract or reuse.
 - Complexity budget: sonarjs caps cognitive complexity per function.

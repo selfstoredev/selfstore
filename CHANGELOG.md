@@ -14,6 +14,23 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+### Fixed
+
+- **French punctuation is welded to the word before it, in every shipped
+  label.** In French a double sign (`:` `;` `?` `!` `»`) is separated from
+  the word before it; written with an ordinary space, a line break falls in
+  that gap and sends the sign alone to the head of the next line. Twelve
+  sentences did that - the forgotten-password warning, the export-mode notice,
+  the WebDAV URL help - and they were unreachable from any consuming app: a
+  host cannot fix a string it does not own, and its own suite never sees one.
+  They now carry U+00A0, written as an escape so the character is legible in
+  the source, and never as an HTML entity - widget text reaches the DOM through
+  `createTextNode`, which would read the six characters out to the user.
+  `src/widgets/typographie.test.ts` holds every French pack to the rule, proves
+  its own detector on eleven witnesses, refuses the raw character and the
+  entity, and keeps the English packs free of the French space. No key, no
+  wording and no API changed; a host that overrides these labels is unaffected.
+
 ## [1.8.21] - 2026-08-05
 
 ### Added

@@ -43,9 +43,9 @@ const EN: WidgetLabels = {
 };
 
 const FR: WidgetLabels = {
-	'gate.title': 'Où enregistrer vos données ?',
+	'gate.title': 'Où enregistrer vos données\u00A0?',
 	'gate.hint':
-		'Elles sont chiffrées sur cet appareil. Choisissez une sauvegarde : tout y sera enregistré automatiquement.',
+		'Elles sont chiffrées sur cet appareil. Choisissez une sauvegarde\u00A0: tout y sera enregistré automatiquement.',
 	'gate.fine': '',
 	'gate.defer': 'Plus tard - garder sur cet appareil seulement',
 	'gate.defer.note':

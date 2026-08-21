@@ -131,7 +131,7 @@ const EN: WidgetLabels = {
 // lexicon.test.ts holds every pack to the first rule: stated in a comment, it
 // had already drifted in two strings before anyone noticed.
 const FR: WidgetLabels = {
-	'connect.title': 'Où enregistrer vos données ?',
+	'connect.title': 'Où enregistrer vos données\u00A0?',
 	'connect.recommended': 'Recommandé',
 	'connect.resume': 'Reprendre ma sauvegarde',
 	'connect.or': 'ou',
@@ -167,9 +167,9 @@ const FR: WidgetLabels = {
 	'connect.password.submit': 'Ouvrir',
 	'connect.password.show': 'Afficher le mot de passe',
 	'connect.password.hide': 'Masquer le mot de passe',
-	'connect.password.forgot': 'Mot de passe oublié ?',
+	'connect.password.forgot': 'Mot de passe oublié\u00A0?',
 	'connect.password.forgot.warn':
-		"Sans le mot de passe, cette sauvegarde ne peut pas être ouverte. Vous pouvez repartir d'une sauvegarde vide : l'ancienne sera perdue définitivement.",
+		"Sans le mot de passe, cette sauvegarde ne peut pas être ouverte. Vous pouvez repartir d'une sauvegarde vide\u00A0: l'ancienne sera perdue définitivement.",
 	'connect.password.forgot.confirm': 'Remplacer la sauvegarde',
 	'connect.password.forgot.back': 'Retour',
 	'connect.conflict.title': 'Une sauvegarde existe déjà ici',
@@ -184,12 +184,12 @@ const FR: WidgetLabels = {
 	'connect.webdav.password': 'Mot de passe',
 	'connect.webdav.submit': 'Connecter',
 	'connect.webdav.signup': 'Créer un compte',
-	'connect.webdav.help.more': 'Comment faire ?',
+	'connect.webdav.help.more': 'Comment faire\u00A0?',
 	'connect.done': 'Connecté. Vos données sont enregistrées.',
-	'connect.done.manual': 'Mode export : ce navigateur ne peut pas garder le fichier ouvert.',
+	'connect.done.manual': 'Mode export\u00A0: ce navigateur ne peut pas garder le fichier ouvert.',
 	'error.generic': "Cela n'a pas fonctionné. Vérifiez la connexion et réessayez.",
 	'error.targetUnavailable': 'La sauvegarde ne répond pas. Réessayez dans un instant.',
-	'error.authExpired': 'Accès expiré : reconnectez-vous pour continuer.',
+	'error.authExpired': 'Accès expiré\u00A0: reconnectez-vous pour continuer.',
 	'error.decryptFailed': "Cette sauvegarde n'a pas pu être ouverte avec ce mot de passe.",
 	'error.badFormat': 'Ce fichier ne ressemble pas à une sauvegarde lisible.',
 	'error.foreignBackup':
