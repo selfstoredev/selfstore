@@ -14,6 +14,8 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+## [1.8.22] - 2026-08-21
+
 ### Fixed
 
 - **French punctuation is welded to the word before it, in every shipped
