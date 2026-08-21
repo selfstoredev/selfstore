@@ -16,7 +16,13 @@ export default defineConfig({
 			reporter: ['text-summary', 'lcov'],
 			reportsDirectory: './coverage',
 			include: ['src/**/*.ts'],
-			exclude: ['**/*.test.ts', '**/*.d.ts'],
+			// `*.testkit.ts` is a helper a suite imports, in the same category as
+			// the suites themselves: it ships in no entry point and no consumer can
+			// reach it. Measuring it would report on the instrument rather than on
+			// the product - its unused branches exist for source shapes this
+			// codebase does not currently write, and deleting them to chase a
+			// percentage would make the reader worse.
+			exclude: ['**/*.test.ts', '**/*.testkit.ts', '**/*.d.ts'],
 			// Ratchet floors, set just under the measured baseline. They only
 			// ever move UP: when coverage rises, raise them in the same commit.
 			// Never lower them to pass.

@@ -257,7 +257,7 @@ describe('selfstore-gate', () => {
 			document.documentElement.lang = 'fr';
 			const { engine } = fakeEngine();
 			const el = mount(engine);
-			expect(q(el, '[part~="gate-title"]')!.textContent).toBe('Où enregistrer vos données ?');
+			expect(q(el, '[part~="gate-title"]')!.textContent).toBe('Où enregistrer vos données\u00A0?');
 			el.remove();
 			document.documentElement.lang = '';
 		});
@@ -272,7 +272,7 @@ describe('selfstore-gate', () => {
 			box.append(el);
 			el.targets = { file: true };
 			el.store = { engine, kv: {} as FlowHost['kv'], backupName: 'x.zip' };
-			expect(q(el, '[part~="gate-title"]')!.textContent).toBe('Où enregistrer vos données ?');
+			expect(q(el, '[part~="gate-title"]')!.textContent).toBe('Où enregistrer vos données\u00A0?');
 			box.remove();
 			document.documentElement.lang = '';
 		});

@@ -51,7 +51,7 @@ const FR: WidgetLabels = {
 	'share.remove': 'Retirer',
 	'share.stop': 'Arrêter le partage',
 	'share.empty': "Personne d'autre n'a accès pour le moment.",
-	'share.stale': 'Connexion instable : cette vue est peut-être en retard.',
+	'share.stale': 'Connexion instable\u00A0: cette vue est peut-être en retard.',
 	'error.generic': "Cela n'a pas fonctionné. Vérifiez la connexion et réessayez.",
 	'error.targetUnavailable': 'Le service de partage ne répond pas. Réessayez dans un instant.'
 };
