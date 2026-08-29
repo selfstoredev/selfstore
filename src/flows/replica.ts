@@ -132,6 +132,9 @@ export function replicaFlow(
 
 	// Held for remove(): disconnect() lets the target forget its own session.
 	let attached: BackupTarget | null = null;
+	// Its kind, so a swap can tell 'moved to another provider' from 'same
+	// provider, another file' - only the first may disconnect. See run().
+	let attachedKind: ConnectKind | null = null;
 
 	function connectorFor(kind: ConnectKind): Connector | null {
 		const spec = targets[kind];
@@ -162,9 +165,19 @@ export function replicaFlow(
 				return;
 			}
 			if (current()) engine.detachReplica(REPLICA_ID); // swap, never a dup-id throw
+			const left = attachedKind === kind ? null : attached;
 			engine.attachReplica(target, { id: REPLICA_ID });
 			attached = target;
+			attachedKind = kind;
 			await skv.set(RECORD_KEY, { kind } satisfies ReplicaRecord);
+			// The destination the user just left forgets its own session.
+			// detachReplica only drops the engine entry, so without this a swap
+			// leaves the previous provider's credentials on the device for good -
+			// the one thing a copy the user moved away from must not keep.
+			// Skipped when the kind is unchanged: the kv keys are per kind, the new
+			// connect has just overwritten them, and only drive guards a late
+			// disconnect against orphaning what the new target now owns.
+			await left?.disconnect().catch(() => undefined);
 			m.set({ step: 'idle', busy: false, error: null, replica: current() });
 		} catch (e) {
 			m.set({ busy: false, error: toStoreError(e) });
@@ -226,6 +239,7 @@ export function replicaFlow(
 		async remove() {
 			const target = attached;
 			attached = null;
+			attachedKind = null;
 			if (current()) engine.detachReplica(REPLICA_ID);
 			await skv.del(RECORD_KEY);
 			// Forget locally only - a BackupTarget's disconnect never deletes
@@ -244,6 +258,7 @@ export function replicaFlow(
 				if (!target) return; // unreachable or custom kind: retry next boot
 				engine.attachReplica(target, { id: REPLICA_ID });
 				attached = target;
+				attachedKind = record.kind;
 				m.set({ replica: current() });
 			} catch {
 				// Silent reboot by contract: the record stays, the next boot retries.
