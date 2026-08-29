@@ -111,6 +111,55 @@ describe('replicaFlow', () => {
 		flow.dispose();
 	});
 
+	it('swapping to another provider lets the destination just left forget its session', async () => {
+		const { store, kv, host } = await makeHost({ notes: [{ id: 'n1', text: 'hello' }] });
+		const first = memTarget('one');
+		const second = memTarget('two');
+		const flow = replicaFlow(host, {
+			file: async () => first.target,
+			webdav: async () => second.target
+		});
+
+		flow.open();
+		flow.pick('file');
+		await until(() => first.remote !== null);
+		expect(first.disconnected).toBe(0);
+
+		flow.pick('webdav');
+		await until(() => second.remote !== null);
+		await until(() => first.disconnected === 1);
+
+		// detachReplica only drops the engine entry: without the disconnect the
+		// first provider's credentials would outlive the move away from it.
+		expect(store.state.replicas.map((r) => r.id)).toEqual([REPLICA_ID]);
+		expect(second.disconnected).toBe(0);
+		expect(await kv.get('replica:record')).toEqual({ kind: 'webdav' });
+		flow.dispose();
+	});
+
+	it('re-picking the SAME kind disconnects nothing: the new connect owns those keys', async () => {
+		const { store, host } = await makeHost({});
+		const first = memTarget('one');
+		const second = memTarget('two');
+		let next = first;
+		const flow = replicaFlow(host, { file: async () => next.target });
+
+		flow.open();
+		flow.pick('file');
+		await until(() => first.remote !== null);
+
+		next = second;
+		flow.pick('file');
+		await until(() => second.remote !== null);
+
+		// The kv keys are per kind, so the second connect has already overwritten
+		// the first one's. Disconnecting the old target here would delete what the
+		// new one now owns - which is exactly what drive's own guard prevents.
+		expect(first.disconnected).toBe(0);
+		expect(store.state.replicas.map((r) => r.id)).toEqual([REPLICA_ID]);
+		flow.dispose();
+	});
+
 	it('a cancelled connector leaves everything as it was - no error, no record', async () => {
 		const { store, kv, host } = await makeHost({});
 		const flow = replicaFlow(host, { file: async () => null });
