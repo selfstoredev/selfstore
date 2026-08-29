@@ -14,6 +14,10 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A replica swapped to another provider forgets its own session.** `detachReplica` drops the engine entry and nothing else, so moving the backup copy from one destination to another left the first provider's credentials on the device with nothing left to ever remove them - `remove()` disconnects, a swap did not. The destination a user has moved away from is the one a local-first copy must not keep. Skipped when the kind is unchanged: the kv keys are per kind, so the new connect has already overwritten them, and disconnecting the old target would delete what the new one now owns, which is the hazard `drive`'s own disconnect already guards against.
+
 ## [1.8.22] - 2026-08-21
 
 ### Fixed
