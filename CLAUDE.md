@@ -30,6 +30,29 @@ The KDF tests derive real Argon2id keys (46 MiB, 3 passes); vitest's
 `testTimeout` is raised in `vitest.config.ts` so a loaded machine does not
 produce false timeouts. A timeout there is an environment signal, not a bug.
 
+## Before opening a pull request
+
+```sh
+npm run verifier
+```
+
+`verifier` = `gate` + `audit` + `secrets` + `build` + `paquet`. **`gate` is
+what a commit costs; `ci.yml` costs four checks more**, and until 2026-09-01
+those four lived only inside the workflow - so nobody could run them, and a red
+one was discovered after the push.
+
+| Command | Catches |
+| --- | --- |
+| `npm run audit` | a high or critical advisory in what a consumer installs (`--omit=dev`) |
+| `npm run secrets` | a secret anywhere in the history, through `gitleaks` |
+| `npm run build` | a bundle the tests never exercise |
+| `npm run paquet` | `npm pack --dry-run`, the exact file list a release would ship |
+
+The two security checks come first, before the build: put behind a check that
+is red for another reason, they are never reached at all. `gitleaks` is a Go
+binary installed outside npm, which is why `knip.json` lists it under
+`ignoreBinaries`.
+
 ## The contract
 
 - This library is a standalone, generic building block. Never reference any

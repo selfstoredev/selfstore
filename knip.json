@@ -7,5 +7,6 @@
 		"examples/playground/main.ts",
 		"spec/generate-vectors.mjs",
 		"scripts/*.mjs"
-	]
+	],
+	"ignoreBinaries": ["gitleaks"]
 }
