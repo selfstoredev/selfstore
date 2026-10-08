@@ -64,7 +64,7 @@ export {
 } from './persistence/targets/desktop';
 
 // --- Google Drive auth in one line (Google Identity Services) ---
-export { gisDriveAuth } from './persistence/targets/drive-auth-gis';
+export { gisDriveAuth, preloadGoogleIdentity } from './persistence/targets/drive-auth-gis';
 export type { DriveAuth } from './persistence/targets/drive';
 export type { WebdavConfig } from './persistence/targets/webdav';
 export type { S3Config } from './persistence/targets/s3';

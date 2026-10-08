@@ -214,6 +214,7 @@ export type {
 export type { S3Config, S3ConnectOptions } from '../persistence/targets/s3';
 export {
 	gisDriveAuth,
+	preloadGoogleIdentity,
 	type GisDriveAuthOptions,
 	type GisTokenPersistence
 } from '../persistence/targets/drive-auth-gis';

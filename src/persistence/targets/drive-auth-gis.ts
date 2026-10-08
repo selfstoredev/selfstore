@@ -29,19 +29,42 @@ const EXPIRY_MARGIN_MS = 60_000;
 /** Google's default access-token lifetime, when the response omits expires_in. */
 const DEFAULT_TOKEN_TTL_S = 3600;
 
+const GIS_SRC = 'https://accounts.google.com/gsi/client';
+
 let gisLoading: Promise<void> | null = null;
 function loadGIS(): Promise<void> {
 	if (typeof globalThis.window === 'undefined') return Promise.resolve();
 	if (globalThis.window.google?.accounts) return Promise.resolve();
 	gisLoading ??= new Promise<void>((resolve, reject) => {
 		const s = document.createElement('script');
-		s.src = 'https://accounts.google.com/gsi/client';
+		s.src = GIS_SRC;
 		s.async = true;
 		s.onload = () => resolve();
-		s.onerror = () => reject(new Error('GIS failed to load'));
+		s.onerror = () => {
+			// Forgotten, tag included: a network blip must cost one click, not
+			// every click until the page is reloaded.
+			s.remove();
+			gisLoading = null;
+			reject(new Error('GIS failed to load'));
+		};
 		document.head.appendChild(s);
 	});
 	return gisLoading;
+}
+
+/**
+ * Start loading Google Identity Services now, ahead of the click that connects.
+ *
+ * The consent popup only opens inside the user activation of a click. Loaded
+ * cold on that click, the script can take longer than the activation lasts:
+ * the browser then blocks the popup and Google answers exactly as if the user
+ * had refused. Call this when the screen holding the Drive button opens. It
+ * contacts Google, so it is never done implicitly. Safe to call any number of
+ * times, and a no-op outside a browser.
+ */
+export function preloadGoogleIdentity(): void {
+	// A failed preload is not an error to report: the click retries it.
+	loadGIS().catch(() => undefined);
 }
 
 // prompt '' = no consent screen (the popup still opens, and closes on its own
