@@ -14,6 +14,8 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+## [1.8.24] - 2026-10-09
+
 ### Added
 
 - **`preloadGoogleIdentity()`, so the first Drive click opens its consent.** The consent popup only opens inside the user activation of a click, and on a cold first click `gisDriveAuth` was still downloading Google Identity Services when that activation ran out: the browser blocked the popup and Google answered exactly as if the user had refused, with no trace of why. Apps were injecting the script tag themselves to get around it, which loaded it twice whenever the click came before the tag finished. Call it when the screen holding the Drive button opens; the click then reuses the same load. It contacts Google, so it is exported and never called implicitly. Exported from `selfstore` and `selfstore/advanced`.
