@@ -45,6 +45,18 @@ If the destination holds an ENCRYPTED backup and you passed no password, the
 call throws `PASSWORD_REQUIRED` before touching anything: prompt, then retry
 with `connectDrive(auth, { password })`.
 
+Google's consent is a popup, and a browser only opens it inside the activation
+of a click. On a cold first click the Identity Services script is still
+downloading when that window closes, the popup is blocked, and Google answers
+as if the user had refused. Load it when the screen holding the Drive button
+opens, not on the click:
+
+```ts
+import { preloadGoogleIdentity } from 'selfstore';
+
+preloadGoogleIdentity(); // contacts accounts.google.com, so call it only there
+```
+
 ## 3. Encrypt end to end, and hand the user a real backup
 
 ```ts

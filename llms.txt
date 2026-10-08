@@ -19,7 +19,8 @@ collaborative editing (use a CRDT library), or Node-side storage.
 ## Entry points (one npm package, eight imports)
 
 - 'selfstore' - START HERE: the simple store (below) + fluent backup files +
-  errors + gisDriveAuth. Small on purpose.
+  errors + gisDriveAuth (+ preloadGoogleIdentity, called when the Drive
+  button's screen opens). Small on purpose.
 - 'selfstore/flows' - the user journeys as HEADLESS state machines:
   connectFlow (choose/authorize/password/conflict, one popup per gesture,
   password proven by trial-read BEFORE anything attaches; an existing backup
