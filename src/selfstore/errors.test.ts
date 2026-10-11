@@ -24,7 +24,9 @@ const EXPECTED: Record<SelfstoreErrorCode, string> = {
 	SIGNATURE_INVALID: 'error.signatureInvalid',
 	NOT_A_RECIPIENT: 'error.notARecipient',
 	MANIFEST_ROLLBACK: 'error.manifestRollback',
-	CLOCK_DRIFT: 'error.clockDrift'
+	CLOCK_DRIFT: 'error.clockDrift',
+	NOTARY_UNAVAILABLE: 'error.notaryUnavailable',
+	NOTARY_REFUSED: 'error.notaryRefused'
 };
 
 describe('errorLabelKey', () => {

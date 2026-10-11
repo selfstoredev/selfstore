@@ -14,6 +14,10 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+### Added
+
+- **`selfstore/proof`: show that a document existed on a date without handing it over.** `prove(blob, { notary })` hashes the bytes on the device, deposits only the SHA-256 (and an optional label) with a notary, and keeps the receipt next to the file in the user's own store, under the `proofs` collection; `verify(blob, receipt)` hashes again and compares, so a receipt kept for years still says whether the file in hand is the one that was dated. The notary is an interface - `deposit(hash, label)` returns a receipt, `complete(receipt)` adds what the notary can only give later, through `completeProof()` - because the services that date a digest differ in everything but that shape: some sign at once, some anchor their digests in a daily tree and finish the receipt the next day. A notary answering for another digest or under another name is refused rather than kept, since a receipt that does not name the bytes is worse than none. `rfc3161Notary({ url })` is the first adapter, over any RFC 3161 time-stamping authority: the reply is checked to stamp this digest and to echo this request's nonce, and travels as `evidence.tsr`, which `openssl ts -verify` checks without this library. Two error codes join the contract, `NOTARY_UNAVAILABLE` (retry later) and `NOTARY_REFUSED`; keep the default branch the error contract already asks for.
+
 ## [1.8.24] - 2026-10-09
 
 ### Added

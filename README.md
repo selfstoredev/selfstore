@@ -121,6 +121,54 @@ the copies meet, and folding them is the entire read path.
 `examples/yjs-document.ts` is a complete, typechecked integration - real
 concurrent-edit merging, still no server.
 
+## Proving a document existed, without handing it over
+
+`selfstore/proof` dates a document by its SHA-256 alone. The bytes are hashed
+on the device, only the digest goes to a notary, and the receipt it returns is
+kept next to the file, in the same store and the same backup:
+
+```ts
+import { prove, verify, rfc3161Notary, PROOFS } from 'selfstore/proof';
+
+const notary = rfc3161Notary({ url: 'https://your-tsa.example/tsr' });
+const file = await store.putFile({ bytes, name: 'inventory.pdf', mime: 'application/pdf' });
+
+const proof = await prove(bytes, { notary, label: 'inventory', store, file });
+store.get(PROOFS, file);                     // the receipt, next to its file
+
+const { matches } = await verify(bytes, proof); // false the moment one byte moves
+```
+
+A notary is an interface, so any service that dates digests plugs in:
+
+```ts
+interface Notary {
+  readonly name: string;
+  deposit(hash: string, label?: string): Promise<Receipt>; // a receipt now
+  complete(receipt: Receipt): Promise<Receipt>;            // what it adds later
+}
+```
+
+`deposit` sees the digest and the label, never the bytes: keep the label a
+type (`inventory`, `invoice`), never a name or a piece of the content. A
+notary that anchors its digests later - in a daily tree, in a public ledger -
+answers `complete: false` and fills the receipt in on `completeProof()` the
+next day. A receipt that answers for another digest, or in another notary's
+name, is refused (`NOTARY_REFUSED`); one that cannot be reached is
+`NOTARY_UNAVAILABLE`.
+
+`rfc3161Notary` is the first adapter, over any RFC 3161 time-stamping
+authority. The authority signs the digest and its own time in one token, so
+the receipt is complete on deposit; the token travels as `evidence.tsr`
+(base64), `timestampReplyOf(receipt)` gives back the `.tsr` bytes, and
+`openssl ts -verify -data <file> -in <file>.tsr -CAfile <authority CA>` checks
+it without this library. Most public authorities send no CORS headers: in a
+browser, point `url` at a relay you run, or pass your own `fetch`.
+
+`verify` proves the bytes are the ones the receipt names. That the receipt is
+genuine is what the notary's evidence is for, checked with the notary's own
+verifier.
+
 ## Status and errors are headless
 
 The store never ships UI copy. It exposes a status descriptor
@@ -196,6 +244,7 @@ too, as subpaths of the same install:
 | `selfstore/widgets` | the same journeys as drop-in web components (`<selfstore-storage>` for the whole journey in one tag - it opens on a **full-screen first-run gate**, so reach for `<selfstore-destination>` or `<selfstore-status>` instead on a page that must work before the user answers; also `<selfstore-connect>`, `<selfstore-gate>`, `<selfstore-account>`, `<selfstore-share>`, `<selfstore-join>` on their own) - framework-free, themable via CSS custom properties and `::part()`, reworded/localized via a `labels` map | you want the screens ready-made and your app's look on top |
 | `selfstore/advanced` | the pull-model store (`createLocalStore`), custom `BackupTarget`s, caches, headless status derivation, functional codec | your state lives in its own reactive model (Svelte runes, Redux), or you are writing a destination (S3, your KV...) |
 | `selfstore/groups` **(experimental)** | passwordless group encryption: per-member identities, sealed envelopes, signed membership manifests | several PEOPLE share one encrypted store without a shared password ([PEERS.md](./PEERS.md)) - see [Stability](#stability) for what experimental costs you |
+| `selfstore/proof` | proof of existence: `prove()` hashes on the device and deposits the digest with a notary, `verify()` re-checks, `rfc3161Notary` is a ready adapter | a user must be able to show a document existed on a date, without the document leaving their device |
 | `selfstore/sync` | the bare merge engine (HLC + per-collection strategies, no CRDT runtime) | you only want the algorithm inside your own persistence ([SYNC docs in SPEC.md](./SPEC.md)) |
 
 `store.advanced` on the simple store IS the `selfstore/advanced` store - same
