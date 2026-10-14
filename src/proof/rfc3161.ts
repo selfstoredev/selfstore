@@ -8,6 +8,7 @@ import { hex } from '../selfstore/digest';
 import { SelfstoreError } from '../selfstore/errors';
 import { childrenOf, contentOf, DerError, expectTag, readNode, tlv, type DerNode } from './der';
 import type { Notary, Receipt } from './proof';
+import { reach } from './reach';
 
 const SEQUENCE = 0x30;
 const INTEGER = 0x02;
@@ -135,25 +136,16 @@ export function readTimestampReply(bytes: Uint8Array): TimestampToken {
 }
 
 async function post(options: Rfc3161Options, body: Uint8Array): Promise<Uint8Array> {
-	const send = options.fetch ?? globalThis.fetch;
-	let response: Response;
-	try {
-		response = await send(options.url, {
+	const response = await reach(
+		options.fetch ?? globalThis.fetch,
+		options.url,
+		{
 			method: 'POST',
 			headers: { 'content-type': 'application/timestamp-query' },
 			body: body as BodyInit
-		});
-	} catch (e) {
-		throw new SelfstoreError(
-			'NOTARY_UNAVAILABLE',
-			`the authority could not be reached: ${(e as Error).message}`
-		);
-	}
-	if (!response.ok) {
-		const code =
-			response.status >= 500 || response.status === 429 ? 'NOTARY_UNAVAILABLE' : 'NOTARY_REFUSED';
-		throw new SelfstoreError(code, `the authority answered ${response.status}`);
-	}
+		},
+		'the authority'
+	);
 	return new Uint8Array(await response.arrayBuffer());
 }
 

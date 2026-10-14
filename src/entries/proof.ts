@@ -9,7 +9,8 @@
  * A notary is an interface - `deposit(hash, label)` returns a receipt,
  * `complete(receipt)` finishes one later - so any service that dates digests
  * plugs in. `rfc3161Notary` is the first adapter, over any RFC 3161
- * time-stamping authority.
+ * time-stamping authority; `digestJournalNotary` the second, over a public
+ * digest journal anchored in Bitcoin.
  */
 
 export {
@@ -31,3 +32,4 @@ export {
 	type Rfc3161Options,
 	type TimestampToken
 } from '../proof/rfc3161';
+export { digestJournalNotary, type JournalOptions } from '../proof/journal';

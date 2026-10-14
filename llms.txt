@@ -132,7 +132,12 @@ collaborative editing (use a CRDT library), or Node-side storage.
   rfc3161Notary({ url, fetch?, name? }) is the ready adapter (complete on
   deposit, evidence.tsr = base64 reply; timestampReplyOf(receipt) -> .tsr
   bytes; readTimestampReply(bytes) -> { hash, time, nonce? }, signature NOT
-  checked - openssl ts -verify does that).
+  checked - openssl ts -verify does that). digestJournalNotary({ url,
+  fetch?, name? }) is the second: POST <url>/api/depots, receipt incomplete
+  (evidence: journal, id, line, receipt); complete() reads
+  /empreintes/depots.jsonl and /tours.json and, once the first tour covering
+  the line has ots 'bitcoin', adds tour, root, block, ots (base64) and tsr
+  (base64) when that root was stamped.
 - 'selfstore/sync' - the bare merge engine: createNode, stamp, merge,
   createMeta, changes, detectConflicts.
 - 'selfstore/kdf-worker' - the Argon2id worker asset (bundlers pick it up
