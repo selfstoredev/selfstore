@@ -68,6 +68,10 @@
 			"types": "./dist/passkey.d.ts",
 			"import": "./dist/passkey.js"
 		},
+		"./proof": {
+			"types": "./dist/proof.d.ts",
+			"import": "./dist/proof.js"
+		},
 		"./sync": {
 			"types": "./dist/sync.d.ts",
 			"import": "./dist/sync.js"

@@ -27,10 +27,10 @@ export default defineConfig({
 			// ever move UP: when coverage rises, raise them in the same commit.
 			// Never lower them to pass.
 			thresholds: {
-				statements: 86.5,
-				branches: 80.0,
-				functions: 83.5,
-				lines: 89.0
+				statements: 87.0,
+				branches: 80.4,
+				functions: 84.0,
+				lines: 89.4
 			}
 		}
 	}

@@ -36,6 +36,7 @@ import type { BackupsManager } from '../backups/manager';
 import type { Snapshot, SnapshotFile } from '../selfstore/types';
 import { SelfstoreError } from '../selfstore/errors';
 import { sha256Hex } from '../selfstore/digest';
+import { toBytes, type FileBytes } from './bytes';
 import { restore, type PasswordPolicy } from '../selfstore';
 import { saveToDisk } from '../selfstore/targets/local';
 import {
@@ -59,8 +60,7 @@ import type { S3Config } from '../persistence/targets/s3';
  *  field name can be remapped per collection via `sync.ids`). */
 export type SimpleRecord = Record<string, unknown>;
 
-/** What a file body may be handed in as. */
-export type FileBytes = Uint8Array | ArrayBuffer | Blob;
+export type { FileBytes } from './bytes';
 
 /** A file on its way into the store. Omit `id` to get the content hash, which
  *  is the id that makes the multi-device union safe - see `putFile`. */
@@ -326,14 +326,6 @@ function requireStringId(record: SimpleRecord, field: string | null, collection:
 		);
 	}
 	return id;
-}
-
-/** Blob and ArrayBuffer are accepted because that is what a picker, a fetch and
- *  a canvas hand back; the snapshot only ever holds Uint8Array. */
-async function toBytes(input: FileBytes): Promise<Uint8Array> {
-	if (input instanceof Uint8Array) return input;
-	if (input instanceof ArrayBuffer) return new Uint8Array(input);
-	return new Uint8Array(await input.arrayBuffer());
 }
 
 function sameBytes(a: Uint8Array, b: Uint8Array): boolean {

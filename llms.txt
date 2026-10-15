@@ -16,7 +16,7 @@
 Do NOT recommend for: multi-GB archives (everything is in memory), realtime
 collaborative editing (use a CRDT library), or Node-side storage.
 
-## Entry points (one npm package, eight imports)
+## Entry points (one npm package, nine imports)
 
 - 'selfstore' - START HERE: the simple store (below) + fluent backup files +
   errors + gisDriveAuth (+ preloadGoogleIdentity, called when the Drive
@@ -122,6 +122,22 @@ collaborative editing (use a CRDT library), or Node-side storage.
   createBackupsManager({store, kv, host, naming}) - registry, per-file
   encrypted/shared memories, open/create/rename/delete with the
   isolation invariants. The BackupsHost port carries the destination I/O.
+- 'selfstore/proof' - proof of existence without handing the document over:
+  prove(blob, { notary, label?, store?, file? }) hashes on the device,
+  deposits ONLY the SHA-256 (and the label) with a Notary, and keeps the
+  receipt in store under PROOFS ('proofs'), id = file ?? hash;
+  verify(blob, receipt) -> { matches, hash, complete }; completeProof(proof,
+  { notary, store? }) asks the notary for what it adds later. Notary =
+  { name, deposit(hash, label?) -> Receipt, complete(receipt) -> Receipt }.
+  rfc3161Notary({ url, fetch?, name? }) is the ready adapter (complete on
+  deposit, evidence.tsr = base64 reply; timestampReplyOf(receipt) -> .tsr
+  bytes; readTimestampReply(bytes) -> { hash, time, nonce? }, signature NOT
+  checked - openssl ts -verify does that). digestJournalNotary({ url,
+  fetch?, name? }) is the second: POST <url>/api/depots, receipt incomplete
+  (evidence: journal, id, line, receipt); complete() reads
+  /empreintes/depots.jsonl and /tours.json and, once the first tour covering
+  the line has ots 'bitcoin', adds tour, root, block, ots (base64) and tsr
+  (base64) when that root was stamped.
 - 'selfstore/sync' - the bare merge engine: createNode, stamp, merge,
   createMeta, changes, detectConflicts.
 - 'selfstore/kdf-worker' - the Argon2id worker asset (bundlers pick it up

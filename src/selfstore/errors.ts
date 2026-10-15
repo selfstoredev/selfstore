@@ -27,7 +27,10 @@ export type SelfstoreErrorCode =
 	| 'NOT_A_RECIPIENT' // valid group copy, but no envelope for this identity
 	| 'MANIFEST_ROLLBACK' // membership manifest older than one already applied
 	// multi-device merge
-	| 'CLOCK_DRIFT'; // an incoming replica carries a clock too far ahead of local time to be real
+	| 'CLOCK_DRIFT' // an incoming replica carries a clock too far ahead of local time to be real
+	// proof of existence (selfstore/proof)
+	| 'NOTARY_UNAVAILABLE' // the notary could not be reached or failed on its side: retry later
+	| 'NOTARY_REFUSED'; // the notary refused the deposit, or answered for something else than was asked
 
 /**
  * i18n key for an error code: lower-camel-cased under `error.`, e.g.

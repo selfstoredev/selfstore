@@ -2,7 +2,7 @@ import { defineConfig } from 'tsup';
 
 // Two build units:
 //  - the library: one ESM entry per public subpath ('.', './advanced',
-//    './flows', './groups', './sync', './widgets') + types, sharing chunks between them; the runtime
+//    './flows', './groups', './proof', './sync', './widgets') + types, sharing chunks between them; the runtime
 //    deps (idb static, fflate/hash-wasm lazily imported) stay external so they
 //    are not inlined and can be deduped by the consumer's bundler;
 //  - the KDF worker: bundled self-contained (hash-wasm inlined, splitting off,
@@ -19,6 +19,7 @@ export default defineConfig([
 			groups: 'src/entries/groups.ts',
 			households: 'src/entries/households.ts',
 			passkey: 'src/entries/passkey.ts',
+			proof: 'src/entries/proof.ts',
 			sync: 'src/entries/sync.ts',
 			widgets: 'src/entries/widgets.ts'
 		},
