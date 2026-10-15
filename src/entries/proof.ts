@@ -17,12 +17,16 @@ export {
 	prove,
 	verify,
 	completeProof,
+	completePending,
+	proofsIn,
 	PROOFS,
 	type Notary,
 	type Receipt,
 	type Proof,
 	type ProofCheck,
 	type ProofShelf,
+	type ProofLibrary,
+	type PendingRound,
 	type ProveOptions
 } from '../proof/proof';
 export {

@@ -182,6 +182,23 @@ const proof = await prove(bytes, { notary, label: 'inventory', store, file });
 const done = await completeProof(proof, { notary, store });
 ```
 
+An app does not track which receipts are still waiting: the store already
+knows. At launch, `completePending` asks each notary for the incomplete proofs
+it issued and writes back only those that came back complete; `proofsIn(store)`
+reads every proof back, oldest deposit first, to list a series or rebuild a
+screen on another device.
+
+```ts
+import { completePending, proofsIn } from 'selfstore/proof';
+
+const { completed, pending, refused } = await completePending({ store, notaries: [notary] });
+for (const proof of proofsIn(store)) show(proof.file, proof.depositedAt, proof.complete);
+```
+
+A notary that cannot be reached is not asked again in the same round, and its
+proofs stay pending for the next launch; a completion answering for another
+digest is set apart in `refused` and never overwrites the receipt.
+
 `verify` proves the bytes are the ones the receipt names. That the receipt is
 genuine is what the notary's evidence is for, checked with the notary's own
 verifier.
