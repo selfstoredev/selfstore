@@ -5,7 +5,17 @@
  */
 
 import { afterEach, describe, expect, it } from 'vitest';
-import { completeProof, prove, PROOFS, verify, type Notary, type Receipt } from './proof';
+import {
+	completePending,
+	completeProof,
+	prove,
+	proofsIn,
+	PROOFS,
+	verify,
+	type Notary,
+	type Receipt
+} from './proof';
+import { SelfstoreError } from '../selfstore/errors';
 import { selfstore, type SimpleStore } from '../simple/simple';
 import { memoryCache } from '../persistence/cache';
 import { isSelfstoreError } from '../selfstore/errors';
@@ -217,5 +227,106 @@ describe('verify', () => {
 			code: 'BAD_FORMAT'
 		});
 		await expect(verify(bytes('x'), null as never)).rejects.toMatchObject({ code: 'BAD_FORMAT' });
+	});
+});
+
+describe('proofsIn', () => {
+	it('reads the proofs back, oldest deposit first, and skips what is not one', async () => {
+		const s = await store();
+		const later = memoryNotary({
+			deposit: (hash) =>
+				Promise.resolve({
+					notary: 'memory',
+					hash,
+					depositedAt: '2026-10-12T08:00:00.000Z',
+					complete: true,
+					evidence: {}
+				})
+		});
+		await prove(bytes('second\n'), { notary: later, store: s, file: 'f2' });
+		await prove(bytes('hello\n'), { notary: memoryNotary(), store: s, file: 'f1' });
+		await s.put(PROOFS, { id: 'junk', kind: 'something-else' });
+		await s.put(PROOFS, { id: 'bad', kind: 'selfstore-proof', hash: 'not-hex', notary: 'x' });
+		const proofs = proofsIn(s);
+		expect(proofs.map((p) => p.file)).toEqual(['f1', 'f2']);
+		expect(proofs[0]).not.toHaveProperty('id');
+		expect(proofs[0]).toMatchObject({ hash: HELLO_HASH, complete: false });
+	});
+
+	it('is empty on a store that holds no proof', async () => {
+		expect(proofsIn(await store())).toEqual([]);
+	});
+});
+
+describe('completePending', () => {
+	it('finishes the incomplete proofs and writes back only those', async () => {
+		const s = await store();
+		const notary = memoryNotary();
+		await prove(bytes('hello\n'), { notary, store: s, file: 'f1' });
+		const round = await completePending({ store: s, notaries: [notary] });
+		expect(round.completed.map((p) => p.file)).toEqual(['f1']);
+		expect(round.pending).toEqual([]);
+		expect(round.refused).toEqual([]);
+		expect(s.get(PROOFS, 'f1')).toMatchObject({ complete: true, evidence: { anchor: 'abc' } });
+	});
+
+	it('leaves a proof the notary cannot finish yet as it was', async () => {
+		const s = await store();
+		const notary = memoryNotary({ complete: (r) => Promise.resolve(r) });
+		await prove(bytes('hello\n'), { notary, store: s, file: 'f1' });
+		const before = s.get(PROOFS, 'f1');
+		const round = await completePending({ store: s, notaries: [notary] });
+		expect(round.pending.map((p) => p.file)).toEqual(['f1']);
+		expect(round.completed).toEqual([]);
+		expect(s.get(PROOFS, 'f1')).toBe(before);
+	});
+
+	it('does not ask a notary again once it was unreachable this round', async () => {
+		const s = await store();
+		let calls = 0;
+		const notary = memoryNotary({
+			complete: () => {
+				calls++;
+				return Promise.reject(new SelfstoreError('NOTARY_UNAVAILABLE', 'offline'));
+			}
+		});
+		await prove(bytes('a'), { notary, store: s, file: 'a' });
+		await prove(bytes('b'), { notary, store: s, file: 'b' });
+		const round = await completePending({ store: s, notaries: [notary] });
+		expect(calls).toBe(1);
+		expect(round.pending.map((p) => p.file).sort()).toEqual(['a', 'b']);
+	});
+
+	it('keeps a refused completion apart, without overwriting the receipt', async () => {
+		const s = await store();
+		const notary = memoryNotary({
+			complete: (r) => Promise.resolve({ ...r, hash: 'f'.repeat(64), complete: true })
+		});
+		await prove(bytes('hello\n'), { notary, store: s, file: 'f1' });
+		const round = await completePending({ store: s, notaries: [notary] });
+		expect(round.refused.map((p) => p.file)).toEqual(['f1']);
+		expect(s.get(PROOFS, 'f1')).toMatchObject({ complete: false, hash: HELLO_HASH });
+	});
+
+	it('lets a proof wait when its notary is not given, and skips complete ones', async () => {
+		const s = await store();
+		await prove(bytes('hello\n'), { notary: memoryNotary(), store: s, file: 'f1' });
+		const other = memoryNotary({
+			name: 'other',
+			complete: () => Promise.reject(new Error('must not be called'))
+		});
+		const round = await completePending({ store: s, notaries: [other] });
+		expect(round.pending.map((p) => p.file)).toEqual(['f1']);
+		const done = await completePending({ store: s, notaries: [memoryNotary()] });
+		expect(done.completed).toHaveLength(1);
+		const again = await completePending({ store: s, notaries: [memoryNotary()] });
+		expect(again).toEqual({ completed: [], pending: [], refused: [] });
+	});
+
+	it('lets any other failure through', async () => {
+		const s = await store();
+		const notary = memoryNotary({ complete: () => Promise.reject(new TypeError('bug')) });
+		await prove(bytes('hello\n'), { notary, store: s, file: 'f1' });
+		await expect(completePending({ store: s, notaries: [notary] })).rejects.toThrow('bug');
 	});
 });

@@ -14,6 +14,10 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+### Added
+
+- **`completePending({ store, notaries })` and `proofsIn(store)` in `selfstore/proof`: the launch-time round no app should have to write.** A notary that anchors its digests finishes a receipt hours after the deposit, so every app keeping proofs needed the same loop: find the incomplete ones, ask the right notary, write back what came back finished. `completePending` does it from the store alone, matching each proof to its notary by name; it writes only the proofs that came back complete, stops asking a notary for the rest of the round once it is unreachable (those proofs stay pending for the next launch), and sets a completion that answers for another digest apart in `refused` without touching the stored receipt. `proofsIn` reads every proof back, oldest deposit first, skipping records that are not proofs, which is what a screen listing a series of dated documents, or a second device rebuilding it, starts from. Nothing changes for code already calling `completeProof`.
+
 ## [1.8.25] - 2026-10-15
 
 ### Added

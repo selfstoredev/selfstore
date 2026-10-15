@@ -4,7 +4,7 @@
 // holding the file and the receipt can check the two still belong together.
 
 import { sha256Hex } from '../selfstore/digest';
-import { SelfstoreError } from '../selfstore/errors';
+import { isSelfstoreError, SelfstoreError } from '../selfstore/errors';
 import { toBytes, type FileBytes } from '../simple/bytes';
 import type { SimpleRecord } from '../simple/simple';
 
@@ -174,4 +174,94 @@ export async function verify(
 	const hash = await sha256Hex(bytes);
 	const sizeAgrees = receipt.size === undefined || receipt.size === bytes.length;
 	return { matches: hash === expected && sizeAgrees, hash, complete: receipt.complete === true };
+}
+
+/** Where proofs are read back from: the simple store fits as is. */
+export interface ProofLibrary extends ProofShelf {
+	all(collection: string): readonly SimpleRecord[];
+}
+
+function isProof(record: SimpleRecord): boolean {
+	return (
+		record.kind === 'selfstore-proof' &&
+		typeof record.hash === 'string' &&
+		HEX_DIGEST.test(record.hash) &&
+		typeof record.notary === 'string' &&
+		typeof record.complete === 'boolean'
+	);
+}
+
+/**
+ * Every proof kept in `store`, oldest deposit first. Records that are not
+ * proofs - another app's, a damaged one - are skipped rather than trusted.
+ */
+export function proofsIn(store: Pick<ProofLibrary, 'all'>): Proof[] {
+	return store
+		.all(PROOFS)
+		.filter(isProof)
+		.map((record) => {
+			const { id: _id, ...proof } = record;
+			return proof as unknown as Proof;
+		})
+		.sort((a, b) => Date.parse(a.depositedAt) - Date.parse(b.depositedAt));
+}
+
+/** What `completePending()` did, proof by proof. */
+export interface PendingRound {
+	/** Finished this round, and written back to the store. */
+	readonly completed: readonly Proof[];
+	/** Still waiting: the notary has nothing to add yet, could not be reached,
+	 *  or is not among the notaries given. Ask again on a later launch. */
+	readonly pending: readonly Proof[];
+	/** The notary answered for something else; kept as it was, not overwritten. */
+	readonly refused: readonly Proof[];
+}
+
+function isCode(error: unknown, code: string): boolean {
+	return isSelfstoreError(error) && error.code === code;
+}
+
+/**
+ * Ask each notary to finish the incomplete proofs it issued - the call an app
+ * makes at launch, since a notary that anchors its digests finishes a receipt
+ * hours after the deposit. A notary that cannot be reached is not asked again
+ * this round; a proof whose notary is not in `notaries` waits. Only a proof
+ * that came back complete is written to the store.
+ */
+export async function completePending(options: {
+	store: ProofLibrary;
+	notaries: readonly Notary[];
+}): Promise<PendingRound> {
+	const byName = new Map(options.notaries.map((notary) => [notary.name, notary]));
+	const unreachable = new Set<string>();
+	const completed: Proof[] = [];
+	const pending: Proof[] = [];
+	const refused: Proof[] = [];
+	for (const proof of proofsIn(options.store)) {
+		if (proof.complete) continue;
+		const notary = byName.get(proof.notary);
+		if (notary === undefined || unreachable.has(notary.name)) {
+			pending.push(proof);
+			continue;
+		}
+		try {
+			const answer = await completeProof(proof, { notary });
+			if (answer.complete) {
+				await shelve(answer, options.store);
+				completed.push(answer);
+			} else {
+				pending.push(proof);
+			}
+		} catch (error) {
+			if (isCode(error, 'NOTARY_UNAVAILABLE')) {
+				unreachable.add(notary.name);
+				pending.push(proof);
+			} else if (isCode(error, 'NOTARY_REFUSED')) {
+				refused.push(proof);
+			} else {
+				throw error;
+			}
+		}
+	}
+	return { completed, pending, refused };
 }

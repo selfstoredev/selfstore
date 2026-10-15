@@ -138,6 +138,13 @@ collaborative editing (use a CRDT library), or Node-side storage.
   /empreintes/depots.jsonl and /tours.json and, once the first tour covering
   the line has ots 'bitcoin', adds tour, root, block, ots (base64) and tsr
   (base64) when that root was stamped.
+  completePending({ store, notaries }) -> { completed, pending, refused }:
+  the launch-time round, asks each notary (matched by name) for its
+  incomplete proofs, writes back only the ones that came back complete;
+  NOTARY_UNAVAILABLE skips that notary for the round (pending),
+  NOTARY_REFUSED goes to refused (receipt untouched), anything else throws.
+  proofsIn(store) -> Proof[] reads PROOFS back, oldest deposit first,
+  skipping records that are not proofs. ProofLibrary = ProofShelf + all().
 - 'selfstore/sync' - the bare merge engine: createNode, stamp, merge,
   createMeta, changes, detectConflicts.
 - 'selfstore/kdf-worker' - the Argon2id worker asset (bundlers pick it up
