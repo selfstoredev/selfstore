@@ -136,7 +136,7 @@
 		"eslint-plugin-sonarjs": "^4.2.0",
 		"fake-indexeddb": "^6.2.5",
 		"globals": "^17.7.0",
-		"happy-dom": "^20.10.6",
+		"happy-dom": "^21.0.1",
 		"jscpd": "^5.0.12",
 		"knip": "^6.29.0",
 		"lint-staged": "^17.2.0",
