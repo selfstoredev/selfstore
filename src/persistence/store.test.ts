@@ -407,102 +407,74 @@ describe('freshness (stat-based converge)', () => {
 		expect(b.app.collections.accounts).toHaveLength(2); // and locally on B
 	});
 
-	it('pushDurable does not overwrite a moved remote it failed to download', async () => {
-		const a = makeStore({ accounts: [{ id: 'a1', name: 'A' }] });
+	/** Two replicas on one shared target: A wrote a2 after B attached, and B's
+	 *  downloads can be cut. */
+	async function bLagsBehindA() {
+		const a = makeStore({ accounts: [{ id: 'a1' }] });
 		const b = makeStore();
 		await a.store.init();
 		await b.store.init();
 		const shared = versionedTarget();
-		let offline = false;
+		const net = { offline: false };
 		const flaky: BackupTarget = {
 			...shared.target,
 			async load() {
-				if (offline) throw new Error('network down');
+				if (net.offline) throw new Error('network down');
 				return shared.target.load();
 			}
 		};
 		await a.store.attachTarget(shared.target, { strategy: 'replace-remote' });
 		await b.store.attachTarget(flaky, { strategy: 'merge' });
-
-		a.app.collections.accounts = [...(a.app.collections.accounts ?? []), { id: 'a2', name: 'A2' }];
+		a.app.collections.accounts = [...(a.app.collections.accounts ?? []), { id: 'a2' }];
 		await a.store.flush();
+		const remoteIds = async () =>
+			(
+				(await importSnapshot((await shared.target.load())!)).collections.accounts as {
+					id: string;
+				}[]
+			)
+				.map((x) => x.id)
+				.sort();
+		const addToB = (id: string) => {
+			b.app.collections.accounts = [...(b.app.collections.accounts ?? []), { id }];
+		};
+		return { b, shared, net, remoteIds, addToB };
+	}
 
+	it('pushDurable does not overwrite a moved remote it failed to download', async () => {
+		const { b, net, remoteIds, addToB } = await bLagsBehindA();
 		// B knows the remote moved (stat) but cannot download it: pushing now would
 		// replace a2 with a state that never saw it.
-		offline = true;
-		b.app.collections.accounts = [...(b.app.collections.accounts ?? []), { id: 'b1', name: 'B1' }];
+		net.offline = true;
+		addToB('b1');
 		await b.store.flush();
-		const during = await importSnapshot((await shared.target.load())!);
-		expect((during.collections.accounts as { id: string }[]).map((x) => x.id).sort()).toEqual([
-			'a1',
-			'a2'
-		]);
+		expect(await remoteIds()).toEqual(['a1', 'a2']);
 
-		offline = false;
-		b.app.collections.accounts = [...(b.app.collections.accounts ?? []), { id: 'b2', name: 'B2' }];
+		net.offline = false;
+		addToB('b2');
 		await b.store.flush();
-		const after = await importSnapshot((await shared.target.load())!);
-		expect((after.collections.accounts as { id: string }[]).map((x) => x.id).sort()).toEqual([
-			'a1',
-			'a2',
-			'b1',
-			'b2'
-		]);
+		expect(await remoteIds()).toEqual(['a1', 'a2', 'b1', 'b2']);
 	});
 
 	it('an encryption rewrite refuses a moved remote it failed to download', async () => {
-		const a = makeStore({ accounts: [{ id: 'a1' }] });
-		const b = makeStore();
-		await a.store.init();
-		await b.store.init();
-		const shared = versionedTarget();
-		let offline = false;
-		const flaky: BackupTarget = {
-			...shared.target,
-			async load() {
-				if (offline) throw new Error('network down');
-				return shared.target.load();
-			}
-		};
-		await a.store.attachTarget(shared.target, { strategy: 'replace-remote' });
-		await b.store.attachTarget(flaky, { strategy: 'merge' });
-		a.app.collections.accounts = [...(a.app.collections.accounts ?? []), { id: 'a2' }];
-		await a.store.flush();
-
-		offline = true;
+		const { b, net, remoteIds } = await bLagsBehindA();
+		net.offline = true;
 		await expect(b.store.setEncryption('a long enough password')).rejects.toMatchObject({
 			code: 'TARGET_WRITE_FAILED'
 		});
-		const remote = await importSnapshot((await shared.target.load())!);
-		expect((remote.collections.accounts as { id: string }[]).map((x) => x.id).sort()).toEqual([
-			'a1',
-			'a2'
-		]);
+		expect(await remoteIds()).toEqual(['a1', 'a2']);
 	});
 
 	it('a damaged sync.json is refused, never taken for a foreign backup', async () => {
-		const a = makeStore({ accounts: [{ id: 'a1' }] });
-		const b = makeStore();
-		await a.store.init();
-		await b.store.init();
-		const shared = versionedTarget();
-		await a.store.attachTarget(shared.target, { strategy: 'replace-remote' });
-		await b.store.attachTarget(shared.target, { strategy: 'merge' });
-		a.app.collections.accounts = [...(a.app.collections.accounts ?? []), { id: 'a2' }];
-		await a.store.flush();
-
+		const { b, shared, remoteIds, addToB } = await bLagsBehindA();
 		const entries = unzipSync(new Uint8Array(await (await shared.target.load())!.arrayBuffer()));
 		entries['sync.json'] = strToU8('{damaged');
 		await shared.target.save(new Blob([zipSync(entries) as BlobPart]));
 
 		await expect(b.store.syncNow()).rejects.toMatchObject({ code: 'BAD_FORMAT' });
-		b.app.collections.accounts = [...(b.app.collections.accounts ?? []), { id: 'b1' }];
+		addToB('b1');
 		await b.store.flush();
-		const remote = await importSnapshot((await shared.target.load())!);
-		expect((remote.collections.accounts as { id: string }[]).map((x) => x.id).sort()).toEqual([
-			'a1',
-			'a2'
-		]);
+		expect(await remoteIds()).toEqual(['a1', 'a2']);
 	});
 
 	it('syncIfStale does not download when the remote has not moved', async () => {
