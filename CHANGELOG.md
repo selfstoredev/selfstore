@@ -14,6 +14,8 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+## [1.8.27] - 2026-10-17
+
 ### Fixed
 
 - **A save no longer overwrites a remote it saw move but could not download.** When another device had written since the last sync, the pre-push converge downloaded the remote first; a failed download was swallowed and the push went ahead, replacing the other device's changes with a state that never merged them. The push now waits (transient, retried on the next save or sync), and the encryption-management rewrites (`setEncryption`, `addEncryptionKey`, `removeEncryptionKey`, `setExternalEncryption`, `addExternalKey`) refuse with `TARGET_WRITE_FAILED` in the same case.
