@@ -13,6 +13,7 @@ import type { Snapshot, Header, EncodeOptions, PasswordSlot, ExternalSlot, KeySl
 import {
 	buildEntries,
 	entriesToSnapshot,
+	parseJsonEntry,
 	readSidecar,
 	pack,
 	unpackWithSidecar,
@@ -444,7 +445,7 @@ export async function readBox(bytes: Uint8Array, password?: string): Promise<Sna
 function metaOf(entries: Record<string, Uint8Array>): Header {
 	const metaBytes = entries[META];
 	if (!metaBytes) throw new SelfstoreError('BAD_FORMAT', 'Missing backup metadata.');
-	const meta = JSON.parse(utf8.dec.decode(metaBytes)) as Header;
+	const meta = parseJsonEntry(metaBytes, META) as Header;
 	if ((meta.format ?? BOX_FORMAT_PLAIN) > BOX_FORMAT_ENVELOPE_AUTH) {
 		throw new SelfstoreError(
 			'UNSUPPORTED_VERSION',

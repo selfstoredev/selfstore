@@ -88,29 +88,50 @@ export function buildEntries(snap: Snapshot, sidecar?: unknown): Record<string, 
 	return entries;
 }
 
-/** The sync.json sidecar if present, else null. Unreadable content reads as absent. */
+/**
+ * What readSidecar returns for a sync.json that is present but not JSON. Not
+ * null: a reader that merges must not take a damaged history for a foreign
+ * backup with none. A reader that only wants the data ignores it either way.
+ */
+export const UNREADABLE_SIDECAR: unique symbol = Symbol('selfstore.unreadableSidecar');
+
+/** The sync.json sidecar if present, null when absent, UNREADABLE_SIDECAR when not JSON. */
 export function readSidecar(entries: Record<string, Uint8Array>): unknown {
 	const bytes = entries[SIDECAR];
 	if (!bytes) return null;
 	try {
 		return JSON.parse(utf8.dec.decode(bytes));
 	} catch {
-		return null;
+		return UNREADABLE_SIDECAR;
 	}
 }
 
-/** Rebuild a snapshot from ZIP entries (the inverse of buildEntries). */
+/** Parse a JSON entry; BAD_FORMAT rather than a bare SyntaxError on damaged bytes. */
+export function parseJsonEntry(bytes: Uint8Array, name: string): unknown {
+	try {
+		return JSON.parse(utf8.dec.decode(bytes));
+	} catch {
+		throw new SelfstoreError('BAD_FORMAT', `Unreadable ${name}.`);
+	}
+}
+
+/** Rebuild a snapshot from ZIP entries (the inverse of buildEntries). A file the
+ *  manifest lists without its entry is BAD_FORMAT: rebuilt as empty bytes it
+ *  would restore as a success and be written back as the loss. */
 export function entriesToSnapshot(entries: Record<string, Uint8Array>): Snapshot {
 	const manifestBytes = entries[MANIFEST];
 	if (!manifestBytes) throw new SelfstoreError('BAD_FORMAT', 'Missing manifest.');
-	const manifest = JSON.parse(utf8.dec.decode(manifestBytes)) as {
+	const manifest = parseJsonEntry(manifestBytes, MANIFEST) as {
 		collections?: Record<string, unknown[]>;
 		files?: FileMeta[];
 	};
-	const files: SnapshotFile[] = (manifest.files ?? []).map((m) => ({
-		...m,
-		bytes: entries[`files/${m.id}`] ?? new Uint8Array()
-	}));
+	const files: SnapshotFile[] = (manifest.files ?? []).map((m) => {
+		const bytes = entries[`files/${m.id}`];
+		if (bytes === undefined) {
+			throw new SelfstoreError('BAD_FORMAT', `Archive is missing the bytes of file "${m.id}".`);
+		}
+		return { ...m, bytes };
+	});
 	return { collections: manifest.collections ?? {}, files };
 }
 

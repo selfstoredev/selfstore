@@ -7,6 +7,7 @@ import {
 	buildEntries,
 	readSidecar,
 	entriesToSnapshot,
+	UNREADABLE_SIDECAR,
 	MAX_ENTRY_BYTES,
 	MAX_TOTAL_BYTES
 } from './archive';
@@ -58,18 +59,36 @@ describe('archive', () => {
 		expect('sync.json' in buildEntries(snapshot, { any: 1 })).toBe(true);
 	});
 
-	it('reads an absent or unreadable sidecar as null', () => {
+	it('reads an absent sidecar as null and an unreadable one as UNREADABLE_SIDECAR', () => {
 		expect(readSidecar({})).toBeNull();
-		expect(readSidecar({ 'sync.json': new TextEncoder().encode('{not json') })).toBeNull();
+		expect(readSidecar({ 'sync.json': new TextEncoder().encode('{not json') })).toBe(
+			UNREADABLE_SIDECAR
+		);
 	});
 
-	it('rebuilds even when the manifest is minimal or a file blob is missing', () => {
+	it('refuses a file the manifest lists without its bytes', () => {
 		const entries = buildEntries(snapshot);
 		delete entries['files/b'];
-		const out = entriesToSnapshot(entries);
-		// A referenced-but-absent blob rebuilds as empty bytes, not a throw.
-		expect(out.files.find((f) => f.id === 'b')?.bytes).toEqual(new Uint8Array());
+		expect(() => entriesToSnapshot(entries)).toThrow(
+			expect.objectContaining({ code: 'BAD_FORMAT' })
+		);
+	});
 
+	it('keeps an empty file, which is not a missing one', () => {
+		const empty = {
+			...snapshot,
+			files: [{ id: 'z', name: 'z', mime: 'text/plain', bytes: new Uint8Array() }]
+		};
+		expect(entriesToSnapshot(buildEntries(empty)).files[0]?.bytes).toEqual(new Uint8Array());
+	});
+
+	it('refuses an unreadable manifest as BAD_FORMAT, not a bare SyntaxError', () => {
+		expect(() =>
+			entriesToSnapshot({ 'selfstore.json': new TextEncoder().encode('{broken') })
+		).toThrow(expect.objectContaining({ code: 'BAD_FORMAT' }));
+	});
+
+	it('rebuilds a minimal manifest', () => {
 		const empty = entriesToSnapshot({
 			'selfstore.json': new TextEncoder().encode(JSON.stringify({ version: 1 }))
 		});

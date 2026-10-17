@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { zipSync, strToU8 } from 'fflate';
+import { zipSync, unzipSync, strToU8 } from 'fflate';
 import { createLocalStore } from './store';
 import type { LocalCache, KV, CachedFile } from './cache';
 import type { BackupTarget } from './target';
@@ -405,6 +405,76 @@ describe('freshness (stat-based converge)', () => {
 		const ids = (remote.collections.accounts as { id: string }[]).map((x) => x.id).sort();
 		expect(ids).toEqual(['a1', 'a2']); // both survive on the remote
 		expect(b.app.collections.accounts).toHaveLength(2); // and locally on B
+	});
+
+	/** Two replicas on one shared target: A wrote a2 after B attached, and B's
+	 *  downloads can be cut. */
+	async function bLagsBehindA() {
+		const a = makeStore({ accounts: [{ id: 'a1' }] });
+		const b = makeStore();
+		await a.store.init();
+		await b.store.init();
+		const shared = versionedTarget();
+		const net = { offline: false };
+		const flaky: BackupTarget = {
+			...shared.target,
+			async load() {
+				if (net.offline) throw new Error('network down');
+				return shared.target.load();
+			}
+		};
+		await a.store.attachTarget(shared.target, { strategy: 'replace-remote' });
+		await b.store.attachTarget(flaky, { strategy: 'merge' });
+		a.app.collections.accounts = [...(a.app.collections.accounts ?? []), { id: 'a2' }];
+		await a.store.flush();
+		const remoteIds = async () =>
+			(
+				(await importSnapshot((await shared.target.load())!)).collections.accounts as {
+					id: string;
+				}[]
+			)
+				.map((x) => x.id)
+				.sort();
+		const addToB = (id: string) => {
+			b.app.collections.accounts = [...(b.app.collections.accounts ?? []), { id }];
+		};
+		return { b, shared, net, remoteIds, addToB };
+	}
+
+	it('pushDurable does not overwrite a moved remote it failed to download', async () => {
+		const { b, net, remoteIds, addToB } = await bLagsBehindA();
+		// B knows the remote moved (stat) but cannot download it: pushing now would
+		// replace a2 with a state that never saw it.
+		net.offline = true;
+		addToB('b1');
+		await b.store.flush();
+		expect(await remoteIds()).toEqual(['a1', 'a2']);
+
+		net.offline = false;
+		addToB('b2');
+		await b.store.flush();
+		expect(await remoteIds()).toEqual(['a1', 'a2', 'b1', 'b2']);
+	});
+
+	it('an encryption rewrite refuses a moved remote it failed to download', async () => {
+		const { b, net, remoteIds } = await bLagsBehindA();
+		net.offline = true;
+		await expect(b.store.setEncryption('a long enough password')).rejects.toMatchObject({
+			code: 'TARGET_WRITE_FAILED'
+		});
+		expect(await remoteIds()).toEqual(['a1', 'a2']);
+	});
+
+	it('a damaged sync.json is refused, never taken for a foreign backup', async () => {
+		const { b, shared, remoteIds, addToB } = await bLagsBehindA();
+		const entries = unzipSync(new Uint8Array(await (await shared.target.load())!.arrayBuffer()));
+		entries['sync.json'] = strToU8('{damaged');
+		await shared.target.save(new Blob([zipSync(entries) as BlobPart]));
+
+		await expect(b.store.syncNow()).rejects.toMatchObject({ code: 'BAD_FORMAT' });
+		addToB('b1');
+		await b.store.flush();
+		expect(await remoteIds()).toEqual(['a1', 'a2']);
 	});
 
 	it('syncIfStale does not download when the remote has not moved', async () => {
