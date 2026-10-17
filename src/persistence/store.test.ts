@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { zipSync, strToU8 } from 'fflate';
+import { zipSync, unzipSync, strToU8 } from 'fflate';
 import { createLocalStore } from './store';
 import type { LocalCache, KV, CachedFile } from './cache';
 import type { BackupTarget } from './target';
@@ -405,6 +405,104 @@ describe('freshness (stat-based converge)', () => {
 		const ids = (remote.collections.accounts as { id: string }[]).map((x) => x.id).sort();
 		expect(ids).toEqual(['a1', 'a2']); // both survive on the remote
 		expect(b.app.collections.accounts).toHaveLength(2); // and locally on B
+	});
+
+	it('pushDurable does not overwrite a moved remote it failed to download', async () => {
+		const a = makeStore({ accounts: [{ id: 'a1', name: 'A' }] });
+		const b = makeStore();
+		await a.store.init();
+		await b.store.init();
+		const shared = versionedTarget();
+		let offline = false;
+		const flaky: BackupTarget = {
+			...shared.target,
+			async load() {
+				if (offline) throw new Error('network down');
+				return shared.target.load();
+			}
+		};
+		await a.store.attachTarget(shared.target, { strategy: 'replace-remote' });
+		await b.store.attachTarget(flaky, { strategy: 'merge' });
+
+		a.app.collections.accounts = [...(a.app.collections.accounts ?? []), { id: 'a2', name: 'A2' }];
+		await a.store.flush();
+
+		// B knows the remote moved (stat) but cannot download it: pushing now would
+		// replace a2 with a state that never saw it.
+		offline = true;
+		b.app.collections.accounts = [...(b.app.collections.accounts ?? []), { id: 'b1', name: 'B1' }];
+		await b.store.flush();
+		const during = await importSnapshot((await shared.target.load())!);
+		expect((during.collections.accounts as { id: string }[]).map((x) => x.id).sort()).toEqual([
+			'a1',
+			'a2'
+		]);
+
+		offline = false;
+		b.app.collections.accounts = [...(b.app.collections.accounts ?? []), { id: 'b2', name: 'B2' }];
+		await b.store.flush();
+		const after = await importSnapshot((await shared.target.load())!);
+		expect((after.collections.accounts as { id: string }[]).map((x) => x.id).sort()).toEqual([
+			'a1',
+			'a2',
+			'b1',
+			'b2'
+		]);
+	});
+
+	it('an encryption rewrite refuses a moved remote it failed to download', async () => {
+		const a = makeStore({ accounts: [{ id: 'a1' }] });
+		const b = makeStore();
+		await a.store.init();
+		await b.store.init();
+		const shared = versionedTarget();
+		let offline = false;
+		const flaky: BackupTarget = {
+			...shared.target,
+			async load() {
+				if (offline) throw new Error('network down');
+				return shared.target.load();
+			}
+		};
+		await a.store.attachTarget(shared.target, { strategy: 'replace-remote' });
+		await b.store.attachTarget(flaky, { strategy: 'merge' });
+		a.app.collections.accounts = [...(a.app.collections.accounts ?? []), { id: 'a2' }];
+		await a.store.flush();
+
+		offline = true;
+		await expect(b.store.setEncryption('a long enough password')).rejects.toMatchObject({
+			code: 'TARGET_WRITE_FAILED'
+		});
+		const remote = await importSnapshot((await shared.target.load())!);
+		expect((remote.collections.accounts as { id: string }[]).map((x) => x.id).sort()).toEqual([
+			'a1',
+			'a2'
+		]);
+	});
+
+	it('a damaged sync.json is refused, never taken for a foreign backup', async () => {
+		const a = makeStore({ accounts: [{ id: 'a1' }] });
+		const b = makeStore();
+		await a.store.init();
+		await b.store.init();
+		const shared = versionedTarget();
+		await a.store.attachTarget(shared.target, { strategy: 'replace-remote' });
+		await b.store.attachTarget(shared.target, { strategy: 'merge' });
+		a.app.collections.accounts = [...(a.app.collections.accounts ?? []), { id: 'a2' }];
+		await a.store.flush();
+
+		const entries = unzipSync(new Uint8Array(await (await shared.target.load())!.arrayBuffer()));
+		entries['sync.json'] = strToU8('{damaged');
+		await shared.target.save(new Blob([zipSync(entries) as BlobPart]));
+
+		await expect(b.store.syncNow()).rejects.toMatchObject({ code: 'BAD_FORMAT' });
+		b.app.collections.accounts = [...(b.app.collections.accounts ?? []), { id: 'b1' }];
+		await b.store.flush();
+		const remote = await importSnapshot((await shared.target.load())!);
+		expect((remote.collections.accounts as { id: string }[]).map((x) => x.id).sort()).toEqual([
+			'a1',
+			'a2'
+		]);
 	});
 
 	it('syncIfStale does not download when the remote has not moved', async () => {

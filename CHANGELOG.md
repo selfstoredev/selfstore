@@ -14,6 +14,12 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A save no longer overwrites a remote it saw move but could not download.** When another device had written since the last sync, the pre-push converge downloaded the remote first; a failed download was swallowed and the push went ahead, replacing the other device's changes with a state that never merged them. The push now waits (transient, retried on the next save or sync), and the encryption-management rewrites (`setEncryption`, `addEncryptionKey`, `removeEncryptionKey`, `setExternalEncryption`, `addExternalKey`) refuse with `TARGET_WRITE_FAILED` in the same case.
+- **A backup whose `sync.json` is present but damaged is refused as `BAD_FORMAT`** when the store merges it, instead of reading as a foreign backup with no history: that reading skipped the newer-schema gate and let the next push replace the remote. Readers that only want the data (`importSnapshot`) still ignore the sidecar, as the format specifies.
+- **A file listed in the manifest without its bytes is `BAD_FORMAT`.** It was rebuilt as an empty file, so a restore looked complete and the next save wrote the loss back. An empty file that is present still reads as empty. An unreadable `selfstore.json` or `meta.json` is `BAD_FORMAT` too, rather than a bare `SyntaxError`.
+
 ## [1.8.26] - 2026-10-16
 
 ### Added

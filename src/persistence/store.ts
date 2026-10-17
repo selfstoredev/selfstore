@@ -418,6 +418,20 @@ interface Bookkeeping {
 	meta: SyncMeta;
 }
 
+/** The shape a sync.json sidecar may take: an object whose fields, when present,
+ *  are a schema version and a merge-metadata object. */
+function isBookkeeping(v: unknown): v is Partial<Bookkeeping> {
+	if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
+	const { schemaVersion, meta } = v as Record<string, unknown>;
+	if (
+		schemaVersion !== undefined &&
+		!(Number.isInteger(schemaVersion) && (schemaVersion as number) >= 0)
+	) {
+		return false;
+	}
+	return meta === undefined || meta === null || (typeof meta === 'object' && !Array.isArray(meta));
+}
+
 // Named kv keys, so a typo cannot silently lose state.
 const KEY = {
 	mode: 'mode',
@@ -1023,8 +1037,13 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 		sidecar: unknown
 	): { fromVersion: number; sync: SyncMeta | null } {
 		if (RESERVED in snap.collections) delete snap.collections[RESERVED];
-		const s = sidecar as Partial<Bookkeeping> | null;
-		return { fromVersion: s?.schemaVersion ?? 0, sync: s?.meta ?? null };
+		if (sidecar === null) return { fromVersion: 0, sync: null };
+		if (!isBookkeeping(sidecar)) {
+			// Present but damaged: read as absent it would pass for a foreign backup,
+			// skip the schema gate and let the next push replace the remote.
+			throw new SelfstoreError('BAD_FORMAT', 'Unreadable sync metadata (sync.json).');
+		}
+		return { fromVersion: sidecar.schemaVersion ?? 0, sync: sidecar.meta ?? null };
 	}
 
 	const migrated = (snap: Snapshot, fromV: number): Snapshot =>
@@ -1269,6 +1288,29 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 		}
 	}
 
+	/** Before an encryption-management rewrite: fold in what another replica wrote
+	 *  since our last sync, since its blob opens with the old key and a blind
+	 *  re-encrypting push would clobber it. Throws TARGET_WRITE_FAILED when that
+	 *  converge hit a gate or could not download the moved remote. */
+	async function convergeBeforeRewrite(where: string): Promise<void> {
+		await requireReady(where);
+		const seen = await statRemote();
+		if (seen === null || remoteVersion === null || seen === remoteVersion) return;
+		const pulled = await pullRemoteIntoLocal('push', seen);
+		if (locked() || needsAttention) {
+			throw new SelfstoreError(
+				'TARGET_WRITE_FAILED',
+				`${where}(): the pre-rewrite converge needs attention; resolve it first.`
+			);
+		}
+		if (pulled === 'unreachable') {
+			throw new SelfstoreError(
+				'TARGET_WRITE_FAILED',
+				`${where}(): the destination is unreachable; try again online.`
+			);
+		}
+	}
+
 	async function setRemoteVersion(v: string | null): Promise<void> {
 		remoteVersion = v;
 		if (v === null) await kv.del(KEY.remoteVersion);
@@ -1325,8 +1367,12 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 			// push would hide its changes from every replica until its next pull.
 			const seen = await statRemote();
 			if (seen !== null && remoteVersion !== null && seen !== remoteVersion) {
-				await pullRemoteIntoLocal(source, seen);
+				const pulled = await pullRemoteIntoLocal(source, seen);
 				if (locked() || needsAttention) return false; // the pull hit a lock: never clobber
+				if (pulled === 'unreachable') {
+					lastError = transient('Save deferred: destination momentarily unreachable.');
+					return false;
+				}
 			}
 			// Skip the upload when the remote already holds this exact content: a
 			// converge that only adopted the remote, or a reactive re-save, would
@@ -1607,22 +1653,26 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 	 *  stat'ed before the load: a write landing mid-load still reads as stale on
 	 *  the next check instead of being marked seen-but-unmerged. Resolves to the
 	 *  journal entry, 'locked' (missing/wrong password, a refused plaintext swap,
-	 *  or a newer-schema remote - the caller must not push), or null when nothing
-	 *  changed. */
+	 *  or a newer-schema remote - the caller must not push), 'unreachable' when
+	 *  the download failed (the remote content is unknown, so a push must wait),
+	 *  or null when nothing changed. */
 	async function pullRemoteIntoLocal(
 		source: SyncSource,
 		seen?: string | null
-	): Promise<SyncJournalEntry | 'locked' | null> {
+	): Promise<SyncJournalEntry | 'locked' | 'unreachable' | null> {
 		if (!durable) return null;
 		const marker = seen === undefined ? await statRemote() : seen;
-		let remote: Blob | null = null;
+		let remote: Blob | null;
 		try {
 			// Reuse the blob inspectTarget just downloaded when the remote has not
 			// moved since (the connect journey), else load live. `marker` above was
 			// stat'ed the same way the reuse is gated on, so it stays consistent.
 			remote = (await takeFreshPrefetch(durable)) ?? (await durable.load());
-		} catch {
-			/* offline or transient: keep local, push later */
+		} catch (e) {
+			// Offline or transient: keep local. Not "nothing there": a push now would
+			// replace a remote this device never merged.
+			logger.warn('[selfstore] download of the durable copy failed', e);
+			return 'unreachable';
 		}
 		if (!remote) return null;
 		const decoded = await importLocked(remote);
@@ -1788,7 +1838,8 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 		if (durable) {
 			const r = await pullRemoteIntoLocal(source);
 			if (r === 'locked') return null; // locked: skip peers and the push too, never clobber
-			entry = r;
+			// Unreachable: the push below re-checks the marker and holds back on its own.
+			entry = r === 'unreachable' ? null : r;
 		}
 		entry = (await foldPeers(source)) ?? entry;
 		if (durable) await pushDurable(source);
@@ -2571,17 +2622,7 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 				// Converge first, under the current setting: another replica may have
 				// written since our last sync, and its blob opens with the old key. A
 				// blind re-encrypting push would clobber that write.
-				await requireReady('setEncryption');
-				const seen = await statRemote();
-				if (seen !== null && remoteVersion !== null && seen !== remoteVersion) {
-					await pullRemoteIntoLocal('push', seen);
-					if (locked() || needsAttention) {
-						throw new SelfstoreError(
-							'TARGET_WRITE_FAILED',
-							'setEncryption(): the pre-rewrite converge needs attention; resolve it first.'
-						);
-					}
-				}
+				await convergeBeforeRewrite('setEncryption');
 				const prevEncrypted = encrypted;
 				const prevPass = pass;
 				const prevEnvelope = envelope;
@@ -2644,17 +2685,7 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 				);
 			}
 			return serialize(async () => {
-				await requireReady('addEncryptionKey');
-				const seen = await statRemote();
-				if (seen !== null && remoteVersion !== null && seen !== remoteVersion) {
-					await pullRemoteIntoLocal('push', seen);
-					if (locked() || needsAttention) {
-						throw new SelfstoreError(
-							'TARGET_WRITE_FAILED',
-							'addEncryptionKey(): the pre-rewrite converge needs attention; resolve it first.'
-						);
-					}
-				}
+				await convergeBeforeRewrite('addEncryptionKey');
 				// A pre-envelope file mints its own-password slot now; the new slot
 				// joins it. Same data key: nothing is re-encrypted, every existing
 				// password keeps opening the file - that is the whole point.
@@ -2716,17 +2747,7 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 				throw new TypeError('removeEncryptionKey(): the backup has no password.');
 			}
 			return serialize(async () => {
-				await requireReady('removeEncryptionKey');
-				const seen = await statRemote();
-				if (seen !== null && remoteVersion !== null && seen !== remoteVersion) {
-					await pullRemoteIntoLocal('push', seen);
-					if (locked() || needsAttention) {
-						throw new SelfstoreError(
-							'TARGET_WRITE_FAILED',
-							'removeEncryptionKey(): the pre-rewrite converge needs attention; resolve it first.'
-						);
-					}
-				}
+				await convergeBeforeRewrite('removeEncryptionKey');
 				if (!envelope) {
 					throw new TypeError(
 						'removeEncryptionKey(): no key slots known - the file predates the envelope or has not been read yet.'
@@ -2799,17 +2820,7 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 				);
 			}
 			return serialize(async () => {
-				await requireReady('setExternalEncryption');
-				const seen = await statRemote();
-				if (seen !== null && remoteVersion !== null && seen !== remoteVersion) {
-					await pullRemoteIntoLocal('push', seen);
-					if (locked() || needsAttention) {
-						throw new SelfstoreError(
-							'TARGET_WRITE_FAILED',
-							'setExternalEncryption(): the pre-rewrite converge needs attention; resolve it first.'
-						);
-					}
-				}
+				await convergeBeforeRewrite('setExternalEncryption');
 				const prevEncrypted = encrypted;
 				const prevPass = pass;
 				const prevEnvelope = envelope;
@@ -2874,17 +2885,7 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 				);
 			}
 			return serialize(async () => {
-				await requireReady('addExternalKey');
-				const seen = await statRemote();
-				if (seen !== null && remoteVersion !== null && seen !== remoteVersion) {
-					await pullRemoteIntoLocal('push', seen);
-					if (locked() || needsAttention) {
-						throw new SelfstoreError(
-							'TARGET_WRITE_FAILED',
-							'addExternalKey(): the pre-rewrite converge needs attention; resolve it first.'
-						);
-					}
-				}
+				await convergeBeforeRewrite('addExternalKey');
 				// A password-unlocked session with no envelope yet mints its own slot
 				// first (same data key), so the external slot joins it - nothing is
 				// re-encrypted and the existing password keeps opening the file.
