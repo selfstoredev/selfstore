@@ -41,6 +41,8 @@ jobs:
         run: npm run lint
       - name: Type-check
         run: npm run typecheck
+      - name: Agent skill matches the API
+        run: npm run skill # functions, subpaths and version the skill names still exist
       - name: Dead code (knip)
         run: npm run knip
       - name: Duplication (jscpd)

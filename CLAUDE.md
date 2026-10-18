@@ -13,7 +13,7 @@ files, CI runs everything):
 npm run gate
 ```
 
-`gate` = `format:check` + `lint` + `typecheck` + `knip` + `dup` +
+`gate` = `format:check` + `lint` + `typecheck` + `skill` + `knip` + `dup` +
 `test:coverage`. `prepublishOnly` re-runs the core of it, so a red gate can
 never reach npm.
 
@@ -22,6 +22,7 @@ never reach npm.
 | `npm run format:check` | prettier | style drift |
 | `npm run lint` | eslint + sonarjs, zero warnings | bugs, code smells, complexity |
 | `npm run typecheck` | tsc (src + examples) | type errors |
+| `npm run skill` | scripts/skill.mjs | a skill naming a function, subpath or version that is gone |
 | `npm run knip` | knip | dead files, exports, dependencies |
 | `npm run dup` | jscpd | copy-paste |
 | `npm run test:coverage` | vitest | regressions, coverage ratchet |
