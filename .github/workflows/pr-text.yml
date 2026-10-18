@@ -1,0 +1,57 @@
+name: pr-text
+
+# CLAUDE.md says no tool branding in commits, branches or PRs, and nothing
+# measured it: the commit-msg hook only runs where it is installed, and no
+# check read a PR body at all. A squash merge here writes every commit message
+# of the PR into main (squash_merge_commit_message: COMMIT_MESSAGES), so a
+# trailer that slips through stays in the history for good.
+#
+# This job reads the title, the body and every commit message of the PR, and
+# fails on a session link or an attribution line. `edited` re-runs it when the
+# body is fixed, without re-running the whole gate.
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened]
+
+concurrency:
+  group: pr-text-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  signatures:
+    name: pr-text
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0 # the commits between the base and the head
+          persist-credentials: false
+      - name: No tool signature in the title, body or commits
+        # Passed through env, never interpolated into the script: the text is
+        # written by whoever opens the PR.
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          BODY: ${{ github.event.pull_request.body }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          pattern='claude\.ai/code|chatgpt\.com/codex|generated (with|by) \[?(claude|codex)|co-authored-by:.*(claude|anthropic|openai|codex)|noreply@anthropic\.com|claude-session:'
+          found=0
+          check() {
+            if printf '%s\n' "$2" | grep -Eiq "$pattern"; then
+              echo "::error::$1 carries a tool signature:"
+              printf '%s\n' "$2" | grep -Ein "$pattern"
+              found=1
+            fi
+          }
+          check "The PR title" "$TITLE"
+          check "The PR body" "$BODY"
+          for sha in $(git rev-list "$BASE..$HEAD"); do
+            check "Commit $sha" "$(git log -1 --format=%B "$sha")"
+          done
+          exit "$found"
