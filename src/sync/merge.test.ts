@@ -207,6 +207,23 @@ describe('merge:lww-map (field-level)', () => {
 		expect(merge(A, B, cfgMap).collections.rows).toEqual([]);
 	});
 
+	it('a field removed on one side does not come back from the other', () => {
+		const A = fork('a', { rows: [{ id: '1', name: 'Livret' }] }, 3000);
+		const B = fork('b', { rows: [{ id: '1', name: 'Livret', balance: 10 }] }, 2000);
+		expect(merge(A, B, cfgMap).collections.rows[0]).toEqual({ id: '1', name: 'Livret' });
+		expect(merge(B, A, cfgMap).collections.rows[0]).toEqual({ id: '1', name: 'Livret' });
+	});
+
+	it('a later edit of a removed field keeps it', () => {
+		const A = fork('a', { rows: [{ id: '1', name: 'Livret' }] }, 3000);
+		const B = fork('b', { rows: [{ id: '1', name: 'Livret', balance: 42 }] }, 5000);
+		expect(merge(A, B, cfgMap).collections.rows[0]).toEqual({
+			id: '1',
+			name: 'Livret',
+			balance: 42
+		});
+	});
+
 	it('detectConflicts flags only same-field concurrent edits', () => {
 		const differentFields = detectConflicts(
 			fork('a', { rows: [{ id: '1', name: 'A', balance: 10 }] }, 3000),
