@@ -14,6 +14,11 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A field removed from an `lww-map` record no longer comes back from another device.** Removing a field dropped its clock, so the other replica's older stamp won the merge and restored the value. A removed field now keeps a stamp of its own; a later edit on the other side still wins. Backups written before this change merge as before.
+- **Renaming an attachment alone is saved.** The content fingerprint that skips identical saves ignored file names, so a rename read as "nothing changed" and was lost on reload.
+
 ## [1.8.27] - 2026-10-17
 
 ### Fixed

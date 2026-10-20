@@ -223,8 +223,15 @@ function stampFields(col: ColMeta, id: Id, doc: Record<string, unknown>, tick: T
 		const h = hash(doc[key]);
 		if (rec[key]?.[1] !== h) rec[key] = [tick(), h];
 	}
-	for (const key of Object.keys(rec)) if (!(key in doc)) delete rec[key];
+	// A removed field keeps a stamp: dropping its clock let the other replica's
+	// older stamp win the merge and bring the field back.
+	for (const key of Object.keys(rec)) {
+		if (!(key in doc) && rec[key][1] !== REMOVED) rec[key] = [tick(), REMOVED];
+	}
 }
+
+/** The hash a removed field is stamped with; `hash` never returns it. */
+const REMOVED = -1;
 
 /** Tombstone every previously-tracked id that is no longer present. */
 function tombstoneMissing(col: ColMeta, seen: Set<Id>, tick: Tick): void {
@@ -529,15 +536,16 @@ function mergeFields(
 	const bF = bMeta.fields?.[id] ?? {};
 	const doc: Record<string, unknown> = {};
 	const fields: Record<string, [Hlc, number]> = {};
-	for (const key of new Set([...Object.keys(aDoc), ...Object.keys(bDoc)])) {
+	const keys = [aDoc, bDoc, aF, bF].flatMap((o) => Object.keys(o));
+	for (const key of new Set(keys)) {
 		const a = aF[key] ?? null;
 		const b = bF[key] ?? null;
 		const side = pickFieldSide(a, b, winnerSide);
 		const src = side === 'local' ? aDoc : bDoc;
-		if (!(key in src)) continue; // the winning side removed the field: drop it
-		doc[key] = src[key];
 		const stamped = side === 'local' ? a : b;
 		if (stamped) fields[key] = stamped;
+		// Absent from the winning side: the field was removed there, drop it.
+		if (key in src) doc[key] = src[key];
 	}
 	return { doc, fields };
 }
