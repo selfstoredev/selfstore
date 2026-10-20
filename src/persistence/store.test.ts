@@ -1214,6 +1214,39 @@ describe('store save dedup (no redundant remote writes)', () => {
 		expect(saves).toBe(base + 1);
 	});
 
+	it('writes a change that moves characters between a name and its bytes', async () => {
+		const enc = new TextEncoder();
+		const file = {
+			id: 'f1',
+			name: 'a',
+			mime: 'application/pdf',
+			bytes: enc.encode('X\u001fapplication/pdf\u001fY')
+		};
+		const store = createLocalStore({
+			app: 'test',
+			schemaVersion: 1,
+			gather: () => ({ collections: {}, files: [{ ...file }] }),
+			apply: () => {},
+			cache: memCache()
+		});
+		await store.init();
+		const t = fakeTarget('drive');
+		let saves = 0;
+		const realSave = t.target.save.bind(t.target);
+		t.target.save = async (b) => {
+			saves++;
+			return realSave(b);
+		};
+		await store.attachTarget(t.target, { strategy: 'replace-remote' });
+		await store.flush();
+		const base = saves;
+
+		file.name = 'a\u001fapplication/pdf\u001fX';
+		file.bytes = enc.encode('Y');
+		await store.flush();
+		expect(saves).toBe(base + 1);
+	});
+
 	// Seed a real .selfstore blob, then wrap it in a stat-capable target that
 	// counts load() calls, so a test can prove connect fetches the file once.
 	async function seededStatTarget(marker: () => string) {

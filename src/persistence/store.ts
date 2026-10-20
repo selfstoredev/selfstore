@@ -1424,8 +1424,10 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 		const enc = new TextEncoder();
 		const parts: Uint8Array[] = [enc.encode(JSON.stringify(snap.collections))];
 		for (const f of [...snap.files].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
-			// The name too: a rename alone must not read as "nothing changed".
-			parts.push(enc.encode(`\u001f${f.id}\u001f${f.name}\u001f${f.mime}\u001f`), f.bytes);
+			// The name too: a rename alone must not read as "nothing changed". The
+			// header is JSON and carries the byte length, so no name or byte run can
+			// pass for another split of the same characters.
+			parts.push(enc.encode(JSON.stringify([f.id, f.name, f.mime, f.bytes.length])), f.bytes);
 		}
 		let len = 0;
 		for (const p of parts) len += p.length;
