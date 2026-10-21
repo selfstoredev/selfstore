@@ -102,7 +102,8 @@
 		"audit": "npm audit --audit-level=high",
 		"secrets": "gitleaks detect --source . --redact --no-banner",
 		"paquet": "npm pack --dry-run",
-		"verifier": "npm run gate && npm run audit && npm run secrets && npm run build && npm run paquet",
+		"worker-size": "node scripts/worker-size.mjs",
+		"verifier": "npm run gate && npm run audit && npm run secrets && npm run build && npm run worker-size && npm run paquet",
 		"prepare": "simple-git-hooks",
 		"prepublishOnly": "npm run typecheck && npm test && npm run build",
 		"consumers": "node scripts/verify-consumers.mjs"
