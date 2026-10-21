@@ -14,6 +14,8 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+## [1.8.28] - 2026-10-21
+
 ### Changed
 
 - **The KDF worker ships Argon2id alone.** `dist/kdf-worker.js` inlined every hash-wasm algorithm (22 WebAssembly modules, 217 kB, about 62 kB brotli) because the worker reached hash-wasm through a dynamic import, which the bundler cannot tree-shake. It now imports `argon2id` statically: two modules, about 28 kB, about 9 kB brotli. Keys are byte-identical; the calling-thread fallback still loads hash-wasm only when a password is used. `npm run worker-size` holds it after every build.
