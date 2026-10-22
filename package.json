@@ -143,7 +143,7 @@
 		"lint-staged": "^17.2.0",
 		"prettier": "^3.9.6",
 		"simple-git-hooks": "^2.13.1",
-		"tsup": "^8.3.5",
+		"tsup": "^9.0.0",
 		"typescript": "^6.0.3",
 		"typescript-eslint": "^8.65.0",
 		"vitest": "^5.0.0",
