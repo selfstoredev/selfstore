@@ -14,6 +14,8 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+## [1.8.29] - 2026-10-22
+
 ### Fixed
 
 - **A switch that replaces local data no longer drops an edit the home being left never received.** `attachTarget(..., { strategy: 'replace-local' })` pushed the pending edit to the departing destination, ignored a failed push, then loaded the new home over the local cache that held the only copy. It now refuses with `TARGET_WRITE_FAILED` before anything changes; online, the same call goes through.
