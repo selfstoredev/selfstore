@@ -14,6 +14,13 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A switch that replaces local data no longer drops an edit the home being left never received.** `attachTarget(..., { strategy: 'replace-local' })` pushed the pending edit to the departing destination, ignored a failed push, then loaded the new home over the local cache that held the only copy. It now refuses with `TARGET_WRITE_FAILED` before anything changes; online, the same call goes through.
+- **A change marker that cannot be read no longer authorises an overwrite.** A failing `stat()` was read as "the remote has not moved", so the push skipped its converge and could replace another device's write. The push now waits (transient, retried on the next save or sync), and the encryption-management rewrites refuse with `TARGET_WRITE_FAILED`.
+- **A password or key change reaches the replicas at once.** `setEncryption`, `setExternalEncryption`, `addEncryptionKey`, `removeEncryptionKey` and `addExternalKey` rewrote the primary only; a replica kept opening under a removed or replaced key until the next ordinary save. A replica that refuses the new bytes lands on its own `state.replicas` entry.
+- **A key change that reached the destination is never rolled back.** When the write landed but a local bookkeeping write after it failed (storage full), the store restored the old key in memory while the file already used the new one. The new key is now kept and the bookkeeping failure is logged.
+
 ## [1.8.28] - 2026-10-21
 
 ### Changed
