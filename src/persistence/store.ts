@@ -1264,6 +1264,52 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 		}
 	}
 
+	/** The remote's change marker when the answer decides whether to OVERWRITE
+	 *  it. A stat that fails is not a remote that has not moved: swallowed into
+	 *  null, it skipped the converge and let the push clobber another replica's
+	 *  write. So it throws here, and the caller defers or refuses the rewrite. */
+	async function statBeforeOverwrite(): Promise<string | null> {
+		return durable?.stat ? durable.stat() : null;
+	}
+
+	/** Before a switch that replaces local data: push the pending edit to the
+	 *  home being left, and throw TARGET_WRITE_FAILED when it could not get
+	 *  there - the switch would otherwise overwrite the only copy of it. */
+	async function flushBeforeLeaving(): Promise<void> {
+		try {
+			await persistLocal();
+		} catch (e) {
+			logger.warn('[selfstore] local save before a switch failed', e);
+		}
+		if (await pushDurable('push')) return;
+		if ((await contentDigest(await gather())) === lastSavedContentHash) return;
+		throw new SelfstoreError(
+			'TARGET_WRITE_FAILED',
+			'attachTarget(): an edit not yet saved to the current destination could not reach it; try again online before switching.'
+		);
+	}
+
+	/** After an encryption rewrite has LANDED: the primary now opens only under
+	 *  the new key, so nothing past this point may roll the key back. The
+	 *  bookkeeping writes are best effort (logged; the next sync re-reads the
+	 *  marker), and every replica gets the re-keyed bytes at once - left alone it
+	 *  would keep opening under a key the user just changed or revoked. A replica
+	 *  that refuses lands on its own `state.replicas` entry. */
+	async function settleRewrite(
+		written: string | null,
+		...followUps: Array<() => Promise<unknown>>
+	): Promise<void> {
+		lastError = null;
+		try {
+			await setRemoteVersion(typeof written === 'string' ? written : await statRemote());
+			for (const followUp of followUps) await followUp();
+		} catch (e) {
+			logger.error('[selfstore] bookkeeping after a key rewrite failed; the new key is kept', e);
+		}
+		await publishReplicas();
+		notify();
+	}
+
 	/** Readiness check for the encryption-management flows (setEncryption and the
 	 *  key-slot methods), which call isReady() OUTSIDE the store's normal push
 	 *  path. isReady() now THROWS AuthExpired on a genuine loss: raise the gate
@@ -1294,7 +1340,18 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 	 *  converge hit a gate or could not download the moved remote. */
 	async function convergeBeforeRewrite(where: string): Promise<void> {
 		await requireReady(where);
-		const seen = await statRemote();
+		let seen: string | null;
+		try {
+			seen = await statBeforeOverwrite();
+		} catch (e) {
+			if (isAuthExpired(e)) {
+				raiseGate('AUTH_EXPIRED', 'Access to the destination expired or was revoked.');
+			}
+			throw new SelfstoreError(
+				'TARGET_WRITE_FAILED',
+				`${where}(): cannot tell whether the destination moved; try again online.`
+			);
+		}
 		if (seen === null || remoteVersion === null || seen === remoteVersion) return;
 		const pulled = await pullRemoteIntoLocal('push', seen);
 		if (locked() || needsAttention) {
@@ -1364,8 +1421,9 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 				return false;
 			}
 			// Converge first when another replica wrote since our last sync: a blind
-			// push would hide its changes from every replica until its next pull.
-			const seen = await statRemote();
+			// push would hide its changes from every replica until its next pull. A
+			// stat that fails throws into the transient branch below: the push waits.
+			const seen = await statBeforeOverwrite();
 			if (seen !== null && remoteVersion !== null && seen !== remoteVersion) {
 				const pulled = await pullRemoteIntoLocal(source, seen);
 				if (locked() || needsAttention) return false; // the pull hit a lock: never clobber
@@ -2270,15 +2328,12 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 				// the file we leave would be lost unless we save it there first. 'merge'
 				// keeps local (nothing stranded) and 'replace-remote' carries local into
 				// the new home, so neither needs this - and a blind flush on 'merge' could
-				// even resurrect a record another replica deleted. Best-effort: offline
-				// keeps the edit in the local cache.
+				// even resurrect a record another replica deleted. The local cache does
+				// NOT keep an edit across this switch - loading the new home replaces it -
+				// so a flush that fails with an unsaved edit refuses the switch before
+				// anything has changed.
 				if (strategy === 'replace-local' && durable && !locked() && !needsAttention) {
-					try {
-						await persistLocal();
-						await pushDurable('push');
-					} catch {
-						/* offline or unreachable: the local cache keeps the edit */
-					}
+					await flushBeforeLeaving();
 				}
 				// Manifest seq must never move backwards, even across sessions: a
 				// replayed old manifest would silently re-add a removed member.
@@ -2633,13 +2688,11 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 				// authorized password (a share key, an old password) stops opening
 				// the new bytes - that is the point.
 				envelope = null;
+				let written: string | null;
 				try {
 					await persistLocal();
 					pendingEdit = false;
-					const written = await durable!.save(await buildBlob());
-					await setRemoteVersion(typeof written === 'string' ? written : await statRemote());
-					lastError = null;
-					await kv.set(KEY.enc, encrypted); // the flag follows the write, never precedes it
+					written = await durable!.save(await buildBlob());
 				} catch (e) {
 					// Roll the setting back everywhere the write did not reach: the
 					// caller gets the failure, and the store still matches the file.
@@ -2650,10 +2703,11 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 					if (isAuthExpired(e)) {
 						raiseGate('AUTH_EXPIRED', 'Access to the destination expired or was revoked.');
 					}
-					throw e;
-				} finally {
 					notify();
+					throw e;
 				}
+				// The flag follows the write, never precedes it.
+				await settleRewrite(written, () => kv.set(KEY.enc, encrypted));
 			});
 		},
 
@@ -2704,24 +2758,23 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 				const prevEnvelope = envelope;
 				const slot = await mintSlot(password, envelope.dataKey, id);
 				envelope = { dataKey: envelope.dataKey, slots: [...envelope.slots, slot] };
+				let written: string | null;
 				try {
 					const blob = await buildBlob();
 					// Write-verified the strong way: the new password must open the very
 					// bytes about to land, before they land.
 					await readBoxWithSync(await asBytes(blob), password);
-					const written = await durable!.save(blob);
-					await setRemoteVersion(typeof written === 'string' ? written : await statRemote());
-					lastError = null;
-					return slot.id;
+					written = await durable!.save(blob);
 				} catch (e) {
 					envelope = prevEnvelope;
 					if (isAuthExpired(e)) {
 						raiseGate('AUTH_EXPIRED', 'Access to the destination expired or was revoked.');
 					}
-					throw e;
-				} finally {
 					notify();
+					throw e;
 				}
+				await settleRewrite(written);
+				return slot.id;
 			});
 		},
 
@@ -2783,21 +2836,20 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 				}
 				const prevEnvelope = envelope;
 				envelope = { dataKey: envelope.dataKey, slots: remaining };
+				let written: string | null;
 				try {
 					const blob = await buildBlob();
 					await readBoxWithSync(await asBytes(blob), pass!); // our password still opens
-					const written = await durable!.save(blob);
-					await setRemoteVersion(typeof written === 'string' ? written : await statRemote());
-					lastError = null;
+					written = await durable!.save(blob);
 				} catch (e) {
 					envelope = prevEnvelope;
 					if (isAuthExpired(e)) {
 						raiseGate('AUTH_EXPIRED', 'Access to the destination expired or was revoked.');
 					}
-					throw e;
-				} finally {
 					notify();
+					throw e;
 				}
+				await settleRewrite(written);
 			});
 		},
 
@@ -2832,6 +2884,7 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 				pass = null; // external-keyed: no password (do not setPass - it drops the envelope)
 				envelope = { dataKey, slots: [slot] };
 				armIdleLock();
+				let written: string | null;
 				try {
 					await persistLocal();
 					pendingEdit = false;
@@ -2844,10 +2897,7 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 						undefined,
 						async () => secret
 					);
-					const written = await durable!.save(blob);
-					await setRemoteVersion(typeof written === 'string' ? written : await statRemote());
-					lastError = null;
-					await kv.set(KEY.enc, true);
+					written = await durable!.save(blob);
 				} catch (e) {
 					encrypted = prevEncrypted;
 					pass = prevPass;
@@ -2857,10 +2907,10 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 					if (isAuthExpired(e)) {
 						raiseGate('AUTH_EXPIRED', 'Access to the destination expired or was revoked.');
 					}
-					throw e;
-				} finally {
 					notify();
+					throw e;
 				}
+				await settleRewrite(written, () => kv.set(KEY.enc, true));
 			});
 		},
 
@@ -2907,6 +2957,7 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 				const prevEnvelope = envelope;
 				const slot = await mintExternalSlot(secret, keyRef, envelope.dataKey, id);
 				envelope = { dataKey: envelope.dataKey, slots: [...envelope.slots, slot] };
+				let written: string | null;
 				try {
 					const blob = await buildBlob();
 					// Write-verified: the new secret must open the bytes about to land.
@@ -2917,19 +2968,17 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 						undefined,
 						async () => secret
 					);
-					const written = await durable!.save(blob);
-					await setRemoteVersion(typeof written === 'string' ? written : await statRemote());
-					lastError = null;
-					return slot.id;
+					written = await durable!.save(blob);
 				} catch (e) {
 					envelope = prevEnvelope;
 					if (isAuthExpired(e)) {
 						raiseGate('AUTH_EXPIRED', 'Access to the destination expired or was revoked.');
 					}
-					throw e;
-				} finally {
 					notify();
+					throw e;
 				}
+				await settleRewrite(written);
+				return slot.id;
 			});
 		},
 
