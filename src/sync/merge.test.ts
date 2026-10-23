@@ -201,6 +201,28 @@ describe('merge:lww-map (field-level)', () => {
 		expect(asSet(again.collections.rows)).toEqual(asSet(ab.collections.rows));
 	});
 
+	/* Audit Codex du 2026-10-23: removing a field dropped its clock, so an older copy won. */
+	it('a removed field stays removed against an unchanged older copy, and travels on', () => {
+		const A = fork('a', { rows: [{ id: '1', name: 'Livret' }] }, 3000);
+		const B = fork('b', { rows: [{ id: '1', name: 'Livret', balance: 10 }] }, 2000);
+		const ab = merge(A, B, cfgMap);
+		expect(ab.collections.rows[0]).toEqual({ id: '1', name: 'Livret' });
+		expect(merge(B, A, cfgMap).collections.rows[0]).toEqual({ id: '1', name: 'Livret' });
+		// A third replica still holding the field learns the removal from the merge.
+		const C = fork('c', seed, 2500);
+		expect(merge(C, ab, cfgMap).collections.rows[0]).toEqual({ id: '1', name: 'Livret' });
+	});
+
+	it('a field edited after a concurrent removal comes back with the edit', () => {
+		const A = fork('a', { rows: [{ id: '1', name: 'Livret' }] }, 3000);
+		const B = fork('b', { rows: [{ id: '1', name: 'Livret', balance: 42 }] }, 5000);
+		expect(merge(A, B, cfgMap).collections.rows[0]).toEqual({
+			id: '1',
+			name: 'Livret',
+			balance: 42
+		});
+	});
+
 	it('a later delete still beats field edits (record-level tombstone)', () => {
 		const A = fork('a', { rows: [] }, 5000); // deleted, later
 		const B = fork('b', { rows: [{ id: '1', name: 'X', balance: 10 }] }, 3000);

@@ -217,13 +217,21 @@ function stampPresent(
 /** Stamp each added/changed field of one record ('lww-map'): a field keeps its
  *  clock until its own content changes, so field clocks stay independent and a
  *  merge can tell which side last touched which field. */
+/** The hash a removed field is stamped with. `hash` never returns it (it is
+ *  unsigned), so a removal keeps its own clock and outlives an older copy that
+ *  still holds the field: dropping the stamp let that copy win the merge and
+ *  bring the field back. */
+const FIELD_REMOVED = -1;
+
 function stampFields(col: ColMeta, id: Id, doc: Record<string, unknown>, tick: Tick): void {
 	const rec = ((col.fields ??= {})[id] ??= {});
 	for (const key of Object.keys(doc)) {
 		const h = hash(doc[key]);
 		if (rec[key]?.[1] !== h) rec[key] = [tick(), h];
 	}
-	for (const key of Object.keys(rec)) if (!(key in doc)) delete rec[key];
+	for (const key of Object.keys(rec)) {
+		if (!(key in doc) && rec[key][1] !== FIELD_REMOVED) rec[key] = [tick(), FIELD_REMOVED];
+	}
 }
 
 /** Tombstone every previously-tracked id that is no longer present. */
@@ -529,15 +537,15 @@ function mergeFields(
 	const bF = bMeta.fields?.[id] ?? {};
 	const doc: Record<string, unknown> = {};
 	const fields: Record<string, [Hlc, number]> = {};
-	for (const key of new Set([...Object.keys(aDoc), ...Object.keys(bDoc)])) {
+	const keys = [aDoc, bDoc, aF, bF].flatMap((o) => Object.keys(o));
+	for (const key of new Set(keys)) {
 		const a = aF[key] ?? null;
 		const b = bF[key] ?? null;
 		const side = pickFieldSide(a, b, winnerSide);
 		const src = side === 'local' ? aDoc : bDoc;
-		if (!(key in src)) continue; // the winning side removed the field: drop it
-		doc[key] = src[key];
 		const stamped = side === 'local' ? a : b;
-		if (stamped) fields[key] = stamped;
+		if (stamped) fields[key] = stamped; // a removal's stamp travels too
+		if (key in src) doc[key] = src[key]; // else the winning side removed the field
 	}
 	return { doc, fields };
 }

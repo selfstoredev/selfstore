@@ -14,6 +14,10 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A field removed from an `lww-map` record no longer comes back from an older copy.** Removing a field dropped its clock, so merging with a replica that still held the field gave that replica the win. The removal is now stamped like an edit and travels with the merge; a later edit of the field on another device still wins. The sidecar format is unchanged (the stamp's hash is `-1`, which no field value hashes to), and older versions read it as before.
+
 ## [1.8.29] - 2026-10-22
 
 ### Fixed
