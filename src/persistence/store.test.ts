@@ -477,6 +477,35 @@ describe('freshness (stat-based converge)', () => {
 		expect(await remoteIds()).toEqual(['a1', 'a2']);
 	});
 
+	/* Audit Codex du 2026-10-23: a deferred push waited for the next edit. */
+	it('syncIfStale retries a deferred push although the remote has not moved', async () => {
+		const a = makeStore({ accounts: [{ id: 'a1' }] });
+		await a.store.init();
+		const shared = versionedTarget();
+		const net = { offline: false };
+		const flaky: BackupTarget = {
+			...shared.target,
+			async save(blob) {
+				if (net.offline) throw new Error('network down');
+				return shared.target.save(blob);
+			}
+		};
+		await a.store.attachTarget(flaky, { strategy: 'replace-remote' });
+		net.offline = true;
+		a.app.collections.accounts = [{ id: 'a1' }, { id: 'a2' }];
+		await a.store.flush();
+		expect(a.store.state.status).toMatchObject({ severity: 'warn', labelKey: 'status.unsent' });
+
+		net.offline = false;
+		await a.store.syncIfStale('online');
+		const remote = await importSnapshot((await shared.target.load())!);
+		expect((remote.collections.accounts as { id: string }[]).map((x) => x.id)).toEqual([
+			'a1',
+			'a2'
+		]);
+		expect(a.store.state.status.state).toBe('saved');
+	});
+
 	it('syncIfStale does not download when the remote has not moved', async () => {
 		const a = makeStore({ accounts: [{ id: 'a1' }] });
 		const shared = versionedTarget();
@@ -1064,7 +1093,9 @@ describe('store durable-push failure classification', () => {
 		// The blocking gate must not open over a still-valid session: the edit is
 		// safe in the local cache and the next save/sync retries.
 		const store = await connected('transient-save');
-		expect(store.state.status.state).toBe('saved');
+		expect(store.state.status.state).not.toBe('needs-attention');
+		// ...and the status says the edit has not reached it yet, instead of "saved".
+		expect(store.state.status.labelKey).toBe('status.unsent');
 	});
 
 	it('a genuine auth loss on save opens the reconnect gate', async () => {

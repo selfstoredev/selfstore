@@ -600,6 +600,10 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 	// An edit was schedule()d and not yet saved: a cross-tab refresh must SAVE it
 	// (folding the other tab's write in) rather than adopt that tab's state over it.
 	let pendingEdit = false;
+	// The last push to the durable destination failed transiently: the content
+	// is in the local cache only, and the stale checks retry it even when the
+	// remote has not moved (otherwise nothing would until the next edit).
+	let unsent = false;
 	// Bumped by every schedule(). doSave clears pendingEdit only when this is
 	// unchanged across its persist: an edit landing during the gather/write is not
 	// in the persisted snapshot, so its flag must survive (else a cross-tab refresh
@@ -1408,6 +1412,11 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 		return entry;
 	}
 
+	function deferPush(): void {
+		lastError = transient('Save deferred: destination momentarily unreachable.');
+		unsent = true;
+	}
+
 	async function pushDurable(source: SyncSource = 'push'): Promise<boolean> {
 		if (!durable || locked() || needsAttention) return false;
 		try {
@@ -1417,7 +1426,7 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 				// Momentarily unreachable: the edit is safe in the local cache. Leave the
 				// connection attached and let the next scheduled save / focus-sync retry.
 				// Never raise the blocking reconnect gate over a still-valid session.
-				lastError = transient('Save deferred: destination momentarily unreachable.');
+				deferPush();
 				return false;
 			}
 			// Converge first when another replica wrote since our last sync: a blind
@@ -1428,7 +1437,7 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 				const pulled = await pullRemoteIntoLocal(source, seen);
 				if (locked() || needsAttention) return false; // the pull hit a lock: never clobber
 				if (pulled === 'unreachable') {
-					lastError = transient('Save deferred: destination momentarily unreachable.');
+					deferPush();
 					return false;
 				}
 			}
@@ -1441,6 +1450,7 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 			const digest = await contentDigest(snap);
 			if (digest === lastSavedContentHash) {
 				lastError = null;
+				unsent = false;
 				return true;
 			}
 			const written = await durable.save(await buildBlob(snap));
@@ -1450,6 +1460,7 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 			lastSavedContentHash = digest;
 			kvSetSafe(KEY.savedHash, digest, 'savedHash');
 			lastError = null;
+			unsent = false;
 			return true;
 		} catch (e) {
 			if (isAuthExpired(e)) {
@@ -1467,7 +1478,7 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 				// Transient (offline, cold-start 5xx, network reset): keep the connection,
 				// the edit waits in the local cache, the next save/sync retries. Raising
 				// the reconnect gate here is exactly the spurious popin we must avoid.
-				lastError = transient('Save deferred: destination momentarily unreachable.');
+				deferPush();
 			}
 			logger.error('[selfstore] push to durable failed', e);
 			return false;
@@ -2040,7 +2051,8 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 				needsAttention,
 				locked: locked(),
 				pendingDownload,
-				copy: { at: lastCopyAt, stale: copyIsStale }
+				copy: { at: lastCopyAt, stale: copyIsStale },
+				unsent
 			}),
 			lastError,
 			journal,
@@ -2218,7 +2230,13 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 			// unhandled rejection from a debounce timer: log it and let the next
 			// scheduled save retry.
 			timer = setTimeout(
-				() => save().catch((e) => logger.error('[selfstore] scheduled save failed', e)),
+				() =>
+					save().catch((e) => {
+						// The edit is in memory only: say so, and let the stale checks retry it.
+						unsent = true;
+						notify();
+						logger.error('[selfstore] scheduled save failed', e);
+					}),
 				debounceMs
 			);
 			armIdleLock(); // user activity resets the auto-lock countdown
@@ -2235,7 +2253,7 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 		syncIfStale(source) {
 			return serialize(async () => {
 				if (locked() || needsAttention || mode !== 'persistent') return;
-				if (!durable?.stat && peerList.length === 0) return;
+				if (!durable?.stat && peerList.length === 0 && !unsent) return;
 				const nowMs = Date.now();
 				if (nowMs - lastStaleCheck < STALE_CHECK_MS) return;
 				lastStaleCheck = nowMs;
@@ -2245,7 +2263,15 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 					moved = seen !== null && seen !== remoteVersion;
 				}
 				if (!moved) moved = await anyPeerMoved();
-				if (!moved) return;
+				if (!moved) {
+					// Nothing moved remotely, but a deferred push still waits: retry it
+					// now (network return, focus) rather than at the next edit.
+					if (unsent && durable) {
+						await pushDurable(source);
+						notify();
+					}
+					return;
+				}
 				// A background staleness check must never surface as an unhandled
 				// rejection on a focus event: log and let the next check retry.
 				try {

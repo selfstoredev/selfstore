@@ -35,6 +35,15 @@ describe('deriveStatus', () => {
 		expect(deriveStatus({ ...base, saving: true }).state).toBe('saving');
 	});
 
+	it('an edit that has not reached the destination is not "saved"', () => {
+		const s = deriveStatus({ ...base, unsent: true });
+		expect(s).toMatchObject({ state: 'cache-only', severity: 'warn', labelKey: 'status.unsent' });
+		expect(s.actionable).toBe(false);
+		expect(deriveStatus({ ...base, targetKind: 'device', unsent: true }).labelKey).toBe(
+			'status.cacheOnly'
+		);
+	});
+
 	it('device-only is a warn nudge, not a comfortable ok', () => {
 		const s = deriveStatus({ ...base, targetKind: 'device' });
 		expect(s.state).toBe('cache-only');
