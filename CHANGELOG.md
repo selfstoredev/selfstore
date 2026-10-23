@@ -14,6 +14,11 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+### Fixed
+
+- **An edit that did not reach the destination is no longer shown as saved.** A transient push failure (offline, 5xx) left `status` at `saved` while the edit lived in this browser alone. The status is now `cache-only` with severity `warn` and the new label key `status.unsent` (`status.unsent.placeless` in the widget packs), until a push succeeds. A scheduled save that fails before the push (the local cache refusing the write) reports the same way instead of only logging.
+- **`syncIfStale` retries a deferred push even when the remote has not moved.** It only acted on a remote change, so after a failed push the last edits waited for the next edit or a manual sync; a network return or a focus now sends them.
+
 ## [1.8.29] - 2026-10-22
 
 ### Fixed

@@ -35,6 +35,10 @@ export interface StatusInput {
 	 *  entered since. Without a durable destination, this is the difference
 	 *  between "never saved anywhere" and "saved this morning". */
 	copy?: { at: number | null; stale: boolean };
+	/** A durable destination is attached, but the last edit has not reached it
+	 *  (a transient failure, retried on its own): until it does, that edit lives
+	 *  in this browser alone. */
+	unsent?: boolean;
 }
 
 import { isReservedStoreMode } from './target';
@@ -79,6 +83,17 @@ export function deriveStatus(input: StatusInput): StatusDescriptor {
 			actionable: true,
 			action: 'download',
 			labelKey: 'status.pendingDownload'
+		};
+	}
+
+	if (isDurableKind(input.targetKind) && input.unsent) {
+		// Not "saved": the edit is in this browser only, and closing it now would
+		// lose it with no sign. No gesture fixes a network blip, hence no action.
+		return {
+			state: 'cache-only',
+			severity: 'warn',
+			actionable: false,
+			labelKey: 'status.unsent'
 		};
 	}
 
