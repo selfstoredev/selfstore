@@ -14,6 +14,8 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+## [1.8.30] - 2026-10-23
+
 ### Fixed
 
 - **An edit that did not reach the destination is no longer shown as saved.** A transient push failure (offline, 5xx) left `status` at `saved` while the edit lived in this browser alone. The status is now `cache-only` with severity `warn` and the new label key `status.unsent` (`status.unsent.placeless` in the widget packs), until a push succeeds. A scheduled save that fails before the push (the local cache refusing the write) reports the same way instead of only logging.
