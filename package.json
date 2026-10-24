@@ -126,7 +126,8 @@
 		"idb": "^8.0.3"
 	},
 	"overrides": {
-		"esbuild": "^0.28.1"
+		"esbuild": "^0.28.1",
+		"zod": "4.6.7"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
@@ -137,7 +138,7 @@
 		"eslint-plugin-sonarjs": "^4.2.0",
 		"fake-indexeddb": "^6.2.5",
 		"globals": "^17.7.0",
-		"happy-dom": "^21.0.1",
+		"happy-dom": "^21.0.4",
 		"jscpd": "^5.0.12",
 		"knip": "^6.29.0",
 		"lint-staged": "^17.2.0",
