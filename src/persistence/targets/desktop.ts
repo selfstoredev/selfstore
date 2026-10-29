@@ -37,11 +37,11 @@ export interface DesktopDialogFilter {
  * With Tauri v2 the whole wiring is the two plugin imports:
  *
  * ```ts
- * import { readFile, writeFile, stat, exists } from '@tauri-apps/plugin-fs';
+ * import { readFile, writeFile, rename, stat, exists } from '@tauri-apps/plugin-fs';
  * import { save, open } from '@tauri-apps/plugin-dialog';
  * import { useDesktopFiles } from 'selfstore';
  *
- * useDesktopFiles({ readFile, writeFile, stat, exists, save, open });
+ * useDesktopFiles({ readFile, writeFile, rename, stat, exists, save, open });
  * ```
  *
  * Do that once at start-up and every `file` destination in this library runs on
@@ -50,6 +50,11 @@ export interface DesktopDialogFilter {
 export interface DesktopFileBridge {
 	readFile(path: string): Promise<Uint8Array>;
 	writeFile(path: string, data: Uint8Array): Promise<void>;
+	/** Move a file over another. Optional for the shells that predate it, and
+	 *  what makes a save safe: with it, the backup is written beside and moved
+	 *  over the previous one, so a full disk or a crash mid-write leaves the
+	 *  last good copy whole instead of a truncated file. */
+	rename?(from: string, to: string): Promise<void>;
 	/** File metadata. Only `mtime` is read, and a shell that cannot report it
 	 *  may leave it absent: the store then falls back to its own bookkeeping. */
 	stat(path: string): Promise<{ mtime?: Date | number | null } | null>;
@@ -123,7 +128,14 @@ function fromPath(path: string, b: DesktopFileBridge, kv: KV): BackupTarget {
 		},
 		async save(blob: Blob): Promise<string | null> {
 			try {
-				await b.writeFile(current, new Uint8Array(await blob.arrayBuffer()));
+				const bytes = new Uint8Array(await blob.arrayBuffer());
+				if (b.rename) {
+					const beside = `${current}.tmp`;
+					await b.writeFile(beside, bytes);
+					await b.rename(beside, current);
+				} else {
+					await b.writeFile(current, bytes);
+				}
 			} catch (e) {
 				// No AuthExpiredError here on purpose. A desktop write fails because
 				// the disk is full, the volume is unplugged or the file is locked by
@@ -135,13 +147,16 @@ function fromPath(path: string, b: DesktopFileBridge, kv: KV): BackupTarget {
 			return markerOf(b, current);
 		},
 		async load(): Promise<Blob | null> {
+			// A path chosen through the save dialog names a file that does not
+			// exist yet: "no backup there" is the honest answer. Only THAT is: a
+			// file that exists and cannot be read (permission, failing disk) read
+			// as empty would be overwritten by the next save.
+			if (!(await b.exists(current))) return null;
 			try {
 				const bytes = await b.readFile(current);
 				return new Blob([new Uint8Array(bytes)]);
-			} catch {
-				// A path chosen through the save dialog names a file that does not
-				// exist yet. "No backup there" is the honest answer, not a failure.
-				return null;
+			} catch (e) {
+				throw new SelfstoreError('TARGET_UNAVAILABLE', `File read failed: ${String(e)}`);
 			}
 		},
 		async stat(): Promise<string | null> {

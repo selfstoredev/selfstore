@@ -214,6 +214,36 @@ describe('selfstore() - the simple store', () => {
 		await expect(store.importBackup(new Blob(['junk']))).rejects.toBeTruthy();
 	});
 
+	it('importBackup migrates an older schema and refuses a newer one, before replacing anything', async () => {
+		const v1 = await selfstore<Schema>('simple-schema', { cache: memoryCache(), schema: 1 });
+		open.push(v1);
+		await v1.put('todos', { id: 't1', text: 'old shape' });
+		const fromV1 = await v1.exportBackup();
+
+		const seen: number[] = [];
+		const v2 = await selfstore<Schema>('simple-schema', {
+			cache: memoryCache(),
+			schema: 2,
+			migrate: (from, snap) => {
+				seen.push(from);
+				const todos = (snap.collections.todos ?? []) as Todo[];
+				return { ...snap, collections: { todos: todos.map((t) => ({ ...t, done: false })) } };
+			}
+		});
+		open.push(v2);
+		await v2.importBackup(fromV1);
+		expect(seen).toEqual([1]);
+		expect(v2.all('todos')).toEqual([{ id: 't1', text: 'old shape', done: false }]);
+
+		const v3 = await selfstore<Schema>('simple-schema', { cache: memoryCache(), schema: 3 });
+		open.push(v3);
+		await v3.put('todos', { id: 'n1', text: 'newer' });
+		await expect(v2.importBackup(await v3.exportBackup())).rejects.toMatchObject({
+			code: 'SCHEMA_TOO_NEW'
+		});
+		expect(v2.all('todos').map((t) => t.id)).toEqual(['t1']);
+	});
+
 	it('binary files ride through import/export untouched', async () => {
 		const { store } = await makeStore();
 		const withFiles = await selfstore('simple-files', { cache: memoryCache() });
