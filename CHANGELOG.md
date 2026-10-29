@@ -14,6 +14,8 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+## [1.8.31] - 2026-10-29
+
 ### Fixed
 
 - **`importBackup` reads a backup at the schema that wrote it.** It replaced the data without looking at `schemaVersion`: an older backup was applied unmigrated and the next save stamped it with the current version, so it could never be migrated afterwards. It now runs `migrate` on an older one before replacing anything, and refuses a newer one with `SCHEMA_TOO_NEW`, leaving the data as it was.
