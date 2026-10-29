@@ -176,6 +176,48 @@ describe('reading and writing', () => {
 		expect(await target?.load()).toBeNull();
 	});
 
+	it('fails a read of a file that exists, rather than calling it no backup', async () => {
+		// Read as empty, a backup the shell could not open would be overwritten
+		// by the next save.
+		const { desktop } = await freshModules();
+		const { shell, files } = fakeShell({
+			async readFile() {
+				throw new Error('permission denied');
+			}
+		});
+		files.set('C:/backups/app.zip', new Uint8Array([1]));
+		desktop.useDesktopFiles(shell);
+
+		const target = await desktop.connect({ kv: memKv(), fileName: 'app.zip' });
+
+		await expect(target?.load()).rejects.toMatchObject({ code: 'TARGET_UNAVAILABLE' });
+	});
+
+	it('writes beside and moves over when the shell can rename, so a failed write keeps the last copy', async () => {
+		const { desktop } = await freshModules();
+		const { shell, files } = fakeShell();
+		let failNext = false;
+		shell.writeFile = async (path, data) => {
+			if (failNext) throw new Error('disk full');
+			files.set(path, data);
+		};
+		shell.rename = async (from, to) => {
+			files.set(to, files.get(from)!);
+			files.delete(from);
+		};
+		desktop.useDesktopFiles(shell);
+
+		const target = await desktop.connect({ kv: memKv(), fileName: 'app.zip' });
+		await target?.save(new Blob([new Uint8Array([1, 2])]));
+		expect([...files.keys()]).toEqual(['C:/backups/app.zip']);
+
+		failNext = true;
+		await expect(target?.save(new Blob([new Uint8Array([9])]))).rejects.toMatchObject({
+			code: 'TARGET_WRITE_FAILED'
+		});
+		expect([...(files.get('C:/backups/app.zip') ?? [])]).toEqual([1, 2]);
+	});
+
 	it('reports a failed write as transient, never as a lost grant', async () => {
 		// A desktop write fails because the disk is full or the volume is
 		// unplugged. Raising the reconnect gate would ask the user to re-pick a

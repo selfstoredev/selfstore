@@ -14,6 +14,15 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`importBackup` reads a backup at the schema that wrote it.** It replaced the data without looking at `schemaVersion`: an older backup was applied unmigrated and the next save stamped it with the current version, so it could never be migrated afterwards. It now runs `migrate` on an older one before replacing anything, and refuses a newer one with `SCHEMA_TOO_NEW`, leaving the data as it was.
+- **The desktop file target no longer reads an unreadable file as "no backup yet".** Only a file that does not exist is; a read that fails on an existing file (permission, failing disk) now raises `TARGET_UNAVAILABLE`, where it used to let the next save overwrite the backup.
+
+### Added
+
+- **`DesktopFileBridge.rename`, optional.** When the shell provides it (Tauri's `@tauri-apps/plugin-fs` does), each save is written beside the backup and moved over it, so a full disk or a crash mid-write keeps the last good copy.
+
 ## [1.8.30] - 2026-10-23
 
 ### Fixed

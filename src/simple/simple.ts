@@ -37,7 +37,9 @@ import type { Snapshot, SnapshotFile } from '../selfstore/types';
 import { SelfstoreError } from '../selfstore/errors';
 import { sha256Hex } from '../selfstore/digest';
 import { toBytes, type FileBytes } from './bytes';
-import { restore, type PasswordPolicy } from '../selfstore';
+import { type PasswordPolicy } from '../selfstore';
+import { asBytes, readBoxWithSync } from '../selfstore/box';
+import { RESERVED_COLLECTION_PREFIX } from '../selfstore/types';
 import { saveToDisk } from '../selfstore/targets/local';
 import {
 	account as driveAccount,
@@ -408,6 +410,21 @@ function selfNaming(app: string, auth: DriveAuth): DriveAuth {
 	};
 }
 
+/** The schema version a backup's sidecar names: 0 for a copy that carries
+ *  none (written by another tool), as a remote converge reads it. */
+function schemaVersionOf(sidecar: unknown): number {
+	if (typeof sidecar !== 'object' || sidecar === null) return 0;
+	const v = (sidecar as { schemaVersion?: unknown }).schemaVersion;
+	return Number.isInteger(v) && (v as number) >= 0 ? (v as number) : 0;
+}
+
+/** The app's own collections, without the library's `__*` bookkeeping. */
+function withoutReserved(collections: Snapshot['collections']): Snapshot['collections'] {
+	return Object.fromEntries(
+		Object.entries(collections).filter(([name]) => !name.startsWith(RESERVED_COLLECTION_PREFIX))
+	);
+}
+
 /**
  * Open (or create) the app's local store. Awaits the initial load, so the
  * returned store is ready: data readable, destination restored, first converge
@@ -473,9 +490,10 @@ export async function selfstore<
 		while (!(await cache.unlock(await options.cacheLock({ failed })))) failed = true;
 	}
 
+	const schema = options.schema ?? 1;
 	const store = createLocalStore({
 		app,
-		schemaVersion: options.schema ?? 1,
+		schemaVersion: schema,
 		gather: (): Snapshot => structuredClone({ collections, files }),
 		apply: (snap: Snapshot): void => {
 			collections = (snap.collections ?? {}) as Record<string, SimpleRecord[]>;
@@ -753,12 +771,22 @@ export async function selfstore<
 			return written;
 		},
 		async importBackup(file: Blob | Uint8Array, opts?: { password?: string }): Promise<void> {
-			// The fluent read() strips reserved bookkeeping collections; removals
-			// then propagate because the next save diffs against the sync meta.
-			const reader = restore(file);
-			const snap = opts?.password
-				? await reader.withPassword(opts.password).read()
-				: await reader.read();
+			// Judged by the schema that wrote it, as a remote copy is: a newer one
+			// is refused, an older one is migrated BEFORE it replaces anything,
+			// since the next save stamps the current version over it for good.
+			const { snapshot, sidecar } = await readBoxWithSync(await asBytes(file), opts?.password);
+			const fromVersion = schemaVersionOf(sidecar);
+			if (fromVersion > schema) {
+				throw new SelfstoreError(
+					'SCHEMA_TOO_NEW',
+					`Backup written by schema v${fromVersion}; this app reads v${schema}. Update the app.`
+				);
+			}
+			// Reserved bookkeeping collections are stripped; removals then
+			// propagate because the next save diffs against the sync meta.
+			const read = { collections: withoutReserved(snapshot.collections), files: snapshot.files };
+			const snap =
+				options.migrate && fromVersion < schema ? options.migrate(fromVersion, read) : read;
 			collections = (snap.collections ?? {}) as Record<string, SimpleRecord[]>;
 			files = snap.files ?? [];
 			emitData();
