@@ -5,7 +5,7 @@
 // own receipt; the anchor comes hours later, so `complete` is what fetches it.
 //
 // The protocol, relative to the journal's base URL:
-//   POST /api/depots              {"sha256", "libelle"?} -> 201
+//   POST /api/depots              {"sha256", "libelle"?, "type"?} -> 201
 //        {"id", "jour", "place", "ligne", "recu": {"sha256", "depose", ...}}
 //   GET  /empreintes/depots.jsonl one JSON line per deposit, in order, with "recu" = id
 //   GET  /tours.json              {"tours": [{"id", "racine", "depots", "ots", "bloc",
@@ -23,6 +23,12 @@ export interface JournalOptions {
 	url: string;
 	/** Receipt `notary` field. Defaults to 'digest-journal'. */
 	name?: string;
+	/**
+	 * The journal's deposit type, sent as `type` with every deposit (a journal
+	 * that issues typed receipts, such as a permit display, keys them on it).
+	 * None by default: the deposit is the journal's ordinary one.
+	 */
+	type?: string;
 	/** Injected for tests and relays; defaults to the global fetch. */
 	fetch?: typeof fetch;
 }
@@ -85,7 +91,8 @@ function rankOf(deposits: string, id: string, hash: string): number {
 
 /**
  * A notary over a public digest journal (the protocol is at the top of this
- * file). The label is sent as the journal's `libelle`: keep it a TYPE.
+ * file). The label is sent as the journal's `libelle`: keep it a TYPE, unless
+ * the journal's `type` (an option of the notary) says what the label is.
  *
  * On deposit the receipt is incomplete; its evidence holds the journal's
  * address, the receipt `id`, the public `line` and the journal's own `receipt`
@@ -98,6 +105,7 @@ function rankOf(deposits: string, id: string, hash: string): number {
 export function digestJournalNotary(options: JournalOptions): Notary {
 	const name = options.name ?? 'digest-journal';
 	const base = options.url.replace(/\/+$/, '');
+	const typed = options.type === undefined ? {} : { type: options.type };
 	const send = options.fetch ?? globalThis.fetch;
 	const get = (path: string): Promise<Response> =>
 		reach(send, `${base}${path}`, undefined, 'the journal');
@@ -113,7 +121,11 @@ export function digestJournalNotary(options: JournalOptions): Notary {
 				{
 					method: 'POST',
 					headers: { 'content-type': 'application/json' },
-					body: JSON.stringify({ sha256: hash, ...(label === undefined ? {} : { libelle: label }) })
+					body: JSON.stringify({
+						sha256: hash,
+						...(label === undefined ? {} : { libelle: label }),
+						...typed
+					})
 				},
 				'the journal'
 			);
