@@ -173,7 +173,9 @@ The deposit answers at once with the journal's own receipt
 later `completeProof()` finds the first tour covering the line and, once that
 tour is in Bitcoin, adds `tour`, `root`, `block`, the `.ots` proof and, when
 the journal stamped that root under RFC 3161, the `.tsr` (both base64). The
-protocol it speaks is at the top of `src/proof/journal.ts`.
+protocol it speaks is at the top of `src/proof/journal.ts`. A journal that
+issues typed receipts takes the type as an option of the notary
+(`digestJournalNotary({ url, type: 'affichage' })`), sent with every deposit.
 
 ```ts
 const notary = digestJournalNotary({ url: 'https://journal.example' });

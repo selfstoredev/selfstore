@@ -105,6 +105,18 @@ describe('digestJournalNotary deposit', () => {
 		});
 	});
 
+	it('sends the journal deposit type with the digest and the label', async () => {
+		const fetch = journal({});
+		const notary = digestJournalNotary({ url: URL_BASE, fetch, type: 'affichage' });
+		const receipt = await notary.deposit(HELLO_HASH, 'PC 069 123 24 A0001');
+		expect(JSON.parse(fetch.calls[0].init?.body as string)).toEqual({
+			sha256: HELLO_HASH,
+			libelle: 'PC 069 123 24 A0001',
+			type: 'affichage'
+		});
+		expect(receipt.label).toBe('PC 069 123 24 A0001');
+	});
+
 	it('sends no label field when there is none', async () => {
 		const fetch = journal({});
 		const notary = digestJournalNotary({ url: URL_BASE, fetch, name: 'my-journal' });
