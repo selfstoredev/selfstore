@@ -8,9 +8,10 @@
 //   POST /api/depots              {"sha256", "libelle"?, "type"?} -> 201
 //        {"id", "jour", "place", "ligne", "recu": {"sha256", "depose", ...}}
 //   GET  /empreintes/depots.jsonl one JSON line per deposit, in order, with "recu" = id
-//   GET  /tours.json              {"tours": [{"id", "racine", "depots", "ots", "bloc",
-//                                  "horodatage", "fichiers"}]}; a tour covers the
-//                                  first `depots` lines of the deposits file
+//   GET  /tours.json              {"tours": [{"id", "instant"?, "racine", "depots", "ots",
+//                                  "bloc", "horodatage", "fichiers"}]}; a tour covers the
+//                                  first `depots` lines of the deposits file as it
+//                                  stood at its `instant`
 //   GET  /empreintes/<tour>.racine.ots, /empreintes/<tour>.racine.tsr
 
 import { toBase64 } from '../selfstore/base64';
@@ -41,6 +42,7 @@ interface Deposit {
 
 interface Tour {
 	id: string;
+	instant?: string;
 	racine: string;
 	depots: number;
 	ots: string;
@@ -77,6 +79,28 @@ function parseLine(text: string): { recu?: string; sha256?: string } {
 	}
 }
 
+/**
+ * Whether a tour can cover a line deposited at `depositedAt`: a tour folded the
+ * file before the deposit cannot, whatever its size. A journal that publishes
+ * no `instant` leaves the question open.
+ */
+function mayCover(tour: Tour, depositedAt: string): boolean {
+	if (tour.instant === undefined) return true;
+	const folded = Date.parse(tour.instant);
+	const deposited = Date.parse(depositedAt);
+	return Number.isNaN(folded) || Number.isNaN(deposited) || folded > deposited;
+}
+
+/**
+ * Whether reading the deposits file can complete the receipt: only once a tour
+ * folded after the deposit is anchored in Bitcoin. Until then the first tour
+ * covering the line is either absent or not anchored, and the receipt stays
+ * as it is without the file (which grows with every deposit of every user).
+ */
+function worthReading(tours: readonly Tour[], depositedAt: string): boolean {
+	return tours.some((t) => t.depots > 0 && t.ots === 'bitcoin' && mayCover(t, depositedAt));
+}
+
 /** 1-based rank of the deposit line whose receipt id is `id`, or 0. */
 function rankOf(deposits: string, id: string, hash: string): number {
 	const lines = deposits.split('\n').filter(Boolean);
@@ -101,6 +125,10 @@ function rankOf(deposits: string, id: string, hash: string): number {
  * receipt with `tour`, `root`, `block`, the `.ots` proof and, when the journal
  * stamped that root, the `.tsr` token (both base64). Checking the Merkle path
  * from the line to the root is the journal's verifier's job.
+ *
+ * `complete` reads the tour list first and the deposits file only when a tour
+ * folded after the deposit is anchored: the file lists every deposit of every
+ * user and grows without end, the tour list stays small.
  */
 export function digestJournalNotary(options: JournalOptions): Notary {
 	const name = options.name ?? 'digest-journal';
@@ -111,6 +139,18 @@ export function digestJournalNotary(options: JournalOptions): Notary {
 		reach(send, `${base}${path}`, undefined, 'the journal');
 	const bytesOf = async (path: string): Promise<string> =>
 		toBase64(new Uint8Array(await (await get(path)).arrayBuffer()));
+	// The deposits file, read once per state of the tour list: a line covered by
+	// a known tour was already in the copy read after that tour was listed, so a
+	// round that completes many receipts reads the file once, not once each.
+	let deposits: { key: string; text: string } | undefined;
+	const depositsFile = async (tours: readonly Tour[]): Promise<string> => {
+		const last = tours.at(-1);
+		const key = last === undefined ? '' : `${last.id}:${last.depots}`;
+		if (deposits?.key !== key) {
+			deposits = { key, text: await (await get('/empreintes/depots.jsonl')).text() };
+		}
+		return deposits.text;
+	};
 
 	return {
 		name,
@@ -147,9 +187,10 @@ export function digestJournalNotary(options: JournalOptions): Notary {
 		async complete(receipt: Receipt): Promise<Receipt> {
 			const id = receipt.evidence.id;
 			if (id === undefined) throw refused('the receipt carries no journal id');
-			const rank = rankOf(await (await get('/empreintes/depots.jsonl')).text(), id, receipt.hash);
-			if (rank === 0) return receipt;
 			const { tours } = (await (await get('/tours.json')).json()) as { tours: Tour[] };
+			if (!worthReading(tours, receipt.depositedAt)) return receipt;
+			const rank = rankOf(await depositsFile(tours), id, receipt.hash);
+			if (rank === 0) return receipt;
 			const tour = tours.find((t) => t.depots >= rank);
 			if (tour?.ots !== 'bitcoin') return receipt;
 			const stamped = tour.horodatage !== null && tour.fichiers?.includes(`${tour.id}.racine.tsr`);

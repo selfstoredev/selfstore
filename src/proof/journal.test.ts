@@ -31,6 +31,7 @@ const OTHER_LINE = `{"sha256":"${OTHER_HASH}","jour":"2026-10-13","place":1,"rec
 
 interface TourShape {
 	id: string;
+	instant?: string;
 	depots: number;
 	ots: string;
 	bloc: number | null;
@@ -57,7 +58,9 @@ interface Journal {
 }
 
 /** A fetch that plays the journal, recording every call. */
-function journal(serve: Journal): typeof fetch & { calls: { url: string; init?: RequestInit }[] } {
+function journal(
+	serve: Journal
+): typeof fetch & { calls: { url: string; init?: RequestInit }[]; serve: Journal } {
 	const calls: { url: string; init?: RequestInit }[] = [];
 	const routes: Record<string, () => Response> = {
 		'/api/depots': serve.deposit ?? (() => Response.json({ id: ID, ligne: LINE, recu: RECEIPT })),
@@ -72,7 +75,7 @@ function journal(serve: Journal): typeof fetch & { calls: { url: string; init?: 
 		if (file) return Promise.resolve(new Response(bytes(file[1]) as BodyInit));
 		return Promise.resolve(routes[path]?.() ?? new Response('', { status: 404 }));
 	};
-	return Object.assign(fake as typeof fetch, { calls });
+	return Object.assign(fake as typeof fetch, { calls, serve });
 }
 
 const URL_BASE = 'https://journal.example';
@@ -195,12 +198,61 @@ describe('digestJournalNotary complete', () => {
 
 	it('refuses a journal that lists the receipt for another digest, or an unreadable file', async () => {
 		const swapped = LINE.replace(HELLO_HASH, OTHER_HASH);
-		await expect(completed({ deposits: deposits(swapped) })).rejects.toMatchObject({
+		const tours = [tour('t1', 1)];
+		await expect(completed({ deposits: deposits(swapped), tours })).rejects.toMatchObject({
 			code: 'NOTARY_REFUSED'
 		});
-		await expect(completed({ deposits: 'not json\n' })).rejects.toMatchObject({
+		await expect(completed({ deposits: 'not json\n', tours })).rejects.toMatchObject({
 			code: 'NOTARY_REFUSED'
 		});
+	});
+
+	const DEPOSITS_FILE = `${URL_BASE}/empreintes/depots.jsonl`;
+	const reads = (fetch: ReturnType<typeof journal>): number =>
+		fetch.calls.filter((c) => c.url === DEPOSITS_FILE).length;
+
+	it('does not read the deposits file while no tour could cover the line', async () => {
+		const folded = { instant: '2026-10-13T06:00:00Z' };
+		for (const tours of [
+			[],
+			[{ ...tour('t1', 9), ...folded }],
+			[tour('t1', 9, 'calendrier')],
+			[{ ...tour('t1', 9), ...folded }, tour('t2', 9, 'calendrier')]
+		]) {
+			const fetch = journal({ deposits: deposits(LINE), tours });
+			const notary = digestJournalNotary({ url: URL_BASE, fetch });
+			const receipt = await completeProof(await deposited(fetch), { notary });
+			expect(receipt.complete).toBe(false);
+			expect(reads(fetch)).toBe(0);
+		}
+	});
+
+	it('reads the deposits file once a tour folded after the deposit is anchored', async () => {
+		const fetch = journal({
+			deposits: deposits(LINE),
+			tours: [
+				{ ...tour('t1', 0), instant: '2026-10-13T06:00:00Z' },
+				{ ...tour('t2', 1), instant: '2026-10-13T09:12:44.500Z' }
+			]
+		});
+		const notary = digestJournalNotary({ url: URL_BASE, fetch });
+		const receipt = await completeProof(await deposited(fetch), { notary });
+		expect(receipt).toMatchObject({ complete: true, evidence: { tour: 't2' } });
+		expect(reads(fetch)).toBe(1);
+	});
+
+	it('reads the deposits file once per state of the tour list, not once per receipt', async () => {
+		const fetch = journal({ deposits: deposits(OTHER_LINE, LINE), tours: [tour('t1', 2)] });
+		const notary = digestJournalNotary({ url: URL_BASE, fetch });
+		const first = await deposited(fetch);
+		const second = await deposited(fetch);
+		expect((await completeProof(first, { notary })).complete).toBe(true);
+		expect((await completeProof(second, { notary })).complete).toBe(true);
+		expect(reads(fetch)).toBe(1);
+
+		fetch.serve.tours = [tour('t1', 2), tour('t2', 3)];
+		await completeProof(second, { notary });
+		expect(reads(fetch)).toBe(2);
 	});
 
 	it('refuses a receipt with no journal id', async () => {
