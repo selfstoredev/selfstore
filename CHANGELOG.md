@@ -14,6 +14,10 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`digestJournalNotary` no longer downloads the whole deposits file to find out that nothing has changed.** `complete` read `/empreintes/depots.jsonl` first, on every call and for every pending receipt: a public journal's file lists every deposit of every user (tens of megabytes, growing daily), so an app completing a series of sixty receipts at launch pulled a gigabyte over a phone connection to learn that the day's tour was not anchored yet. It now reads the small tour list first and touches the file only once a tour folded after the deposit is anchored in Bitcoin (a tour that publishes no `instant` is still considered), and one round reads the file once per state of the tour list, not once per receipt. Same receipts, same evidence; a journal that never anchors is never downloaded.
+
 ## [1.8.32] - 2026-10-31
 
 ### Added
