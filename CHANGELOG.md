@@ -14,6 +14,8 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+## [1.8.32] - 2026-10-31
+
 ### Added
 
 - **`digestJournalNotary` takes a `type`**, sent as `type` with every deposit, for a journal that issues typed receipts and keys them on it (a permit display, where the label is the permit number). Without it the journal answered with its ordinary receipt, and an app that needed the typed one had to post to the journal itself. No type by default: nothing changes for an existing notary.
