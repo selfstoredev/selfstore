@@ -14,6 +14,8 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+## [1.8.33] - 2026-11-01
+
 ### Fixed
 
 - **A Drive search that fails no longer reads as an absent backup.** `findOrCreateOwnFile` and the connect path created an empty namesake when Drive answered with an error; they now raise `TARGET_UNAVAILABLE` (or `AuthExpired` on a 401) and create only after a search that answered.
