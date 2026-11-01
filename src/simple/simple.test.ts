@@ -116,9 +116,23 @@ describe('selfstore() - the simple store', () => {
 		);
 		await store.put('notes', { uuid: 'n1', body: 'ok' });
 		expect(store.get('notes', 'n1')).toBeTruthy();
-		// A dotted id path is an advanced setup: the simple check steps aside.
+		// A dotted id path is read where the merge engine reads it.
 		await store.put('docs', { doc: { id: 'd1' } });
 		expect(store.all('docs')).toHaveLength(1);
+		await store.put('docs', { doc: { id: 'd1' }, title: 'edited' });
+		expect(store.all('docs')).toEqual([{ doc: { id: 'd1' }, title: 'edited' }]);
+		expect(store.get('docs', 'd1')).toEqual({ doc: { id: 'd1' }, title: 'edited' });
+		await store.remove('docs', 'd1');
+		expect(store.all('docs')).toEqual([]);
+	});
+
+	it('putAll keeps one row per id, the last occurrence of a batch winning', async () => {
+		const { store } = await makeStore();
+		await store.putAll('todos', [
+			{ id: 'n', text: 'first' },
+			{ id: 'n', text: 'second' }
+		]);
+		expect(store.all('todos')).toEqual([{ id: 'n', text: 'second' }]);
 	});
 
 	it('onChange fires on local writes AND on external applies', async () => {

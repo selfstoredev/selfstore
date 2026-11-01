@@ -93,7 +93,10 @@ async function findExistingFile(token: string, fileNames: string[]): Promise<str
 			headers: { Authorization: `Bearer ${token}` },
 			signal: AbortSignal.timeout(META_DEADLINE_MS)
 		});
-		if (!r.ok) continue;
+		// Only a search that ANSWERED may conclude a file is absent: read as
+		// absent, a failed one made the caller create an empty namesake.
+		if (r.status === 401) throw new AuthExpiredError('Drive rejected the token (401).');
+		if (!r.ok) throw new SelfstoreError('TARGET_UNAVAILABLE', `Drive search failed: ${r.status}`);
 		const data: { files?: { id: string }[] } = await r.json();
 		const id = data.files?.[0]?.id;
 		if (id) return id;
@@ -390,19 +393,32 @@ export async function listBackups(opts: {
 		clauses.push(`name contains '${safe}'`);
 	}
 	const q = encodeURIComponent(clauses.join(' and '));
-	const fields = encodeURIComponent('files(id,name,modifiedTime,size)');
-	const r = await driveFetch(opts.auth, (token) =>
-		fetch(`${DRIVE_FILES}?q=${q}&fields=${fields}&pageSize=100&orderBy=modifiedTime%20desc`, {
-			headers: { Authorization: `Bearer ${token}` },
-			signal: AbortSignal.timeout(META_DEADLINE_MS)
-		})
-	);
-	if (r.status === 401) throw new AuthExpiredError('Drive rejected the token (401).');
-	if (!r.ok) throw new SelfstoreError('TARGET_UNAVAILABLE', `Drive list failed: ${r.status}`);
-	const data: {
+	const fields = encodeURIComponent('nextPageToken,files(id,name,modifiedTime,size)');
+	type Page = {
+		nextPageToken?: string;
 		files?: { id: string; name: string; modifiedTime?: string; size?: string | number }[];
-	} = await r.json();
-	return (data.files ?? []).map((f) => ({
+	};
+	// Every page, not the first hundred: older backups fell out of the chooser.
+	const files: NonNullable<Page['files']> = [];
+	let pageToken = '';
+	do {
+		const next = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '';
+		const r = await driveFetch(opts.auth, (token) =>
+			fetch(
+				`${DRIVE_FILES}?q=${q}&fields=${fields}&pageSize=100&orderBy=modifiedTime%20desc${next}`,
+				{
+					headers: { Authorization: `Bearer ${token}` },
+					signal: AbortSignal.timeout(META_DEADLINE_MS)
+				}
+			)
+		);
+		if (r.status === 401) throw new AuthExpiredError('Drive rejected the token (401).');
+		if (!r.ok) throw new SelfstoreError('TARGET_UNAVAILABLE', `Drive list failed: ${r.status}`);
+		const data: Page = await r.json();
+		files.push(...(data.files ?? []));
+		pageToken = data.nextPageToken ?? '';
+	} while (pageToken);
+	return files.map((f) => ({
 		id: f.id,
 		name: f.name,
 		modifiedTime: f.modifiedTime ?? null,

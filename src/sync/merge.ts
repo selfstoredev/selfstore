@@ -119,7 +119,9 @@ function strategyOf(config: SyncConfig, collection: string): MergeStrategy {
 	return config.strategies?.[collection] ?? config.fallback ?? 'lww-set';
 }
 
-function idOf(config: SyncConfig, collection: string, doc: unknown): Id | null {
+/** The id of a record at the path the config gives its collection, dotted
+ *  paths included; null when there is no string there. */
+export function idOf(config: SyncConfig, collection: string, doc: unknown): Id | null {
 	const path = config.ids?.[collection] ?? config.idField ?? 'id';
 	let v: unknown = doc;
 	for (const key of path.split('.')) {
