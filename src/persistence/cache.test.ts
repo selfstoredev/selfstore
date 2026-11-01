@@ -7,6 +7,7 @@
 
 import 'fake-indexeddb/auto';
 import { describe, it, expect } from 'vitest';
+import { openDB } from 'idb';
 import { indexedDbCache } from './cache';
 
 const snapshot = { notes: [{ id: 'n1', text: 'hello' }] };
@@ -15,6 +16,51 @@ const snapshot = { notes: [{ id: 'n1', text: 'hello' }] };
 // one test's salt decide another's outcome.
 let n = 0;
 const freshCache = () => indexedDbCache(`cache-test-${++n}`, { lock: true });
+
+async function rawFile(name: string, id: string): Promise<Record<string, unknown>> {
+	const d = await openDB(name);
+	try {
+		return (await d.get('files', id)) as Record<string, unknown>;
+	} finally {
+		d.close();
+	}
+}
+
+describe('file names at rest', () => {
+	const doc = {
+		id: 'f1',
+		name: 'bilan-cardiologie.pdf',
+		mime: 'application/pdf',
+		blob: new Blob(['x'])
+	};
+
+	it('a locked cache keeps no readable file name or type', async () => {
+		const name = `cache-test-${++n}`;
+		const cache = indexedDbCache(name, { lock: true });
+		await cache.unlock('a-long-passphrase');
+		await cache.saveCollections(snapshot);
+		await cache.saveFiles([doc]);
+		const stored = JSON.stringify(await rawFile(name, 'f1'));
+		expect(stored).not.toContain('cardiologie');
+		expect(stored).not.toContain('application/pdf');
+		const back = (await cache.load())?.files ?? [];
+		expect(back.map((f) => [f.name, f.mime])).toEqual([[doc.name, doc.mime]]);
+	});
+
+	it('a record written with its name in the clear still reads', async () => {
+		const name = `cache-test-${++n}`;
+		const cache = indexedDbCache(name);
+		await cache.saveCollections(snapshot);
+		await cache.saveFiles([doc]);
+		const d = await openDB(name);
+		const rec = (await d.get('files', 'f1')) as Record<string, unknown>;
+		delete rec.meta;
+		await d.put('files', { ...rec, name: 'old.txt', mime: 'text/plain' }, 'f1');
+		d.close();
+		const back = (await indexedDbCache(name).load())?.files ?? [];
+		expect(back.map((f) => [f.name, f.mime])).toEqual([['old.txt', 'text/plain']]);
+	});
+});
 
 describe('sealed cache', () => {
 	it('accepts the first secret and gives the data back', async () => {

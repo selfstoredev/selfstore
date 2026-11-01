@@ -2,8 +2,8 @@
 // so a refresh never loses it. Swappable interface - indexedDbCache(name) in
 // the browser, memoryCache() in tests and SSR.
 //
-// Collections and file blobs are encrypted at rest under a non-extractable
-// device key kept in the same database (cache-crypto.ts). The small kv
+// Collections, file blobs and file names are encrypted at rest under a
+// non-extractable device key kept in the same database (cache-crypto.ts). The small kv
 // bookkeeping (sync metadata, journal) stays in the clear - it is not the
 // sensitive payload.
 
@@ -120,7 +120,11 @@ interface StoredFile {
 	blob: Blob;
 }
 /** A file record as stored: metadata in the clear, bytes sealed. */
-type EncFile = { name: string; mime: string } & EncEnvelope;
+/** A cached attachment. `meta` seals its name and type under the same key as
+ *  its bytes: a name can say as much as the document. A record written before
+ *  it carries `name` and `mime` in the clear, and still reads. */
+type EncFile = ({ meta: EncEnvelope } | { name: string; mime: string }) & EncEnvelope;
+type FileMeta = { name: string; mime: string };
 
 const COLLECTIONS_KEY = '__collections';
 const DEVICE_KEY = '__deviceKey';
@@ -128,6 +132,26 @@ const CACHE_KDF = '__cacheKdf';
 
 /** The default browser cache. `name` scopes the database to one app, so two
  *  apps on the same origin never collide. */
+async function sealFile(k: CryptoKey, meta: FileMeta, bytes: Uint8Array): Promise<EncFile> {
+	const sealedMeta = await seal(k, new TextEncoder().encode(JSON.stringify(meta)));
+	return { meta: sealedMeta, ...(await seal(k, bytes)) };
+}
+
+async function openFileMeta(k: CryptoKey, v: EncFile): Promise<FileMeta> {
+	if (!('meta' in v)) return { name: v.name, mime: v.mime };
+	if (!isEnvelope(v.meta)) {
+		throw new SelfstoreError('BAD_FORMAT', 'Unrecognized cache record (not a sealed envelope).');
+	}
+	const meta = JSON.parse(new TextDecoder().decode(await unseal(k, v.meta))) as Partial<FileMeta>;
+	if (typeof meta.name !== 'string' || typeof meta.mime !== 'string') {
+		throw new SelfstoreError(
+			'BAD_FORMAT',
+			'Unrecognized cache record (file name or type missing).'
+		);
+	}
+	return { name: meta.name, mime: meta.mime };
+}
+
 export function indexedDbCache(name: string, opts: { lock: true }): LockableCache;
 export function indexedDbCache(name: string, opts?: { lock?: boolean }): LocalCache;
 export function indexedDbCache(name: string, opts?: { lock?: boolean }): LocalCache {
@@ -179,8 +203,10 @@ export function indexedDbCache(name: string, opts?: { lock?: boolean }): LocalCa
 		if (!isEnvelope(v)) {
 			throw new SelfstoreError('BAD_FORMAT', 'Unrecognized cache record (not a sealed envelope).');
 		}
-		const bytes = await unseal(await key(), v);
-		return { name: v.name, mime: v.mime, blob: new Blob([bytes as BlobPart], { type: v.mime }) };
+		const k = await key();
+		const { name, mime } = await openFileMeta(k, v);
+		const bytes = await unseal(k, v);
+		return { name, mime, blob: new Blob([bytes as BlobPart], { type: mime }) };
 	}
 
 	const kv: KV = {
@@ -238,8 +264,8 @@ export function indexedDbCache(name: string, opts?: { lock?: boolean }): LocalCa
 				files
 					.filter((f) => !have.has(f.id))
 					.map(async (f) => {
-						const env = await seal(k, new Uint8Array(await f.blob.arrayBuffer()));
-						return { id: f.id, rec: { name: f.name, mime: f.mime, ...env } satisfies EncFile };
+						const bytes = new Uint8Array(await f.blob.arrayBuffer());
+						return { id: f.id, rec: await sealFile(k, { name: f.name, mime: f.mime }, bytes) };
 					})
 			);
 			const tx = d.transaction('files', 'readwrite');
@@ -304,11 +330,8 @@ export function indexedDbCache(name: string, opts?: { lock?: boolean }): LocalCa
 			for (const fileKey of await d.getAllKeys('files')) {
 				const v = (await d.get('files', fileKey)) as EncFile | undefined;
 				if (!v) continue;
-				const bytes = await unseal(previous, v);
-				files.push({
-					id: fileKey,
-					rec: { name: v.name, mime: v.mime, ...(await seal(next, bytes)) }
-				});
+				const meta = await openFileMeta(previous, v);
+				files.push({ id: fileKey, rec: await sealFile(next, meta, await unseal(previous, v)) });
 			}
 
 			// One transaction, so the salt and every record it governs land together.
