@@ -118,13 +118,40 @@ export function parseJsonEntry(bytes: Uint8Array, name: string): unknown {
 /** Rebuild a snapshot from ZIP entries (the inverse of buildEntries). A file the
  *  manifest lists without its entry is BAD_FORMAT: rebuilt as empty bytes it
  *  would restore as a success and be written back as the loss. */
+const isObject = (v: unknown): v is Record<string, unknown> =>
+	typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** The manifest's shape, checked before anything is applied: valid JSON that is
+ *  not a manifest would otherwise replace sound data with unusable collections. */
+function checkedManifest(raw: unknown): {
+	collections?: Record<string, unknown[]>;
+	files?: FileMeta[];
+} {
+	const bad = (why: string): never => {
+		throw new SelfstoreError('BAD_FORMAT', `Malformed manifest: ${why}.`);
+	};
+	if (!isObject(raw)) return bad('not an object');
+	const { collections, files } = raw;
+	if (collections !== undefined) {
+		if (!isObject(collections)) bad('collections is not an object');
+		for (const [name, rows] of Object.entries(collections as Record<string, unknown>)) {
+			if (!Array.isArray(rows) || !rows.every(isObject))
+				bad(`collection "${name}" is not a list of records`);
+		}
+	}
+	if (
+		files !== undefined &&
+		(!Array.isArray(files) || !files.every((f) => isObject(f) && typeof f.id === 'string'))
+	) {
+		bad('files is not a list of files with an id');
+	}
+	return raw as { collections?: Record<string, unknown[]>; files?: FileMeta[] };
+}
+
 export function entriesToSnapshot(entries: Record<string, Uint8Array>): Snapshot {
 	const manifestBytes = entries[MANIFEST];
 	if (!manifestBytes) throw new SelfstoreError('BAD_FORMAT', 'Missing manifest.');
-	const manifest = parseJsonEntry(manifestBytes, MANIFEST) as {
-		collections?: Record<string, unknown[]>;
-		files?: FileMeta[];
-	};
+	const manifest = checkedManifest(parseJsonEntry(manifestBytes, MANIFEST));
 	const files: SnapshotFile[] = (manifest.files ?? []).map((m) => {
 		const bytes = entries[`files/${m.id}`];
 		if (bytes === undefined) {

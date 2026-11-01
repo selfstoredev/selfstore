@@ -88,6 +88,20 @@ describe('archive', () => {
 		).toThrow(expect.objectContaining({ code: 'BAD_FORMAT' }));
 	});
 
+	it('refuses valid JSON that is not a manifest as BAD_FORMAT', () => {
+		const read = (manifest: unknown) =>
+			entriesToSnapshot({ 'selfstore.json': new TextEncoder().encode(JSON.stringify(manifest)) });
+		for (const bad of [
+			{ version: 1, collections: { notes: 'texte' } },
+			{ version: 1, collections: { notes: [1] } },
+			{ version: 1, collections: [] },
+			{ version: 1, files: [{}] },
+			[]
+		]) {
+			expect(() => read(bad)).toThrow(expect.objectContaining({ code: 'BAD_FORMAT' }));
+		}
+	});
+
 	it('rebuilds a minimal manifest', () => {
 		const empty = entriesToSnapshot({
 			'selfstore.json': new TextEncoder().encode(JSON.stringify({ version: 1 }))

@@ -92,6 +92,43 @@ describe('selfstore() - the simple store', () => {
 		expect(b.get('todos', 't1')?.text).toBe('persisted');
 	});
 
+	it('a subscriber that throws stops neither the others nor the save', async () => {
+		vi.useFakeTimers({ toFake: ['setTimeout'] });
+		try {
+			const cache = memoryCache();
+			const a = await selfstore<Schema>('simple-test', { cache });
+			const second = vi.fn();
+			a.onChange(() => {
+				throw new Error('render failed');
+			});
+			a.onChange(second);
+			await a.put('todos', { id: 't1', text: 'kept' });
+			expect(second).toHaveBeenCalled();
+			await a.flush();
+			a.dispose();
+			const b = await selfstore<Schema>('simple-test', { cache });
+			open.push(b);
+			expect(b.get('todos', 't1')?.text).toBe('kept');
+			expect(() => vi.runOnlyPendingTimers()).toThrow('render failed');
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('stores a copy, so a later change to the caller object changes nothing', async () => {
+		const { store } = await makeStore();
+		const note = { id: 'n1', body: 'first', nested: { tags: ['a'] } };
+		await store.put('notes', note);
+		await store.putAll('notes', [{ id: 'n2', body: 'second' }]);
+		note.body = 'changed';
+		note.nested.tags.push('b');
+		expect(store.get('notes', 'n1')).toEqual({ id: 'n1', body: 'first', nested: { tags: ['a'] } });
+		const bytes = new Uint8Array([1, 2, 3]);
+		const id = await store.putFile({ bytes });
+		bytes[0] = 9;
+		expect(store.getFile(id)?.bytes).toEqual(new Uint8Array([1, 2, 3]));
+	});
+
 	it('put fails FAST on a missing or non-string id, naming the fix', async () => {
 		const { store } = await makeStore();
 		await expect(async () =>

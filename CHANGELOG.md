@@ -14,6 +14,12 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A throwing `onChange` subscriber no longer loses an edit.** Subscribers are called one by one, the others still run, the save is still scheduled, and the error is rethrown on its own task.
+- **`put`, `putAll` and `putFile` keep a copy of what they are given.** Changing the caller's object or byte array afterwards no longer alters the stored record, nor the file stored under the hash of its bytes.
+- **An archive whose manifest is valid JSON but not a manifest is refused as `BAD_FORMAT`** before anything is applied, instead of replacing sound collections with unusable ones.
+
 ## [1.8.33] - 2026-11-01
 
 ### Fixed
