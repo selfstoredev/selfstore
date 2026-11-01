@@ -31,6 +31,7 @@ import {
 import type { BackupTarget } from '../persistence/target';
 import type { StatusDescriptor } from '../persistence/status';
 import type { SyncConfig } from '../sync';
+import { idOf } from '../sync/merge';
 import type { ConnectTargets, ResumeOffer } from '../flows/connect';
 import type { BackupsManager } from '../backups/manager';
 import type { Snapshot, SnapshotFile } from '../selfstore/types';
@@ -54,7 +55,12 @@ import {
 	isSupported as fileIsSupported
 } from '../persistence/targets/file';
 // WebDAV and S3 arrive on the gesture that uses them - see targets/servers.ts.
-import { webdavConnect, webdavFromSession, s3Connect } from '../persistence/targets/servers';
+import {
+	webdavConnect,
+	webdavFromSession,
+	s3Connect,
+	s3FromSession
+} from '../persistence/targets/servers';
 import type { WebdavConfig } from '../persistence/targets/webdav';
 import type { S3Config } from '../persistence/targets/s3';
 
@@ -309,18 +315,26 @@ export interface SimpleStore<
 	destinations(): ConnectTargets;
 }
 
-/** The id field a collection's records are keyed by: `sync.ids` may remap it;
- *  a DOTTED path (nested id) is an advanced setup the simple check skips. */
-function idFieldOf(sync: SyncConfig | undefined, collection: string): string | null {
-	const mapped = sync?.ids?.[collection];
-	if (mapped == null) return 'id';
-	return mapped.includes('.') ? null : mapped;
-}
+/** The id path a collection's records are keyed by, as the merge engine reads it. */
+const idPathOf = (sync: SyncConfig | undefined, collection: string): string =>
+	sync?.ids?.[collection] ?? sync?.idField ?? 'id';
 
-function requireStringId(record: SimpleRecord, field: string | null, collection: string): string {
-	if (field === null) return ''; // nested-path ids: validated by the engine's own rules
-	const id = record[field];
-	if (typeof id !== 'string' || id.length === 0) {
+/** A record's id, read at the same path the merge engine reads it: a nested
+ *  `sync.ids` path written one way and read another made an edit add a row. */
+const recordId = (
+	sync: SyncConfig | undefined,
+	collection: string,
+	record: unknown
+): string | null => idOf(sync ?? {}, collection, record);
+
+function requireStringId(
+	sync: SyncConfig | undefined,
+	record: SimpleRecord,
+	collection: string
+): string {
+	const id = recordId(sync, collection, record);
+	if (id === null || id.length === 0) {
+		const field = idPathOf(sync, collection);
 		throw new TypeError(
 			`selfstore: a record in "${collection}" needs a non-empty STRING "${field}" ` +
 				`(got ${JSON.stringify(id)}). String ids are what the multi-device merge keys on; ` +
@@ -513,6 +527,7 @@ export async function selfstore<
 			}
 			if (kind === 'file') return fileFromSession({ kv: cache.kv });
 			if (kind === 'webdav') return webdavFromSession({ kv: cache.kv });
+			if (kind === 's3') return s3FromSession({ kv: cache.kv });
 			return null;
 		}
 	});
@@ -616,40 +631,35 @@ export async function selfstore<
 			return (collections[collection] ?? []) as S[K][];
 		},
 		get<K extends keyof S & string>(collection: K, id: string): S[K] | undefined {
-			const field = idFieldOf(options.sync, collection) ?? 'id';
-			return (collections[collection] ?? []).find((r) => r[field] === id) as S[K] | undefined;
+			return (collections[collection] ?? []).find(
+				(r) => recordId(options.sync, collection, r) === id
+			) as S[K] | undefined;
 		},
 		put<K extends keyof S & string>(collection: K, record: S[K]): Promise<void> {
-			const field = idFieldOf(options.sync, collection);
-			const id = requireStringId(record, field, collection);
+			const id = requireStringId(options.sync, record, collection);
 			const rows = collections[collection] ?? [];
-			const at = field === null ? -1 : rows.findIndex((r) => r[field] === id);
+			const at = rows.findIndex((r) => recordId(options.sync, collection, r) === id);
 			return mutate(
 				collection,
 				at === -1 ? [...rows, record] : rows.map((r, i) => (i === at ? record : r))
 			);
 		},
 		putAll<K extends keyof S & string>(collection: K, records: S[K][]): Promise<void> {
-			const field = idFieldOf(options.sync, collection);
-			const byId = new Map<unknown, number>();
-			for (const r of records) requireStringId(r, field, collection);
+			const ids = records.map((r) => requireStringId(options.sync, r, collection));
 			const rows = [...(collections[collection] ?? [])];
-			if (field !== null) {
-				rows.forEach((r, i) => byId.set(r[field], i));
-				for (const r of records) {
-					const at = byId.get(r[field]);
-					if (typeof at === 'number') rows[at] = r;
-					else rows.push(r);
-				}
-			} else {
-				rows.push(...records);
-			}
+			const byId = new Map<string | null, number>();
+			rows.forEach((r, i) => byId.set(recordId(options.sync, collection, r), i));
+			// The LAST occurrence of an id in one batch wins, as a later put would.
+			records.forEach((r, i) => {
+				const at = byId.get(ids[i]);
+				if (typeof at === 'number') rows[at] = r;
+				else byId.set(ids[i], rows.push(r) - 1);
+			});
 			return mutate(collection, rows);
 		},
 		remove<K extends keyof S & string>(collection: K, id: string): Promise<void> {
-			const field = idFieldOf(options.sync, collection) ?? 'id';
 			const rows = collections[collection] ?? [];
-			const next = rows.filter((r) => r[field] !== id);
+			const next = rows.filter((r) => recordId(options.sync, collection, r) !== id);
 			return next.length === rows.length ? Promise.resolve() : mutate(collection, next);
 		},
 		clear<K extends keyof S & string>(collection: K): Promise<void> {

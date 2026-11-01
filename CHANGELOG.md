@@ -16,6 +16,10 @@ version number is not asking you to trust.
 
 ### Fixed
 
+- **A Drive search that fails no longer reads as an absent backup.** `findOrCreateOwnFile` and the connect path created an empty namesake when Drive answered with an error; they now raise `TARGET_UNAVAILABLE` (or `AuthExpired` on a 401) and create only after a search that answered.
+- **`listBackups` reads every page** of Drive's listing, so backups past the first hundred stay in the chooser.
+- **The simple store reopens an S3 destination** after a reload, as it already did for Drive, the file and WebDAV.
+- **The simple store reads ids where the merge engine reads them**, nested `sync.ids` paths and `idField` included: an edit no longer adds a second row, and `get` and `remove` find the record. `putAll` keeps one row per id, the last occurrence of a batch winning.
 - **`digestJournalNotary` no longer downloads the whole deposits file to find out that nothing has changed.** `complete` read `/empreintes/depots.jsonl` first, on every call and for every pending receipt: a public journal's file lists every deposit of every user (tens of megabytes, growing daily), so an app completing a series of sixty receipts at launch pulled a gigabyte over a phone connection to learn that the day's tour was not anchored yet. It now reads the small tour list first and touches the file only once a tour folded after the deposit is anchored in Bitcoin (a tour that publishes no `instant` is still considered), and one round reads the file once per state of the tour list, not once per receipt. Same receipts, same evidence; a journal that never anchors is never downloaded.
 
 ## [1.8.32] - 2026-10-31

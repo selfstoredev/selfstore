@@ -550,3 +550,39 @@ describe('drive target - abortInFlight', () => {
 		expect(await target!.stat!()).toBe('7');
 	});
 });
+
+describe('drive target - a failed search is not an absent file, and the listing reads every page', () => {
+	it('findOrCreateOwnFile refuses to create a namesake when the search did not answer', async () => {
+		const auth = stalableAuth();
+		const calls: string[] = [];
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (_url: string, init?: RequestInit) => {
+				calls.push(init?.method ?? 'GET');
+				return new Response(null, { status: 503 });
+			})
+		);
+		const { findOrCreateOwnFile } = await import('./drive');
+		const err = await findOrCreateOwnFile({ auth, kv: memKV(), fileName: 'backup.zip' }).catch(
+			(e: unknown) => e
+		);
+		expect(isSelfstoreError(err)).toBe(true);
+		expect(calls).toEqual(['GET']);
+	});
+
+	it('listBackups follows nextPageToken to the last page', async () => {
+		const auth = stalableAuth();
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (url: string) => {
+				const token = new URL(url).searchParams.get('pageToken');
+				const body = token
+					? { files: [{ id: 'old', name: 'Wallet (2019).zip' }] }
+					: { nextPageToken: 'p2', files: [{ id: 'new', name: 'Wallet.zip' }] };
+				return new Response(JSON.stringify(body), { status: 200 });
+			})
+		);
+		const rows = await listBackups({ auth, nameContains: 'Wallet' });
+		expect(rows.map((r) => r.id)).toEqual(['new', 'old']);
+	});
+});
