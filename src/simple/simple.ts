@@ -460,7 +460,19 @@ export async function selfstore<
 	let files: SnapshotFile[] = [];
 
 	const dataSubs = new Set<() => void>();
-	const emitData = (): void => dataSubs.forEach((fn) => fn());
+	// One subscriber that throws must not stop the others, nor the save that
+	// follows: the edit is already in memory and would be lost on restart. Its
+	// error is rethrown on its own task, so it still reaches the console.
+	const emitData = (): void =>
+		dataSubs.forEach((fn) => {
+			try {
+				fn();
+			} catch (error) {
+				setTimeout(() => {
+					throw error;
+				});
+			}
+		});
 
 	const cache =
 		options.cache ??
@@ -635,7 +647,10 @@ export async function selfstore<
 				(r) => recordId(options.sync, collection, r) === id
 			) as S[K] | undefined;
 		},
-		put<K extends keyof S & string>(collection: K, record: S[K]): Promise<void> {
+		put<K extends keyof S & string>(collection: K, given: S[K]): Promise<void> {
+			// A copy, so a later change to the caller's object cannot alter the
+			// stored record behind the store's back.
+			const record = structuredClone(given);
 			const id = requireStringId(options.sync, record, collection);
 			const rows = collections[collection] ?? [];
 			const at = rows.findIndex((r) => recordId(options.sync, collection, r) === id);
@@ -644,7 +659,8 @@ export async function selfstore<
 				at === -1 ? [...rows, record] : rows.map((r, i) => (i === at ? record : r))
 			);
 		},
-		putAll<K extends keyof S & string>(collection: K, records: S[K][]): Promise<void> {
+		putAll<K extends keyof S & string>(collection: K, given: S[K][]): Promise<void> {
+			const records = structuredClone(given);
 			const ids = records.map((r) => requireStringId(options.sync, r, collection));
 			const rows = [...(collections[collection] ?? [])];
 			const byId = new Map<string | null, number>();
