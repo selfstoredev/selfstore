@@ -95,8 +95,8 @@ export interface RecipientStanza {
  * (sig.bin) covers the exact meta.json and data.enc bytes.
  */
 export interface Header {
-	/** Format generation: 2 = plain ZIP, 3 = group, 4 = password envelope.
-	 *  Absent means 2. */
+	/** Format generation: 1 = plain ZIP, 2 = group, 3 = password envelope.
+	 *  Absent means 1. */
 	format?: number;
 	app: string;
 	/** Writing app's release version, informational. */
@@ -115,6 +115,11 @@ export interface Header {
 	author?: string;
 	/** Group mode: one data-key envelope per recipient. */
 	recipients?: RecipientStanza[];
+	/** Group mode: the manifest's group id this copy was published for, under
+	 *  the author's signature. A reader that knows its group refuses another
+	 *  group's copy, however well signed. Absent on copies written before it
+	 *  existed. */
+	group?: string;
 	/** Password envelope only: the data key wrapped once per password.
 	 *  Present iff format === 4. */
 	keys?: KeySlot[];
@@ -133,6 +138,9 @@ export interface EncodeOptions {
 	group?: {
 		recipients: string[];
 		sign: { pub: string; priv: string };
+		/** The manifest's group id, written into the signed header so the
+		 *  copy cannot be served to another group. */
+		id?: string;
 	};
 	/** README text shipped inside an encrypted backup, for whoever opens the
 	 *  ZIP by hand. Defaults to a neutral note; apps should brand it. */

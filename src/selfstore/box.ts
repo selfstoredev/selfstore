@@ -148,7 +148,10 @@ export async function writeBox(
 			keying: GROUP_KEYING,
 			author: opts.group.sign.pub,
 			recipients: await sealDataKey(dataKey, opts.group.recipients),
-			iv: enc.iv
+			iv: enc.iv,
+			// Under the signature with the rest of meta.json: a host cannot move
+			// this copy to another group the author also belongs to.
+			...(opts.group.id === undefined ? {} : { group: opts.group.id })
 		};
 		const metaBytes = utf8.enc.encode(JSON.stringify(meta));
 		return zip(
@@ -232,6 +235,10 @@ export async function readBoxMeta(bytes: Uint8Array): Promise<Header> {
 export interface GroupReadOptions {
 	identity: Pick<GroupIdentity, 'encPub' | 'encPriv'>;
 	authors: string[];
+	/** The reader's group id. A copy that names another group is refused
+	 *  (SIGNATURE_INVALID) even when its author is a trusted member of both;
+	 *  a copy written before the id existed carries none and still opens. */
+	group?: string;
 }
 
 /**
@@ -413,7 +420,8 @@ async function readGroupBox(
 		meta.author.length === 0 ||
 		!Array.isArray(meta.recipients) ||
 		meta.recipients.length === 0 ||
-		typeof meta.iv !== 'string'
+		typeof meta.iv !== 'string' ||
+		(meta.group !== undefined && typeof meta.group !== 'string')
 	) {
 		throw new SelfstoreError(
 			'BAD_FORMAT',
@@ -426,6 +434,14 @@ async function readGroupBox(
 		throw new SelfstoreError(
 			'SIGNATURE_INVALID',
 			'Copy author is not a trusted group member (check the membership manifest).'
+		);
+	}
+	// A member of two groups signs copies for both; the group id under the
+	// signature is what stops a host from serving one group's copy to the other.
+	if (group.group !== undefined && meta.group !== undefined && meta.group !== group.group) {
+		throw new SelfstoreError(
+			'SIGNATURE_INVALID',
+			'Copy was published for another group (group id mismatch).'
 		);
 	}
 	if (!(await verifyBox(metaBytes, dataEnc, sig, meta.author))) {
