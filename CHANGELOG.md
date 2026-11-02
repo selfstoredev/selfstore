@@ -14,10 +14,11 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+## [1.8.34] - 2026-11-02
+
 ### Fixed
 
 - **A group copy now names its group, under the author's signature.** A member of two groups signs copies for both, and a host storing both could serve one group's copy where the other expected one: the signature was trusted, the data key opened, and the other group's records folded in. `meta.json` now carries the manifest's group id (`group`, SPEC 12.2), the store writes it with every publication and refuses a copy that names another group (`SIGNATURE_INVALID`, on its own target and on every peer). Copies written before the field existed carry none and still open; readers that ignore unknown header fields keep reading the new ones.
-
 - **The local cache no longer keeps attachment names and types in the clear.** `indexedDbCache` seals each file's name and MIME type under the same key as its bytes, `lock: true` included, so a copy of the browser profile no longer reads document titles. Records cached by earlier versions still load, and are sealed the next time the cache is resealed.
 - **A throwing `onChange` subscriber no longer loses an edit.** Subscribers are called one by one, the others still run, the save is still scheduled, and the error is rethrown on its own task.
 - **`put`, `putAll` and `putFile` keep a copy of what they are given.** Changing the caller's object or byte array afterwards no longer alters the stored record, nor the file stored under the hash of its bytes.
