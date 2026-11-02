@@ -783,12 +783,18 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 	 *  member's key are ours (each member's copy is single-writer; a foreign
 	 *  signature in our own storage is a swap, not a copy of ours). */
 	const ownGroupRead = (): GroupReadOptions | undefined =>
-		group ? { identity: group.identity, authors: [group.identity.sigPub] } : undefined;
+		group
+			? { identity: group.identity, authors: [group.identity.sigPub], group: group.manifest.group }
+			: undefined;
 
 	/** The group read options for PEERS: any current manifest member may sign. */
 	const peerGroupRead = (): GroupReadOptions | undefined =>
 		group
-			? { identity: group.identity, authors: group.manifest.members.map((m) => m.sig) }
+			? {
+					identity: group.identity,
+					authors: group.manifest.members.map((m) => m.sig),
+					group: group.manifest.group
+				}
 			: undefined;
 
 	/** Manifest seq high-water mark key (rollback protection across sessions). */
@@ -952,7 +958,8 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 					recipients: [
 						...new Set([...group.manifest.members.map((m) => m.enc), group.identity.encPub])
 					],
-					sign: { pub: group.identity.sigPub, priv: group.identity.sigPriv }
+					sign: { pub: group.identity.sigPub, priv: group.identity.sigPriv },
+					id: group.manifest.group
 				}
 			: undefined;
 		const bytes = await writeBox(

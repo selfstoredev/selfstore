@@ -231,9 +231,15 @@ keys instead of a KDF) and an author signature.
       "wrap": "<base64>"             // AES-256-GCM(data key), tag appended (48 bytes)
     }
   ],
-  "iv": "<base64>"                   // 12 random bytes (data.enc)
+  "iv": "<base64>",                  // 12 random bytes (data.enc)
+  "group": "<base64>"                // OPTIONAL: the membership manifest's group id (12.7)
 }
 ```
+
+`group` names the group the copy was published for. It sits under the
+signature (12.4), so a host cannot move a copy between two groups its author
+belongs to. Writers that know their manifest MUST emit it; copies written
+before it existed carry none.
 
 `kdf` is ABSENT in group mode. The mode binding at step 2 routes a group box
 only to the group path - a reader never falls through to a misleading
@@ -279,15 +285,26 @@ The readme entry is cosmetic and deliberately not covered.
    MANDATORY. Require `author` to be in it; else fail. This check comes FIRST:
    a valid signature by an unknown key proves nothing. A reader MUST NOT offer
    a mode that opens a group copy without a pinned author list.
-3. Verify `sig.bin` (12.4) against `author`. Failure is terminal.
-4. Open the recipient stanza (12.3); no stanza opening is the "not a
+3. If the reader knows its group id and the header carries `group`, require
+   them equal; else fail. A header without `group` is a copy from before the
+   field existed and passes this step. A `group` that is not a string is
+   malformed (fail).
+4. Verify `sig.bin` (12.4) against `author`. Failure is terminal.
+5. Open the recipient stanza (12.3); no stanza opening is the "not a
    recipient" condition. A reader MUST cap `recipients` (the reference caps at
    256) and reject a stanza that unwraps to anything other than a 32-byte data
    key (no silent AES-128 downgrade).
-5. AES-256-GCM-decrypt `data.enc` with the data key and header `iv`; read the
+6. AES-256-GCM-decrypt `data.enc` with the data key and header `iv`; read the
    inner ZIP as in generation 1.
 
 ### 12.6 Security requirements (additional)
+
+- **A copy belongs to one group.** The same identity may be a member of
+  several groups, and its signature is trusted in each. A reader that knows
+  its group id MUST refuse a copy whose signed `group` names another, before
+  verifying the signature (a mismatch is a refusal either way; a forged
+  `group` fails at 12.4). Without this a host that stores both groups can
+  serve one group's data to the other, signature and decryption intact.
 
 - **Author before crypto, always pinned.** A reader MUST refuse an author
   outside the membership manifest before any signature or decryption work, and

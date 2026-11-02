@@ -328,6 +328,56 @@ describe('passwordless group', () => {
 		expect(ids(alice.app.collections.accounts)).not.toContain('evil');
 	});
 
+	it("a member's copy from ANOTHER group is refused on both scopes", async () => {
+		// Alice belongs to two groups. A host that stores both can serve her
+		// copy from group B where group A expects one: her signature is trusted
+		// in both, so only the group id under that signature tells them apart.
+		const [alice, bob] = await Promise.all([generateIdentity(), generateIdentity()]);
+		const member = (id: string, who: GroupIdentity) => ({ id, sig: who.sigPub, enc: who.encPub });
+		const groupOf = async (members: ReturnType<typeof member>[]) => {
+			const manifest: GroupManifest = {
+				v: 1,
+				group: newGroupId(),
+				seq: 1,
+				admin: alice.sigPub,
+				members
+			};
+			return { manifest, signed: await signManifest(manifest, alice.sigPriv) };
+		};
+		const a = await groupOf([member('alice', alice), member('bob', bob)]);
+		const b = await groupOf([member('alice', alice)]);
+		const join = async (who: GroupIdentity, signed: SignedManifest, record: string) => {
+			const m = makeStore({ accounts: [{ id: record }] });
+			await m.store.init();
+			const t = memTarget();
+			await m.store.attachTarget(t.target, {
+				group: { identity: who, admin: alice.sigPub, manifest: signed },
+				strategy: 'replace-remote'
+			});
+			return { ...m, t };
+		};
+		const aliceA = await join(alice, a.signed, 'a-only');
+		const aliceB = await join(alice, b.signed, 'b-only');
+		const bobA = await join(bob, a.signed, 'bob1');
+		const fromB = aliceB.t.remote!;
+
+		// Bob folds alice through group A, then the host hands him her B copy.
+		bobA.store.attachPeer(aliceA.t.target, { id: 'alice' });
+		await bobA.store.syncNow();
+		expect(ids(bobA.app.collections.accounts)).toContain('a-only');
+		aliceA.t.seed(fromB);
+		await bobA.store.syncNow();
+		expect(bobA.store.state.peers[0].lastError?.code).toBe('SIGNATURE_INVALID');
+		expect(ids(bobA.app.collections.accounts)).not.toContain('b-only');
+		expect(bobA.store.state.status.state).not.toBe('needs-attention');
+
+		// Alice's own pull in group A gates on her own B copy and never clobbers.
+		await aliceA.store.syncNow();
+		expect(aliceA.store.state.status.state).toBe('needs-attention');
+		expect(aliceA.store.state.lastError?.code).toBe('SIGNATURE_INVALID');
+		expect(ids(aliceA.app.collections.accounts)).not.toContain('b-only');
+	});
+
 	it('a plaintext (or password) swap is refused in group mode', async () => {
 		const { members } = await makeGroup(['alice', 'bob']);
 		const [alice, bob] = members;

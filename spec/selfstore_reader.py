@@ -83,10 +83,11 @@ def _derive_external_kek(secret: bytes) -> bytes:
                 salt=b"", info=EXTERNAL_INFO).derive(secret)
 
 
-def _open_group(zf: zipfile.ZipFile, header: dict, identity: dict, authors: list | None) -> dict:
-    """Group mode (format 2). Trust order: author membership, then the Ed25519
-    signature over the EXACT meta.json + data.enc bytes, then the recipient
-    envelope, then AES-GCM. See SPEC.md section 12."""
+def _open_group(zf: zipfile.ZipFile, header: dict, identity: dict, authors: list | None,
+                group: str | None = None) -> dict:
+    """Group mode (format 2). Trust order: author membership, the group id under
+    the signature, then the Ed25519 signature over the EXACT meta.json + data.enc
+    bytes, then the recipient envelope, then AES-GCM. See SPEC.md section 12."""
     from cryptography.exceptions import InvalidSignature
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
@@ -106,6 +107,13 @@ def _open_group(zf: zipfile.ZipFile, header: dict, identity: dict, authors: list
     author = header["author"]
     if author not in authors:
         raise SelfstoreError("author is not a trusted group member")
+    # A member of two groups signs for both: the group id (signed, SPEC 12.6)
+    # is what keeps one group's copy out of the other. Absent on older copies.
+    copy_group = header.get("group")
+    if copy_group is not None and not isinstance(copy_group, str):
+        raise SelfstoreError("malformed group id")
+    if group is not None and copy_group is not None and copy_group != group:
+        raise SelfstoreError("copy was published for another group")
     recipients = header.get("recipients") or []
     if len(recipients) > MAX_RECIPIENTS:
         raise SelfstoreError(f"too many recipient stanzas (max {MAX_RECIPIENTS})")
@@ -192,9 +200,10 @@ def _open_envelope(zf: zipfile.ZipFile, header: dict, password: str | None,
 
 def read(data: bytes, password: str | None = None,
          identity: dict | None = None, authors: list | None = None,
-         secret: bytes | None = None) -> dict:
+         secret: bytes | None = None, group: str | None = None) -> dict:
     """Read a selfstore backup into {app, schemaVersion?, collections, files, sync?}.
-    Group copies (format 2) need `identity`; pass `authors` to pin trusted signers.
+    Group copies (format 2) need `identity`; pass `authors` to pin trusted signers
+    and `group` (the manifest's group id) to refuse another group's copy.
     External-key slots (SPEC 13.7) need the 32-byte `secret` instead of a password."""
     if not data[:4] == b"PK\x03\x04":
         raise SelfstoreError("not a ZIP archive")
@@ -214,7 +223,7 @@ def read(data: bytes, password: str | None = None,
         if header.get("keying") is not None:
             if identity is None:
                 raise SelfstoreError("group copy: a member identity is required")
-            snap = _open_group(zf, header, identity, authors)
+            snap = _open_group(zf, header, identity, authors, group)
         elif fmt == 3:
             snap = _open_envelope(zf, header, password, secret)
         elif enc == "none":

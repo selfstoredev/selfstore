@@ -213,6 +213,52 @@ describe('group box (format generation 2)', () => {
 		await expect(read(relabeled)).rejects.toMatchObject({ code: 'BAD_FORMAT' });
 	});
 
+	it('binds the copy to its group id under the signature', async () => {
+		const alice = await generateIdentity();
+		const sign = { pub: alice.sigPub, priv: alice.sigPriv };
+		const read = { identity: alice, authors: [alice.sigPub] };
+		const forA = await writeBox(snapshot, {
+			...meta,
+			group: { recipients: [alice.encPub], sign, id: 'group-A' }
+		});
+		expect(JSON.parse(strFromU8(unzipSync(forA)['meta.json'])).group).toBe('group-A');
+
+		// The right group, or a reader that does not know its group, opens it.
+		expect((await readBoxWithSync(forA, undefined, { ...read, group: 'group-A' })).author).toBe(
+			alice.sigPub
+		);
+		expect((await readBoxWithSync(forA, undefined, read)).author).toBe(alice.sigPub);
+		// Another group refuses it, trusted author or not.
+		await expect(
+			readBoxWithSync(forA, undefined, { ...read, group: 'group-B' })
+		).rejects.toMatchObject({ code: 'SIGNATURE_INVALID' });
+		// The id cannot be rewritten in place: the signature covers it.
+		const moved = rezip(forA, (e) => {
+			const h = JSON.parse(strFromU8(e['meta.json']));
+			e['meta.json'] = strToU8(JSON.stringify({ ...h, group: 'group-B' }));
+		});
+		await expect(
+			readBoxWithSync(moved, undefined, { ...read, group: 'group-B' })
+		).rejects.toMatchObject({ code: 'SIGNATURE_INVALID' });
+		// A copy from before the id existed carries none and still opens.
+		const legacy = await writeBox(snapshot, {
+			...meta,
+			group: { recipients: [alice.encPub], sign }
+		});
+		expect(JSON.parse(strFromU8(unzipSync(legacy)['meta.json'])).group).toBeUndefined();
+		expect((await readBoxWithSync(legacy, undefined, { ...read, group: 'group-A' })).author).toBe(
+			alice.sigPub
+		);
+		// A non-string id is malformed, not ignored.
+		const malformed = rezip(legacy, (e) => {
+			const h = JSON.parse(strFromU8(e['meta.json']));
+			e['meta.json'] = strToU8(JSON.stringify({ ...h, group: 7 }));
+		});
+		await expect(readBoxWithSync(malformed, undefined, read)).rejects.toMatchObject({
+			code: 'BAD_FORMAT'
+		});
+	});
+
 	it('writeBox refuses group + password together', async () => {
 		const alice = await generateIdentity();
 		await expect(
