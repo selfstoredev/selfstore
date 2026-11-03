@@ -451,3 +451,35 @@ describe('clock drift', () => {
 		expect(() => merge(poisoned, sane, cfg)).not.toThrow();
 	});
 });
+
+describe('ids and field names that name a prototype', () => {
+	const cfgMap: SyncConfig = { fallback: 'lww-set', strategies: { rows: 'lww-map' } };
+
+	it('stamps and merges a record whose id is __proto__ without touching Object.prototype', () => {
+		const rows = [{ id: '__proto__', name: 'Livret' }];
+		const meta = stamp(createMeta('a'), { rows }, cfgMap, 1000);
+		expect(({} as Record<string, unknown>).name).toBeUndefined();
+		expect(Object.keys(meta.cols.rows.clocks)).toEqual(['__proto__']);
+		// A replica read back from disk holds plain objects again.
+		const remote = { collections: { rows }, meta: JSON.parse(JSON.stringify(meta)) as SyncMeta };
+		const m = merge({ collections: {}, meta: createMeta('b') }, remote, cfgMap);
+		expect(m.collections.rows).toEqual(rows);
+		expect(Object.keys(m.meta.cols.rows.clocks)).toEqual(['__proto__']);
+		expect(({} as Record<string, unknown>).name).toBeUndefined();
+	});
+
+	it('keeps a field named __proto__ as a field of the merged record', () => {
+		const doc = JSON.parse('{"id":"1","__proto__":"x","n":1}') as Record<string, unknown>;
+		const meta = stamp(createMeta('a'), { rows: [doc] }, cfgMap, 1000);
+		const edited = JSON.parse('{"id":"1","__proto__":"x","n":2}') as Record<string, unknown>;
+		const B = {
+			collections: { rows: [edited] },
+			meta: stamp(meta, { rows: [edited] }, cfgMap, 2000)
+		};
+		const m = merge({ collections: { rows: [doc] }, meta }, B, cfgMap);
+		const out = m.collections.rows[0] as Record<string, unknown>;
+		expect(Object.getPrototypeOf(out)).toBe(Object.prototype);
+		expect(Object.hasOwn(out, '__proto__')).toBe(true);
+		expect(out.n).toBe(2);
+	});
+});

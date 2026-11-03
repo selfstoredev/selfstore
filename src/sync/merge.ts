@@ -97,22 +97,40 @@ function hash(v: unknown): number {
 	return h >>> 0;
 }
 
-function emptyCol(): ColMeta {
-	return { clocks: {}, deleted: {}, hashes: {} };
+/**
+ * A table keyed by a record id or a field name. Ids and field names are free
+ * text: on a plain object `__proto__` reads `Object.prototype`, and writing
+ * through it pollutes every object of the host. No prototype, no such key.
+ */
+function dict<T>(from?: Record<string, T>): Record<string, T> {
+	const out = Object.create(null) as Record<string, T>;
+	if (from) for (const [k, v] of Object.entries(from)) out[k] = v;
+	return out;
 }
 
+function emptyCol(): ColMeta {
+	return { clocks: dict(), deleted: dict(), hashes: dict() };
+}
+
+/** A copy of one collection's metadata in prototype-free tables, whatever it
+ *  was read from (a deserialized replica holds plain objects). */
 function cloneCol(c: ColMeta | undefined): ColMeta {
 	if (!c) return emptyCol();
 	const out: ColMeta = {
-		clocks: { ...c.clocks },
-		deleted: { ...c.deleted },
-		hashes: { ...c.hashes }
+		clocks: dict(c.clocks),
+		deleted: dict(c.deleted),
+		hashes: dict(c.hashes)
 	};
 	if (c.fields) {
-		out.fields = {};
-		for (const [id, f] of Object.entries(c.fields)) out.fields[id] = { ...f };
+		out.fields = dict();
+		for (const [id, f] of Object.entries(c.fields)) out.fields[id] = dict(f);
 	}
 	return out;
+}
+
+/** The base's metadata for one collection, copied like the two sides'. */
+function baseColOf(base: SyncMeta | undefined, name: string): ColMeta | undefined {
+	return base ? cloneCol(base.cols[name]) : undefined;
 }
 
 function strategyOf(config: SyncConfig, collection: string): MergeStrategy {
@@ -220,12 +238,12 @@ function stampPresent(
  *  clock until its own content changes, so field clocks stay independent and a
  *  merge can tell which side last touched which field. */
 function stampFields(col: ColMeta, id: Id, doc: Record<string, unknown>, tick: Tick): void {
-	const rec = ((col.fields ??= {})[id] ??= {});
+	const rec = ((col.fields ??= dict())[id] ??= dict());
 	for (const key of Object.keys(doc)) {
 		const h = hash(doc[key]);
 		if (rec[key]?.[1] !== h) rec[key] = [tick(), h];
 	}
-	for (const key of Object.keys(rec)) if (!(key in doc)) delete rec[key];
+	for (const key of Object.keys(rec)) if (!Object.hasOwn(doc, key)) delete rec[key];
 }
 
 /** Tombstone every previously-tracked id that is no longer present. */
@@ -355,9 +373,9 @@ export function detectConflicts(
 		const strategy = strategyOf(config, name);
 		const aDocs = byId(config, name, a.collections[name]);
 		const bDocs = byId(config, name, b.collections[name]);
-		const aMeta = a.meta.cols[name] ?? emptyCol();
-		const bMeta = b.meta.cols[name] ?? emptyCol();
-		const baseMeta = base.cols[name];
+		const aMeta = cloneCol(a.meta.cols[name]);
+		const bMeta = cloneCol(b.meta.cols[name]);
+		const baseMeta = baseColOf(base, name);
 		for (const id of new Set<Id>([...aDocs.keys(), ...bDocs.keys()])) {
 			const aClk = aMeta.clocks[id] ?? null;
 			const bClk = bMeta.clocks[id] ?? null;
@@ -448,9 +466,9 @@ function mergeCollection(
 	const strategy = strategyOf(config, name);
 	const aDocs = byId(config, name, a.collections[name]);
 	const bDocs = byId(config, name, b.collections[name]);
-	const aMeta = a.meta.cols[name] ?? emptyCol();
-	const bMeta = b.meta.cols[name] ?? emptyCol();
-	const baseMeta = base?.cols[name];
+	const aMeta = cloneCol(a.meta.cols[name]);
+	const bMeta = cloneCol(b.meta.cols[name]);
+	const baseMeta = baseColOf(base, name);
 	const col = emptyCol();
 	const docs: unknown[] = [];
 
@@ -494,12 +512,12 @@ function mergeCollection(
 			const merged = mergeFields(id, aDocs.get(id), bDocs.get(id), aMeta, bMeta, winnerSide);
 			if (merged) {
 				doc = merged.doc;
-				(col.fields ??= {})[id] = merged.fields;
+				(col.fields ??= dict())[id] = merged.fields;
 			} else {
 				// One side has no document: the record-level winner stands; carry its
 				// field metadata forward so later merges stay field-aware.
 				const f = (winnerSide === 'local' ? aMeta : bMeta).fields?.[id];
-				if (f) (col.fields ??= {})[id] = { ...f };
+				if (f) (col.fields ??= dict())[id] = dict(f);
 			}
 		}
 
@@ -527,17 +545,23 @@ function mergeFields(
 	winnerSide: 'local' | 'remote'
 ): { doc: Record<string, unknown>; fields: Record<string, [Hlc, number]> } | null {
 	if (!isRecord(aDoc) || !isRecord(bDoc)) return null;
-	const aF = aMeta.fields?.[id] ?? {};
-	const bF = bMeta.fields?.[id] ?? {};
+	const aF = aMeta.fields?.[id] ?? dict();
+	const bF = bMeta.fields?.[id] ?? dict();
 	const doc: Record<string, unknown> = {};
-	const fields: Record<string, [Hlc, number]> = {};
+	const fields = dict<[Hlc, number]>();
 	for (const key of new Set([...Object.keys(aDoc), ...Object.keys(bDoc)])) {
 		const a = aF[key] ?? null;
 		const b = bF[key] ?? null;
 		const side = pickFieldSide(a, b, winnerSide);
 		const src = side === 'local' ? aDoc : bDoc;
-		if (!(key in src)) continue; // the winning side removed the field: drop it
-		doc[key] = src[key];
+		if (!Object.hasOwn(src, key)) continue; // the winning side removed the field: drop it
+		// Defined, never assigned: `doc.__proto__ = v` would swap the prototype.
+		Object.defineProperty(doc, key, {
+			value: src[key],
+			enumerable: true,
+			writable: true,
+			configurable: true
+		});
 		const stamped = side === 'local' ? a : b;
 		if (stamped) fields[key] = stamped;
 	}
