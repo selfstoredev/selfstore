@@ -14,6 +14,8 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+## [1.8.35] - 2026-11-03
+
 ### Fixed
 
 - The sync engine keeps its clocks, hashes and field stamps in tables without a
