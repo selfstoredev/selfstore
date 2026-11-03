@@ -5,6 +5,7 @@
  * is transient, never a lost grant, because there is no grant to lose.
  */
 
+import { readFileSync } from 'node:fs';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { KV } from '../cache';
 import type { DesktopFileBridge } from './desktop';
@@ -400,5 +401,13 @@ describe('the file destination defers to the shell', () => {
 
 		const reopened = await file.fromSession({ kv });
 		expect(reopened?.label).toBe('app.zip');
+	});
+});
+
+describe('the documented wiring', () => {
+	it('passes rename in the README, so a copied integration saves atomically', () => {
+		const readme = readFileSync(new URL('../../../README.md', import.meta.url), 'utf8');
+		const wiring = readme.match(/useDesktopFiles\(\{([^}]*)\}\)/)?.[1] ?? '';
+		expect(wiring.split(',').map((s) => s.trim())).toContain('rename');
 	});
 });
