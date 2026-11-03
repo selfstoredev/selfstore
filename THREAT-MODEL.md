@@ -161,7 +161,9 @@ Someone images the disk, dumps the IndexedDB object stores, or exfiltrates part
 of the profile. **Mitigation:** the local cache seals the collections snapshot
 and every file blob under a non-extractable per-device AES-256-GCM key
 (cache-crypto), fresh IV per record; only the small kv bookkeeping (sync
-metadata, the redacted journal - T11) stays in the clear. A raw dump of the
+metadata, the redacted journal - T11) stays in the clear. Bookkeeping that is
+itself a secret - a household share's key K, its mailbox id, its invitation
+capability - goes through `sealedKv`, sealed under the same key as the payload. A raw dump of the
 stored values is ciphertext, and the key's bytes can never be read back out.
 **Honest boundary:** the key is a non-extractable handle kept in the SAME
 database, so it defeats casual inspection, partial exfiltration and forensic

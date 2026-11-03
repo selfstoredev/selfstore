@@ -29,6 +29,12 @@ export interface KV {
 
 export interface LocalCache {
 	readonly kv: KV;
+	/** A key/value space whose VALUES are sealed under the same key as the
+	 *  payload (the device key, or the session secret of a locked cache): for
+	 *  the bookkeeping that is itself a secret - a share key, a mailbox id, an
+	 *  invitation capability. A locked cache rejects it with PASSWORD_REQUIRED
+	 *  until unlock(). Optional: a cache with nothing at rest has no need of it. */
+	readonly sealedKv?: KV;
 	/** Load the persisted collections + files, or null if nothing was ever saved. */
 	load(): Promise<{ collections: Record<string, unknown[]>; files: CachedFile[] } | null>;
 	/** Overwrite the collections snapshot (small; written on every change). */
@@ -81,20 +87,13 @@ export function isLockableCache(cache: LocalCache): cache is LockableCache {
  *  exist. Not encrypted - nothing is at rest. */
 export function memoryCache(): LocalCache {
 	const kvMap = new Map<string, unknown>();
+	const sealedMap = new Map<string, unknown>();
 	let collections: Record<string, unknown[]> | undefined;
 	const files = new Map<string, CachedFile>();
 	return {
-		kv: {
-			async get<T = unknown>(key: string): Promise<T | undefined> {
-				return kvMap.get(key) as T | undefined;
-			},
-			async set(key: string, value: unknown): Promise<void> {
-				kvMap.set(key, value);
-			},
-			async del(key: string): Promise<void> {
-				kvMap.delete(key);
-			}
-		},
+		kv: mapKv(kvMap),
+		// Nothing is at rest, so "sealed" is a separate space, not a cipher.
+		sealedKv: mapKv(sealedMap),
 		async load() {
 			if (collections === undefined) return null;
 			// Clone both ways: a returned reference must never alias internal state.
@@ -109,8 +108,24 @@ export function memoryCache(): LocalCache {
 		},
 		async clear() {
 			kvMap.clear();
+			sealedMap.clear();
 			collections = undefined;
 			files.clear();
+		}
+	};
+}
+
+/** A KV over a Map: the in-memory cache's two spaces. */
+function mapKv(map: Map<string, unknown>): KV {
+	return {
+		async get<T = unknown>(key: string): Promise<T | undefined> {
+			return map.get(key) as T | undefined;
+		},
+		async set(key: string, value: unknown): Promise<void> {
+			map.set(key, value);
+		},
+		async del(key: string): Promise<void> {
+			map.delete(key);
 		}
 	};
 }
@@ -131,6 +146,8 @@ type FileMeta = { name: string; mime: string };
 const COLLECTIONS_KEY = '__collections';
 const DEVICE_KEY = '__deviceKey';
 const CACHE_KDF = '__cacheKdf';
+/** The sealed kv space lives in the same object store, under its own prefix. */
+const SEALED_PREFIX = 's:';
 
 /** The default browser cache. `name` scopes the database to one app, so two
  *  apps on the same origin never collide. */
@@ -223,6 +240,30 @@ export function indexedDbCache(name: string, opts?: { lock?: boolean }): LocalCa
 		}
 	};
 
+	// The sealed space: JSON under the payload key, so a secret kept here (a
+	// share key K, a mailbox id) is ciphertext in a dump exactly like the
+	// collections - and, in lock mode, unreadable until the session unlocks.
+	const sealedKv: KV = {
+		async get<T = unknown>(k: string): Promise<T | undefined> {
+			const raw = await (await db()).get('kv', `${SEALED_PREFIX}${k}`);
+			if (raw === undefined) return undefined;
+			if (!isEnvelope(raw)) {
+				throw new SelfstoreError(
+					'BAD_FORMAT',
+					'Unrecognized cache record (not a sealed envelope).'
+				);
+			}
+			return JSON.parse(new TextDecoder().decode(await unseal(await key(), raw))) as T;
+		},
+		async set(k: string, value: unknown): Promise<void> {
+			const env = await seal(await key(), new TextEncoder().encode(JSON.stringify(value)));
+			await (await db()).put('kv', env, `${SEALED_PREFIX}${k}`);
+		},
+		async del(k: string): Promise<void> {
+			await (await db()).delete('kv', `${SEALED_PREFIX}${k}`);
+		}
+	};
+
 	// The Blob this session last loaded or wrote under each id. The store keeps
 	// one Blob per body, so another Blob under a known id is another body.
 	const written = new Map<string, Blob>();
@@ -231,6 +272,7 @@ export function indexedDbCache(name: string, opts?: { lock?: boolean }): LocalCa
 
 	const base: LocalCache = {
 		kv,
+		sealedKv,
 
 		async load() {
 			const d = await db();
@@ -347,6 +389,15 @@ export function indexedDbCache(name: string, opts?: { lock?: boolean }): LocalCa
 				const meta = await openFileMeta(previous, v);
 				files.push({ id: fileKey, rec: await sealFile(next, meta, await unseal(previous, v)) });
 			}
+			// The sealed kv space follows the same key: a share key left under the
+			// old secret would survive the change the user just made.
+			const sealedRecords: { id: IDBValidKey; rec: EncEnvelope }[] = [];
+			for (const kvKey of await d.getAllKeys('kv')) {
+				if (typeof kvKey !== 'string' || !kvKey.startsWith(SEALED_PREFIX)) continue;
+				const v = await d.get('kv', kvKey);
+				if (!isEnvelope(v)) continue;
+				sealedRecords.push({ id: kvKey, rec: await seal(next, await unseal(previous, v)) });
+			}
 
 			// One transaction, so the salt and every record it governs land together.
 			const tx = d.transaction(['kv', 'files'], 'readwrite');
@@ -354,6 +405,7 @@ export function indexedDbCache(name: string, opts?: { lock?: boolean }): LocalCa
 			if (kdf) store.put(kdf, CACHE_KDF);
 			else store.delete(CACHE_KDF); // an app-supplied key needs no salt
 			if (collections) store.put(collections, COLLECTIONS_KEY);
+			for (const { id, rec } of sealedRecords) store.put(rec, id);
 			const fileStore = tx.objectStore('files');
 			for (const { id, rec } of files) fileStore.put(rec, id);
 			await tx.done;

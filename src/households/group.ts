@@ -230,6 +230,13 @@ export function createHouseholdGroup(deps: {
 	store: LocalStore;
 	kv: KV;
 	backend: ShareBackend;
+	/** The cache's sealed space (`cache.sealedKv`). Given, the membership
+	 *  record - K, the mailbox id, the invitation capability: the secrets that
+	 *  ARE the membership - lives there, ciphertext at rest and, on a locked
+	 *  cache, unreadable until the session unlocks. A record a previous version
+	 *  wrote in the clear `kv` moves over on first load. Omitted, the record
+	 *  stays in `kv` as before. */
+	sealedKv?: KV;
 	/** KV key the group record lives under. Default HOUSEHOLD_GROUP_KEY. */
 	storageKey?: string;
 	/** The currently attached wallet file id, for multi-backup hosts. When
@@ -239,6 +246,8 @@ export function createHouseholdGroup(deps: {
 }): HouseholdGroup {
 	const { store, kv, backend, wallet } = deps;
 	const storageKey = deps.storageKey ?? HOUSEHOLD_GROUP_KEY;
+	// Where the record lives: the sealed space when the host hands one over.
+	const recordKv = deps.sealedKv ?? kv;
 
 	let groups: StoredGroup[] | null = null;
 	let loaded = false;
@@ -248,9 +257,22 @@ export function createHouseholdGroup(deps: {
 	// scoped per share (`mailboxId:fileId`).
 	const rosterMisses = new Map<string, number>();
 
+	/** The stored record. A record an earlier version left in the clear kv
+	 *  moves into the sealed space the first time it is read, and the clear
+	 *  copy goes: K must not stay readable next to its ciphertext. */
+	async function readRecord(): Promise<StoredGroups | StoredGroup | undefined> {
+		const sealed = await recordKv.get<StoredGroups | StoredGroup>(storageKey);
+		if (sealed !== undefined || recordKv === kv) return sealed;
+		const clear = await kv.get<StoredGroups | StoredGroup>(storageKey);
+		if (clear === undefined) return undefined;
+		await recordKv.set(storageKey, clear);
+		await kv.del(storageKey);
+		return clear;
+	}
+
 	async function load(): Promise<StoredGroup[]> {
 		if (!loaded) {
-			const raw = await kv.get<StoredGroups | StoredGroup>(storageKey);
+			const raw = await readRecord();
 			if (!raw) groups = [];
 			else if ((raw as StoredGroups).v === 2) groups = (raw as StoredGroups).groups;
 			// A pre-multi single record lifts into a one-entry list, verbatim.
@@ -266,10 +288,10 @@ export function createHouseholdGroup(deps: {
 		loaded = true;
 		if (!groups || groups.length === 0) {
 			groups = groups ?? [];
-			await kv.del(storageKey);
+			await recordKv.del(storageKey);
 			return;
 		}
-		await kv.set(storageKey, { v: 2, groups } satisfies StoredGroups);
+		await recordKv.set(storageKey, { v: 2, groups } satisfies StoredGroups);
 	}
 
 	const adminGroup = (list: StoredGroup[]): StoredGroup | null =>

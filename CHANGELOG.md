@@ -14,6 +14,20 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+### Security
+
+- **A share's secrets no longer sit in the clear kv.** The household group
+  record - the link key K, the mailbox id, the invitation capability: the
+  secrets that ARE the membership - was written to the cache's plain kv, which
+  is not sealed, so a dump of the profile read it even with `{ lock: true }`.
+  `LocalCache` gains an optional `sealedKv`: a key/value space whose values are
+  sealed under the same key as the payload (the device key, or the session
+  secret of a locked cache, which `reseal()` rotates along). `indexedDbCache`
+  and `memoryCache` provide it; `createHouseholdGroup({ ..., sealedKv:
+  cache.sealedKv })` keeps the record there, and a record an earlier version
+  left in the clear moves over on first load, its clear copy deleted. Hosts
+  that do not pass `sealedKv` keep the previous behaviour.
+
 ### Fixed
 
 - The README's desktop wiring passes `rename`: without it the backup is
