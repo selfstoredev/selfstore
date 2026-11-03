@@ -854,13 +854,19 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 		armIdleLock();
 	}
 
+	// One Blob per body: the cache rewrites a known id only when it is handed
+	// another Blob for it, so an unchanged body must keep the Blob it had.
+	const blobOf = new WeakMap<Uint8Array, Blob>();
+	const blobFor = (f: Snapshot['files'][number]): Blob => {
+		let blob = blobOf.get(f.bytes);
+		if (!blob) {
+			blob = new Blob([f.bytes as BlobPart], { type: f.mime });
+			blobOf.set(f.bytes, blob);
+		}
+		return blob;
+	};
 	const toCachedFiles = (snap: Snapshot): CachedFile[] =>
-		snap.files.map((f) => ({
-			id: f.id,
-			name: f.name,
-			mime: f.mime,
-			blob: new Blob([f.bytes as BlobPart], { type: f.mime })
-		}));
+		snap.files.map((f) => ({ id: f.id, name: f.name, mime: f.mime, blob: blobFor(f) }));
 
 	/** The inverse: rebuild a Snapshot from the cache's stored form. */
 	async function cachedToSnapshot(local: {
@@ -870,12 +876,11 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 		return {
 			collections: local.collections,
 			files: await Promise.all(
-				local.files.map(async (f) => ({
-					id: f.id,
-					name: f.name,
-					mime: f.mime,
-					bytes: new Uint8Array(await f.blob.arrayBuffer())
-				}))
+				local.files.map(async (f) => {
+					const bytes = new Uint8Array(await f.blob.arrayBuffer());
+					blobOf.set(bytes, f.blob);
+					return { id: f.id, name: f.name, mime: f.mime, bytes };
+				})
 			)
 		};
 	}

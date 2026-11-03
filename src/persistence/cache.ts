@@ -33,7 +33,9 @@ export interface LocalCache {
 	load(): Promise<{ collections: Record<string, unknown[]>; files: CachedFile[] } | null>;
 	/** Overwrite the collections snapshot (small; written on every change). */
 	saveCollections(collections: Record<string, unknown[]>): Promise<void>;
-	/** Reconcile the file store: add new blobs, drop removed ones (immutable by id). */
+	/** Reconcile the file store: add new blobs, drop removed ones. A known id
+	 *  is rewritten when its Blob is not the one this cache last loaded or
+	 *  wrote for it, which is how a replaced body reaches the disk. */
 	saveFiles(files: CachedFile[]): Promise<void>;
 	/** Wipe every locally-stored byte (the "forget me on this device" action). */
 	clear(): Promise<void>;
@@ -221,6 +223,12 @@ export function indexedDbCache(name: string, opts?: { lock?: boolean }): LocalCa
 		}
 	};
 
+	// The Blob this session last loaded or wrote under each id. The store keeps
+	// one Blob per body, so another Blob under a known id is another body.
+	const written = new Map<string, Blob>();
+	const changed = (f: CachedFile, have: Set<string>): boolean =>
+		!have.has(f.id) || (written.has(f.id) && written.get(f.id) !== f.blob);
+
 	const base: LocalCache = {
 		kv,
 
@@ -242,7 +250,10 @@ export function indexedDbCache(name: string, opts?: { lock?: boolean }): LocalCa
 			const files: CachedFile[] = [];
 			for (const fileKey of await d.getAllKeys('files')) {
 				const v = (await d.get('files', fileKey)) as EncFile | undefined;
-				if (v) files.push({ id: String(fileKey), ...(await decodeFile(v)) });
+				if (!v) continue;
+				const file = { id: String(fileKey), ...(await decodeFile(v)) };
+				written.set(file.id, file.blob);
+				files.push(file);
 			}
 			return { collections, files };
 		},
@@ -262,7 +273,7 @@ export function indexedDbCache(name: string, opts?: { lock?: boolean }): LocalCa
 			const k = await key();
 			const fresh = await Promise.all(
 				files
-					.filter((f) => !have.has(f.id))
+					.filter((f) => changed(f, have))
 					.map(async (f) => {
 						const bytes = new Uint8Array(await f.blob.arrayBuffer());
 						return { id: f.id, rec: await sealFile(k, { name: f.name, mime: f.mime }, bytes) };
@@ -272,12 +283,15 @@ export function indexedDbCache(name: string, opts?: { lock?: boolean }): LocalCa
 			for (const { id, rec } of fresh) tx.store.put(rec, id);
 			for (const id of have) if (!want.has(id)) tx.store.delete(id);
 			await tx.done;
+			written.clear();
+			for (const f of files) written.set(f.id, f.blob);
 		},
 
 		async clear() {
 			const d = await db();
 			await d.clear('kv');
 			await d.clear('files');
+			written.clear();
 			_key = null; // next save mints a fresh device key
 			sealKey = null; // lock mode: forget the session key (its kdf lived in kv, now gone)
 		},

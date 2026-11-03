@@ -4,9 +4,10 @@
  * silence, and files riding through a reopen, a portable backup and a merge.
  */
 
+import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it } from 'vitest';
 import { selfstore, type SimpleStore } from './simple';
-import { memoryCache } from '../persistence/cache';
+import { indexedDbCache, memoryCache } from '../persistence/cache';
 import type { BackupTarget } from '../persistence/target';
 import { restore } from '../selfstore';
 
@@ -129,6 +130,20 @@ describe('the simple store - files', () => {
 		open.push(b);
 		expect(text(b.getFile(id)!.bytes)).toBe('durable');
 		expect(b.getFile(id)!.name).toBe('keep.bin');
+	});
+
+	it('a replaced body survives a reopen over a sealed IndexedDB cache', async () => {
+		const name = `files-replace-${Date.now()}`;
+		const a = await selfstore('files-test', { cache: indexedDbCache(name) });
+		await a.putFile({ id: 'avatar', bytes: bytes('v1') });
+		await a.flush();
+		await a.putFile({ id: 'avatar', bytes: bytes('v2') }, { replace: true });
+		await a.flush();
+		a.dispose();
+
+		const b = await selfstore('files-test', { cache: indexedDbCache(name) });
+		open.push(b);
+		expect(text(b.getFile('avatar')!.bytes)).toBe('v2');
 	});
 
 	it('files ride in the portable backup', async () => {

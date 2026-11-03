@@ -20,6 +20,10 @@ version number is not asking you to trust.
   prototype, including after a replica is read back from disk: a record whose
   id, or an `lww-map` field whose name, is `__proto__` is tracked like any
   other instead of reaching `Object.prototype`.
+- `putFile(..., { replace: true })` reaches the IndexedDB cache: the cache
+  rewrites a known id when it is handed another body for it, so the replaced
+  bytes survive a reload instead of the old ones coming back. An unchanged body
+  keeps its Blob and is not sealed again.
 
 ## [1.8.34] - 2026-11-02
 
