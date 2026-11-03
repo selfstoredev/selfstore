@@ -14,6 +14,13 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+### Fixed
+
+- The sync engine keeps its clocks, hashes and field stamps in tables without a
+  prototype, including after a replica is read back from disk: a record whose
+  id, or an `lww-map` field whose name, is `__proto__` is tracked like any
+  other instead of reaching `Object.prototype`.
+
 ## [1.8.34] - 2026-11-02
 
 ### Fixed
