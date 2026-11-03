@@ -422,7 +422,8 @@ MANIFEST_ROLLBACK. Needs WebCrypto Ed25519+X25519 (evergreen browsers, Node
 ## Household sharing (mirror model), 'selfstore/households'
 
 Read-write sharing without re-keying anyone's backup: `createHouseholdGroup({
-store, kv, backend, storageKey? })`. The admin calls
+store, kv, sealedKv?, backend, storageKey? })` - pass `cache.sealedKv` so K and the
+invitation capability rest sealed, not in the clear kv. The admin calls
 startShare() (refused on an encrypted store - the honest rule), publishes an
 invitation via the backend; a visitor opens it (openIncoming) and join()s:
 their own file stays theirs, a dedicated copy file mirrors it under K, and the
