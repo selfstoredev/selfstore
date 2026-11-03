@@ -14,6 +14,12 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+### Fixed
+
+- The README's desktop wiring passes `rename`: without it the backup is
+  overwritten in place, and a full disk or a crash mid-write could leave a
+  truncated file instead of the last good copy.
+
 ## [1.8.35] - 2026-11-03
 
 ### Fixed

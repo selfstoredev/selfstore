@@ -66,12 +66,16 @@ in the environment where writing a real file is easiest. Hand the shell's own
 calls over once and it comes back, on a real path:
 
 ```ts
-import { readFile, writeFile, stat, exists } from '@tauri-apps/plugin-fs';
+import { readFile, writeFile, rename, stat, exists } from '@tauri-apps/plugin-fs';
 import { save, open } from '@tauri-apps/plugin-dialog';
 import { useDesktopFiles } from 'selfstore';
 
-useDesktopFiles({ readFile, writeFile, stat, exists, save, open });
+useDesktopFiles({ readFile, writeFile, rename, stat, exists, save, open });
 ```
+
+`rename` is what makes a save safe: the backup is written beside the previous
+one and moved over it, so a full disk or a crash mid-write leaves the last good
+copy whole. Without it the file is overwritten in place.
 
 That is the whole integration. `connectFile()`, `file: true` in the connect
 flow and the widgets all keep meaning what they meant; they just write a path.
