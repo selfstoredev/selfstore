@@ -162,3 +162,33 @@ describe('sealed cache', () => {
 		});
 	});
 });
+
+describe('a body replaced under a known id', () => {
+	const file = (body: string) => ({
+		id: 'f1',
+		name: 'a.txt',
+		mime: 'text/plain',
+		blob: new Blob([body])
+	});
+
+	it('is rewritten on disk and survives a reopen', async () => {
+		const name = `cache-test-${++n}`;
+		const cache = indexedDbCache(name);
+		await cache.saveCollections(snapshot);
+		await cache.saveFiles([file('v1')]);
+		await cache.saveFiles([file('v2')]);
+		const back = (await indexedDbCache(name).load())?.files ?? [];
+		expect(await back[0].blob.text()).toBe('v2');
+	});
+
+	it('is not resealed when it is handed the Blob it was loaded with', async () => {
+		const name = `cache-test-${++n}`;
+		await indexedDbCache(name).saveCollections(snapshot);
+		await indexedDbCache(name).saveFiles([file('v1')]);
+		const cache = indexedDbCache(name);
+		const loaded = (await cache.load())?.files ?? [];
+		const before = JSON.stringify(await rawFile(name, 'f1'));
+		await cache.saveFiles(loaded);
+		expect(JSON.stringify(await rawFile(name, 'f1'))).toBe(before);
+	});
+});
