@@ -14,6 +14,17 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Re-opening the current backup with `replace-local` keeps the edit it just
+  saved.** 1.8.36 read the incoming backup before flushing the pending edit to
+  it, then loaded that older copy. The read now follows the flush. A backup
+  whose body fails to decode raises the store's gate, so no save writes the old
+  data into it.
+- **`shareFlow` lists again after an engine that threw synchronously.** The
+  shared listing was cleared before it was stored, and every later refresh
+  reused a settled promise without asking the engine.
+
 ## [1.8.36] - 2026-11-04
 
 ### Security

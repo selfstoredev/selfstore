@@ -113,23 +113,24 @@ export function shareFlow(engine: ShareEngine, options: { deadlineMs?: number } 
 	 *  revoked link back. */
 	let listing: Promise<void> | null = null;
 
+	async function list(): Promise<void> {
+		try {
+			const { links, members } = await withDeadline(engine.list(), deadlineMs, 'The share listing');
+			m.set({ links, members, busy: null, stale: false, error: null });
+		} catch (e) {
+			// Keep the last-known lists: a hiccup must never paint the share as
+			// gone. Just say the view may be behind.
+			m.set({ busy: null, stale: true, error: toStoreError(e) });
+		}
+	}
+
 	function doRefresh(): Promise<void> {
-		listing ??= (async () => {
-			try {
-				const { links, members } = await withDeadline(
-					engine.list(),
-					deadlineMs,
-					'The share listing'
-				);
-				m.set({ links, members, busy: null, stale: false, error: null });
-			} catch (e) {
-				// Keep the last-known lists: a hiccup must never paint the share as
-				// gone. Just say the view may be behind.
-				m.set({ busy: null, stale: true, error: toStoreError(e) });
-			} finally {
-				listing = null;
-			}
-		})();
+		// Cleared in a callback, after the assignment: an engine that throws
+		// synchronously settles `list()` at once, and a `finally` inside it ran
+		// before `listing` was set, leaving a settled promise there for good.
+		listing ??= list().finally(() => {
+			listing = null;
+		});
 		return listing;
 	}
 
