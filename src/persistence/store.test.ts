@@ -319,6 +319,39 @@ describe('store.attachTarget: a switch that cannot read its new home', () => {
 		]);
 	});
 
+	/* Relecture Codex 2026-11-04 : a valid header over a damaged body passed
+	 * the read, failed after the switch, and the next save pushed the old data. */
+	it('gates a backup whose body fails to read, so no save pours the old data in', async () => {
+		const { store, app, shared } = await onPersonal();
+		const entries = unzipSync(new Uint8Array(await (await shared.target.load())!.arrayBuffer()));
+		entries['sync.json'] = strToU8('{damaged');
+		await shared.target.save(new Blob([zipSync(entries) as BlobPart]));
+		const damaged = shared.remote;
+
+		await expect(
+			store.attachTarget(shared.target, { strategy: 'replace-local', keepSession: true })
+		).rejects.toMatchObject({ code: 'BAD_FORMAT' });
+		app.collections.accounts = [{ id: 'p1', name: 'Mine' }, { id: 'p2' }];
+		store.schedule();
+		await store.flush();
+		expect(shared.remote).toBe(damaged);
+	});
+
+	it('re-opening the same home keeps the edit the switch just saved there', async () => {
+		const { store, app, personal } = await onPersonal();
+		app.collections.accounts = [
+			{ id: 'p1', name: 'Mine' },
+			{ id: 'p2', name: 'Pending' }
+		];
+
+		await store.attachTarget(personal.target, { strategy: 'replace-local', keepSession: true });
+
+		expect(app.collections.accounts).toEqual([
+			{ id: 'p1', name: 'Mine' },
+			{ id: 'p2', name: 'Pending' }
+		]);
+	});
+
 	it('refuses a file that is not a backup before changing anything', async () => {
 		const { store, app, shared } = await onPersonal();
 		await shared.target.save(new Blob([strToU8('not a backup')]));

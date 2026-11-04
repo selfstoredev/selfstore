@@ -1270,6 +1270,20 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 		return now !== null && now === p.marker ? p.blob : null;
 	}
 
+	/** Load the new home; a body that fails to decode past its valid header
+	 *  raises the gate, so no save ever pushes the old data into it. */
+	async function loadOrGate(incoming: Blob | null | undefined): Promise<void> {
+		try {
+			await loadFromRemote(incoming);
+		} catch (e) {
+			raiseGate(
+				isSelfstoreError(e) ? e.code : 'BAD_FORMAT',
+				e instanceof Error ? e.message : String(e)
+			);
+			throw e;
+		}
+	}
+
 	/** The backup a 'replace-local' switch is about to load, read and its header
 	 *  checked. Throws, typed, before the switch changes anything. */
 	async function readIncoming(t: BackupTarget): Promise<Blob | null> {
@@ -2372,11 +2386,6 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 					);
 				}
 				const strategy = attachOpts?.strategy ?? 'merge';
-				// A switch that LOADS the new home reads it first, while nothing has
-				// changed: read after the switch, a failed download or an unreadable
-				// file left the store on the new home with the old data, and the next
-				// save merged the departed backup into the one being opened.
-				const incoming = strategy === 'replace-local' ? await readIncoming(target) : undefined;
 				await becomePersistent();
 				// Flush pending edits to the departing target before we let go of it, but
 				// only when the incoming strategy REPLACES local (switching isolated silos
@@ -2391,6 +2400,12 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 				if (strategy === 'replace-local' && durable && !locked() && !needsAttention) {
 					await flushBeforeLeaving();
 				}
+				// A switch that LOADS the new home reads it next, while the old home is
+				// still attached: read after the switch, a failed download or an
+				// unreadable file left the store on the new home with the old data, and
+				// the next save merged the departed backup into the one being opened.
+				// After the flush, so re-opening the same home reads what it just saved.
+				const incoming = strategy === 'replace-local' ? await readIncoming(target) : undefined;
 				// Manifest seq must never move backwards, even across sessions: a
 				// replayed old manifest would silently re-add a removed member.
 				if (g) {
@@ -2427,7 +2442,7 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 				await kv.set(KEY.targetKind, target.kind);
 				needsAttention = false;
 				notify();
-				if (strategy === 'replace-local') await loadFromRemote(incoming);
+				if (strategy === 'replace-local') await loadOrGate(incoming);
 				else if (strategy === 'replace-remote') await doSave();
 				else await doPull('connect');
 				notify();

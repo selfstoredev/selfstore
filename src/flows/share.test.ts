@@ -139,6 +139,28 @@ describe('shareFlow: overlapping refreshes', () => {
 	});
 });
 
+describe('shareFlow: an engine that throws synchronously', () => {
+	/* Relecture Codex 2026-11-04 : the shared listing was cleared before it was
+	 * set, so every later refresh reused a settled promise and never listed. */
+	it('lists again on the next refresh', async () => {
+		const { engine, state } = fakeEngine({ links: [link('l1')] });
+		const flow = shareFlow(engine);
+		await until(flow, (x) => x.busy === null);
+		const list = engine.list.bind(engine);
+		engine.list = () => {
+			throw new Error('offline');
+		};
+		await flow.refresh();
+		expect(flow.snapshot.stale).toBe(true);
+
+		engine.list = list;
+		const before = state.listCalls;
+		await flow.refresh();
+		expect(state.listCalls - before).toBe(1);
+		expect(flow.snapshot.stale).toBe(false);
+	});
+});
+
 describe('shareFlow: operations', () => {
 	it('one operation at a time: a second createLink while one runs is refused', async () => {
 		const { engine, state } = fakeEngine();
