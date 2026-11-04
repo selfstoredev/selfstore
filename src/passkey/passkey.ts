@@ -65,8 +65,9 @@ export interface PasskeyUnlock {
 	enrolled(): boolean;
 	/**
 	 * Create a platform passkey and seal `secret` behind it. `false` when the
-	 * user cancelled, or when PRF did not yield a key here - fail closed, the
-	 * host keeps its password prompt and should say so rather than pretend.
+	 * user cancelled, when PRF did not yield a key here, or when this device
+	 * refused to store the sealed secret - fail closed, the host keeps its
+	 * password prompt and should say so rather than pretend.
 	 */
 	enroll(secret: string): Promise<boolean>;
 	/**
@@ -79,9 +80,10 @@ export interface PasskeyUnlock {
 	 * Drop the sealed secret from this device. The platform credential itself
 	 * is NOT deleted - the operating system owns it, and only the user can
 	 * remove it from their passkey manager. Say that in the interface rather
-	 * than implying a full erasure.
+	 * than implying a full erasure. `false` when the storage refused the
+	 * removal: the enrolment is still there, and the host must not say it is off.
 	 */
-	forget(): void;
+	forget(): boolean;
 }
 
 /** PRF extension shapes are absent from some TS DOM libs; describe what we use. */
@@ -164,13 +166,16 @@ export function passkeyUnlock(options: PasskeyUnlockOptions): PasskeyUnlock {
 		}
 	}
 
-	function write(entry: StoredEnrolment | null): void {
+	/** Whether the storage took the write. A blocked or full storage used to be
+	 *  swallowed, so `enroll()` announced an enrolment nothing remembered. */
+	function write(entry: StoredEnrolment | null): boolean {
 		try {
-			if (typeof localStorage === 'undefined') return;
+			if (typeof localStorage === 'undefined') return entry === null;
 			if (entry) localStorage.setItem(storageKey, JSON.stringify(entry));
 			else localStorage.removeItem(storageKey);
+			return true;
 		} catch {
-			/* storage blocked: the enrolment is simply not remembered */
+			return false;
 		}
 	}
 
@@ -253,8 +258,7 @@ export function passkeyUnlock(options: PasskeyUnlockOptions): PasskeyUnlock {
 					await sealKey(created.secret),
 					new TextEncoder().encode(secret)
 				);
-				write({ credentialId: created.credentialId, iv: toB64(iv), sealed: toB64(sealed) });
-				return true;
+				return write({ credentialId: created.credentialId, iv: toB64(iv), sealed: toB64(sealed) });
 			} catch {
 				return false;
 			}
@@ -281,8 +285,8 @@ export function passkeyUnlock(options: PasskeyUnlockOptions): PasskeyUnlock {
 			}
 		},
 
-		forget(): void {
-			write(null);
+		forget(): boolean {
+			return write(null);
 		}
 	};
 }

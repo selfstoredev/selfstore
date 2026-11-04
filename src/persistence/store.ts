@@ -1270,6 +1270,14 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 		return now !== null && now === p.marker ? p.blob : null;
 	}
 
+	/** The backup a 'replace-local' switch is about to load, read and its header
+	 *  checked. Throws, typed, before the switch changes anything. */
+	async function readIncoming(t: BackupTarget): Promise<Blob | null> {
+		const blob = (await takeFreshPrefetch(t)) ?? (await t.load());
+		if (blob && blob.size > 0) await inspect(blob);
+		return blob;
+	}
+
 	/** The remote's current change marker, or null when the target cannot tell. */
 	async function statRemote(): Promise<string | null> {
 		if (!durable?.stat) return null;
@@ -1939,9 +1947,14 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 		serialize(() => doPull(source));
 
 	/** Replace local data with the target's backup, then make the target match. */
-	async function loadFromRemote(): Promise<void> {
+	/** `incoming` is the copy attachTarget already read, before letting go of
+	 *  the previous home; without it the remote is read here. */
+	async function loadFromRemote(incoming?: Blob | null): Promise<void> {
 		if (!durable) return;
-		const remote = (await takeFreshPrefetch(durable)) ?? (await durable.load());
+		const remote =
+			incoming === undefined
+				? ((await takeFreshPrefetch(durable)) ?? (await durable.load()))
+				: incoming;
 		if (remote) {
 			const decoded = await importLocked(remote);
 			if (decoded === 'locked') return; // gate raised: never clobber either side
@@ -2358,8 +2371,13 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 						'attachTarget(): this identity is not a member of the manifest - the admin must add it first.'
 					);
 				}
-				await becomePersistent();
 				const strategy = attachOpts?.strategy ?? 'merge';
+				// A switch that LOADS the new home reads it first, while nothing has
+				// changed: read after the switch, a failed download or an unreadable
+				// file left the store on the new home with the old data, and the next
+				// save merged the departed backup into the one being opened.
+				const incoming = strategy === 'replace-local' ? await readIncoming(target) : undefined;
+				await becomePersistent();
 				// Flush pending edits to the departing target before we let go of it, but
 				// only when the incoming strategy REPLACES local (switching isolated silos
 				// via loadBackup): local is about to be overwritten, so an unsynced edit on
@@ -2409,7 +2427,7 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 				await kv.set(KEY.targetKind, target.kind);
 				needsAttention = false;
 				notify();
-				if (strategy === 'replace-local') await loadFromRemote();
+				if (strategy === 'replace-local') await loadFromRemote(incoming);
 				else if (strategy === 'replace-remote') await doSave();
 				else await doPull('connect');
 				notify();

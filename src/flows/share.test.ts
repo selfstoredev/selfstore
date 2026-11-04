@@ -109,6 +109,36 @@ describe('shareFlow: listing', () => {
 	});
 });
 
+describe('shareFlow: overlapping refreshes', () => {
+	/* Audit 2026-11-03: two listings ran at once, the first cleared `busy`, a
+	 * revoke slipped in, and the second's older answer brought the link back. */
+	it('shares one listing, so a revoke cannot land between two of them', async () => {
+		const { engine, state } = fakeEngine({ links: [link('l1')] });
+		const flow = shareFlow(engine);
+		await until(flow, (x) => x.busy === null);
+
+		const answers = [deferred<void>(), deferred<void>()];
+		const old = { links: [link('l1')], members: [] };
+		let call = 0;
+		engine.list = async () => {
+			state.listCalls++;
+			await answers[call++]?.promise;
+			return old;
+		};
+		const before = state.listCalls;
+		const first = flow.refresh();
+		const second = flow.refresh();
+		answers[0]?.resolve();
+		await first;
+		expect(await flow.revokeLink('l1')).toBe(true);
+		answers[1]?.resolve();
+		await second;
+
+		expect(state.listCalls - before).toBe(1);
+		expect(flow.snapshot.links).toEqual([]);
+	});
+});
+
 describe('shareFlow: operations', () => {
 	it('one operation at a time: a second createLink while one runs is refused', async () => {
 		const { engine, state } = fakeEngine();

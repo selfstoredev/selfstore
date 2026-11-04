@@ -30,6 +30,23 @@ version number is not asking you to trust.
 
 ### Fixed
 
+- **A backup switch reads its new home before letting go of the old one.**
+  `attachTarget(t, { strategy: 'replace-local' })` dropped the current
+  destination, then downloaded the new one. A failed download or an unreadable
+  file left the store on the new destination with the old data, and the next
+  sync merged the departed backup into the one being opened. The new backup is
+  now read and its header checked first; a failure throws with nothing
+  changed.
+- **`passkeyUnlock` no longer announces what the device did not keep.** A
+  blocked or full storage was swallowed: `enroll()` answered `true` with no
+  sealed secret remembered, and the user met the failure at the next unlock.
+  `enroll()` now answers `false` when the write is refused, and `forget()`
+  answers `true` or `false` (it returned nothing) so a host does not say the
+  device unlock is off while the enrolment is still there.
+- **`shareFlow` runs one listing at a time.** Two refreshes asked together ran
+  two listings; the first to answer cleared `busy`, a revoke could land in
+  between, and the second, older answer showed the revoked link as active
+  again. Every refresh asked while one is in flight now shares it.
 - The README's desktop wiring passes `rename`: without it the backup is
   overwritten in place, and a full disk or a crash mid-write could leave a
   truncated file instead of the last good copy.
