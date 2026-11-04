@@ -145,6 +145,37 @@ describe('passkey unlock', () => {
 		expect(await passkey.reveal()).toBe(null);
 	});
 
+	/* Audit 2026-11-03: a blocked or full storage was swallowed, so enroll()
+	 * reported success with nothing remembered and forget() a removal that
+	 * never happened. */
+	it('reports a failure when the device refuses to store the enrolment', async () => {
+		const passkey = passkeyUnlock(OPTIONS);
+		localStorage.setItem = () => {
+			throw new Error('QuotaExceededError');
+		};
+
+		expect(await passkey.enroll('secret')).toBe(false);
+		expect(passkey.enrolled()).toBe(false);
+	});
+
+	it('reports a failure when the device refuses to drop the enrolment', async () => {
+		const passkey = passkeyUnlock(OPTIONS);
+		await passkey.enroll('secret');
+		localStorage.removeItem = () => {
+			throw new Error('SecurityError');
+		};
+
+		expect(passkey.forget()).toBe(false);
+		expect(passkey.enrolled()).toBe(true);
+	});
+
+	it('confirms a removal that went through', async () => {
+		const passkey = passkeyUnlock(OPTIONS);
+		await passkey.enroll('secret');
+
+		expect(passkey.forget()).toBe(true);
+	});
+
 	it('keeps two apps on one device apart', async () => {
 		const first = passkeyUnlock({ ...OPTIONS, storageKey: 'app.one' });
 		const second = passkeyUnlock({ ...OPTIONS, storageKey: 'app.two' });

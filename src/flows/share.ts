@@ -107,15 +107,30 @@ export function shareFlow(engine: ShareEngine, options: { deadlineMs?: number } 
 		return true;
 	}
 
-	async function doRefresh(): Promise<void> {
-		try {
-			const { links, members } = await withDeadline(engine.list(), deadlineMs, 'The share listing');
-			m.set({ links, members, busy: null, stale: false, error: null });
-		} catch (e) {
-			// Keep the last-known lists: a hiccup must never paint the share as
-			// gone. Just say the view may be behind.
-			m.set({ busy: null, stale: true, error: toStoreError(e) });
-		}
+	/** The listing in flight, shared by every refresh asked meanwhile. Two
+	 *  listings at once let the first clear `busy` while the second ran, so a
+	 *  revoke slipped in between and the second's older answer brought the
+	 *  revoked link back. */
+	let listing: Promise<void> | null = null;
+
+	function doRefresh(): Promise<void> {
+		listing ??= (async () => {
+			try {
+				const { links, members } = await withDeadline(
+					engine.list(),
+					deadlineMs,
+					'The share listing'
+				);
+				m.set({ links, members, busy: null, stale: false, error: null });
+			} catch (e) {
+				// Keep the last-known lists: a hiccup must never paint the share as
+				// gone. Just say the view may be behind.
+				m.set({ busy: null, stale: true, error: toStoreError(e) });
+			} finally {
+				listing = null;
+			}
+		})();
+		return listing;
 	}
 
 	const flow: ShareFlow = {

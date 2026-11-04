@@ -30,6 +30,16 @@ version number is not asking you to trust.
 
 ### Fixed
 
+- **`passkeyUnlock` no longer announces what the device did not keep.** A
+  blocked or full storage was swallowed: `enroll()` answered `true` with no
+  sealed secret remembered, and the user met the failure at the next unlock.
+  `enroll()` now answers `false` when the write is refused, and `forget()`
+  answers `true` or `false` (it returned nothing) so a host does not say the
+  device unlock is off while the enrolment is still there.
+- **`shareFlow` runs one listing at a time.** Two refreshes asked together ran
+  two listings; the first to answer cleared `busy`, a revoke could land in
+  between, and the second, older answer showed the revoked link as active
+  again. Every refresh asked while one is in flight now shares it.
 - The README's desktop wiring passes `rename`: without it the backup is
   overwritten in place, and a full disk or a crash mid-write could leave a
   truncated file instead of the last good copy.
