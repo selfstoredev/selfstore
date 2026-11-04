@@ -14,6 +14,8 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+## [1.8.36] - 2026-11-04
+
 ### Security
 
 - **A share's secrets no longer sit in the clear kv.** The household group
