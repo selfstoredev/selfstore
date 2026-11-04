@@ -280,6 +280,56 @@ describe('store.attachTarget backup switches (isolated backups)', () => {
 	});
 });
 
+describe('store.attachTarget: a switch that cannot read its new home', () => {
+	/* Audit 2026-11-03: the switch let go of the old home, then read the new
+	 * one. A failed read left the store on the new home with the old data, and
+	 * the next sync merged the departed backup into the one being opened. */
+	async function onPersonal() {
+		const other = makeStore({ accounts: [{ id: 's1', name: 'Shared' }] });
+		const shared = fakeTarget('drive');
+		await other.store.attachTarget(shared.target, { strategy: 'replace-remote' });
+		const mine = makeStore({ accounts: [{ id: 'p1', name: 'Mine' }] });
+		const personal = fakeTarget('drive');
+		await mine.store.attachTarget(personal.target, { strategy: 'replace-remote' });
+		return { ...mine, shared, personal };
+	}
+
+	it('refuses a download that fails, and stays on the previous home', async () => {
+		const { store, app, shared, personal } = await onPersonal();
+		const load = shared.target.load.bind(shared.target);
+		shared.target.load = async () => {
+			throw new Error('offline');
+		};
+
+		await expect(
+			store.attachTarget(shared.target, { strategy: 'replace-local', keepSession: true })
+		).rejects.toThrow('offline');
+		shared.target.load = load;
+
+		app.collections.accounts = [...(app.collections.accounts ?? []), { id: 'p2', name: 'Later' }];
+		store.schedule();
+		await store.flush();
+		await store.syncNow();
+		const sharedNow = await importSnapshot(shared.remote!);
+		expect(sharedNow.collections.accounts).toEqual([{ id: 's1', name: 'Shared' }]);
+		const personalNow = await importSnapshot(personal.remote!);
+		expect((personalNow.collections.accounts ?? []).map((a) => (a as { id: string }).id)).toEqual([
+			'p1',
+			'p2'
+		]);
+	});
+
+	it('refuses a file that is not a backup before changing anything', async () => {
+		const { store, app, shared } = await onPersonal();
+		await shared.target.save(new Blob([strToU8('not a backup')]));
+
+		await expect(
+			store.attachTarget(shared.target, { strategy: 'replace-local', keepSession: true })
+		).rejects.toThrow();
+		expect(app.collections.accounts).toEqual([{ id: 'p1', name: 'Mine' }]);
+	});
+});
+
 describe('schema migration', () => {
 	it('applies the forward migration when the cached schema is older than the app', async () => {
 		const cache = memCache();
