@@ -14,6 +14,8 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+## [1.8.37] - 2026-11-05
+
 ### Fixed
 
 - **A digest journal receipt completes on a later anchored tour.** `complete`
