@@ -16,6 +16,11 @@ version number is not asking you to trust.
 
 ### Fixed
 
+- **A digest journal receipt completes on a later anchored tour.** `complete`
+  took the first tour covering the line and waited for that one to reach
+  Bitcoin; a tour covers every line before its count, so when the first stayed
+  in a calendar while a later one was anchored, the receipt stayed pending for
+  good. It now completes on the first covering tour that is anchored.
 - **Re-opening the current backup with `replace-local` keeps the edit it just
   saved.** 1.8.36 read the incoming backup before flushing the pending edit to
   it, then loaded that older copy. The read now follows the flush. A backup

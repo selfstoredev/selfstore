@@ -93,8 +93,8 @@ function mayCover(tour: Tour, depositedAt: string): boolean {
 
 /**
  * Whether reading the deposits file can complete the receipt: only once a tour
- * folded after the deposit is anchored in Bitcoin. Until then the first tour
- * covering the line is either absent or not anchored, and the receipt stays
+ * folded after the deposit is anchored in Bitcoin. Until then no tour
+ * covering the line is anchored, and the receipt stays
  * as it is without the file (which grows with every deposit of every user).
  */
 function worthReading(tours: readonly Tour[], depositedAt: string): boolean {
@@ -121,7 +121,7 @@ function rankOf(deposits: string, id: string, hash: string): number {
  * On deposit the receipt is incomplete; its evidence holds the journal's
  * address, the receipt `id`, the public `line` and the journal's own `receipt`
  * as JSON - the file its verifier reads. `complete` finds the first tour that
- * covers the line and, once that tour is anchored in Bitcoin, completes the
+ * covers the line and is anchored in Bitcoin, and completes the
  * receipt with `tour`, `root`, `block`, the `.ots` proof and, when the journal
  * stamped that root, the `.tsr` token (both base64). Checking the Merkle path
  * from the line to the root is the journal's verifier's job.
@@ -191,8 +191,11 @@ export function digestJournalNotary(options: JournalOptions): Notary {
 			if (!worthReading(tours, receipt.depositedAt)) return receipt;
 			const rank = rankOf(await depositsFile(tours), id, receipt.hash);
 			if (rank === 0) return receipt;
-			const tour = tours.find((t) => t.depots >= rank);
-			if (tour?.ots !== 'bitcoin') return receipt;
+			// A tour covers the first `depots` lines, so every later one covers this
+			// line too: the first ANCHORED among them completes it, and a first tour
+			// whose anchor never comes no longer holds the receipt pending for good.
+			const tour = tours.find((t) => t.depots >= rank && t.ots === 'bitcoin');
+			if (tour === undefined) return receipt;
 			const stamped = tour.horodatage !== null && tour.fichiers?.includes(`${tour.id}.racine.tsr`);
 			return {
 				...receipt,
