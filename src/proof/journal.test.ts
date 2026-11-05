@@ -1,8 +1,7 @@
 /**
  * The digest journal notary against a fake journal serving the shapes a real
  * one publishes: the deposit answers with the journal's receipt, and the
- * receipt completes only once the first tour covering its line is anchored in
- * Bitcoin.
+ * receipt completes once a tour covering its line is anchored in Bitcoin.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -188,6 +187,15 @@ describe('digestJournalNotary complete', () => {
 		});
 		expect(new TextDecoder().decode(fromBase64(proof.evidence.ots))).toBe('t2.racine.ots');
 		expect(new TextDecoder().decode(fromBase64(proof.evidence.tsr))).toBe('t2.racine.tsr');
+	});
+
+	it('completes with a later tour anchored while the first covering one is not', async () => {
+		const proof = await completed({
+			deposits: deposits(OTHER_LINE, LINE),
+			tours: [tour('t1', 1), tour('t2', 2, 'calendrier'), tour('t3', 3)]
+		});
+		expect(proof).toMatchObject({ complete: true, evidence: { tour: 't3', root: 'root-t3' } });
+		expect(new TextDecoder().decode(fromBase64(proof.evidence.ots))).toBe('t3.racine.ots');
 	});
 
 	it('leaves the timestamp out when the journal did not stamp that root', async () => {
