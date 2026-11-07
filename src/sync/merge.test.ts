@@ -483,3 +483,71 @@ describe('ids and field names that name a prototype', () => {
 		expect(out.n).toBe(2);
 	});
 });
+
+describe('change detection', () => {
+	const before = { id: 'x', value: '12k17wj' };
+	const after = { id: 'x', value: '102ue3k' };
+
+	it('stamps a write whose content shared the 32-bit hash of the previous one', () => {
+		const first = stamp(createMeta('n'), { rows: [before] }, cfg, 1000);
+		const second = stamp(first, { rows: [after] }, cfg, 2000);
+		expect(second.cols.rows.clocks.x).not.toEqual(first.cols.rows.clocks.x);
+	});
+
+	it('stamps a field whose content shared the 32-bit hash of the previous one', () => {
+		const map: SyncConfig = { fallback: 'lww-map' };
+		const first = stamp(createMeta('n'), { rows: [{ id: 'x', a: before }] }, map, 1000);
+		const second = stamp(first, { rows: [{ id: 'x', a: after }] }, map, 2000);
+		expect(second.cols.rows.fields?.x.a[0]).not.toEqual(first.cols.rows.fields?.x.a[0]);
+	});
+
+	it('keeps the clock of a record an older replica stamped with its 32-bit hash', () => {
+		const map: SyncConfig = { fallback: 'lww-map' };
+		const doc = { id: 'x', a: 1 };
+		const current = stamp(createMeta('n'), { rows: [doc] }, map, 1000);
+		const rows = current.cols.rows;
+		// The 32-bit FNV-1a of the stable form, as replicas stored it before.
+		const legacy = (s: string): number => {
+			let h = 0x811c9dc5;
+			for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
+			return h >>> 0;
+		};
+		const older: SyncMeta = {
+			...current,
+			cols: {
+				rows: {
+					...rows,
+					hashes: { x: legacy('{"a":1,"id":"x"}') },
+					fields: {
+						x: { a: [rows.fields!.x.a[0], legacy('1')], id: [rows.fields!.x.id[0], legacy('"x"')] }
+					}
+				}
+			}
+		};
+		const again = stamp(older, { rows: [doc] }, map, 5000);
+		expect(again.cols.rows.clocks.x).toEqual(rows.clocks.x);
+		expect(again.cols.rows.hashes.x).toBe(rows.hashes.x);
+		expect(again.cols.rows.fields?.x).toEqual(rows.fields?.x);
+		expect(again.clock).toEqual(current.clock);
+	});
+});
+
+describe('merge after a migration', () => {
+	it('keeps a remote record its metadata no longer tracks on a blank device', () => {
+		// The backup was stamped under `accounts`; the migration renamed it `wallets`.
+		const remote = replica('r', [{ accounts: [{ id: 'a1', v: 1 }] }]);
+		const migrated = { collections: { wallets: [{ id: 'a1', v: 1 }] }, meta: remote.meta };
+		const blank = { collections: {}, meta: stamp(createMeta('l'), {}, cfg, 2000) };
+		const out = merge(blank, migrated, cfg);
+		expect(out.collections.wallets).toEqual([{ id: 'a1', v: 1 }]);
+		// Stamped on the next local save, like any new record.
+		const next = stamp(out.meta, out.collections, cfg, 3000);
+		expect(next.cols.wallets.clocks.a1).toBeDefined();
+	});
+
+	it('still lets a tombstone remove an untracked record', () => {
+		const local = replica('l', [{ rows: [{ id: 'a1', v: 1 }] }, { rows: [] }]);
+		const untracked = { collections: { rows: [{ id: 'a1', v: 1 }] }, meta: createMeta('r') };
+		expect(merge(local, untracked, cfg).collections.rows).toEqual([]);
+	});
+});

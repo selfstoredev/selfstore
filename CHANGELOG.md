@@ -14,6 +14,19 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A write is stamped whenever its content changes.** The change detector
+  kept a 32-bit hash, and two different contents can share one: the second
+  write got no clock and could be lost at the next sync. The hash is now 53
+  bits. A stamp in the old form still matches unchanged content once and is
+  rewritten in place, so an upgrade does not re-stamp every record.
+- **A merge keeps a record no clock tracks.** After a migration that renames a
+  collection or changes ids, the remote metadata still names the old ones, and
+  the merge dropped the migrated records: restored on a blank device, the
+  backup came back without them and was then overwritten. A record with
+  neither a clock nor a tombstone is now kept and stamped by the next save.
+
 ## [1.8.37] - 2026-11-05
 
 ### Fixed
