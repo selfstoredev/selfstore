@@ -64,6 +64,13 @@ async function loadConfig(kv: KV): Promise<WebdavConfig | null> {
 	return JSON.parse(new TextDecoder().decode(bytes)) as WebdavConfig;
 }
 
+/** Whether the persisted config is this one. An unreadable or absent one
+ *  counts as this one: disconnecting then clears it, as it always did. */
+async function holdsConfig(kv: KV, c: WebdavConfig): Promise<boolean> {
+	const stored = await loadConfig(kv).catch(() => null);
+	return stored === null || JSON.stringify(stored) === JSON.stringify(c);
+}
+
 function labelOf(url: string): string {
 	try {
 		return new URL(url).host;
@@ -176,6 +183,9 @@ function fromConfig(c: WebdavConfig, kv: KV): BackupTarget {
 		isReady: ready,
 		reconnect: reconnectProbe, // stored credentials: re-check reachability, no gesture
 		async disconnect(): Promise<void> {
+			// After a switch to another server, the slot already holds the incoming
+			// config, sealed with the same key: deleting either would end it.
+			if (!(await holdsConfig(kv, c))) return;
 			await kv.del(CONFIG_KEY);
 			await kv.del(KEY_KEY);
 		}

@@ -19,6 +19,7 @@ interface FileHandle {
 	getFile(): Promise<File>;
 	queryPermission(d: { mode: 'read' | 'readwrite' }): Promise<PermissionState>;
 	requestPermission(d: { mode: 'read' | 'readwrite' }): Promise<PermissionState>;
+	isSameEntry?(other: FileHandle): Promise<boolean>;
 }
 
 interface PickerWindow {
@@ -166,6 +167,10 @@ function fromHandle(handle: FileHandle, kv: KV): BackupTarget {
 			return (await handle.requestPermission({ mode: 'readwrite' })) === 'granted';
 		},
 		async disconnect(): Promise<void> {
+			// After a switch to another file, the slot already holds the incoming
+			// handle: deleting it would end that connection at the next launch.
+			const stored = await kv.get<FileHandle>(HANDLE_KEY);
+			if (stored && stored !== handle && (await stored.isSameEntry?.(handle)) === false) return;
 			await kv.del(HANDLE_KEY);
 		}
 	};

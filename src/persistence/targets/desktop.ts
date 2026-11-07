@@ -178,6 +178,9 @@ function fromPath(path: string, b: DesktopFileBridge, kv: KV): BackupTarget {
 			return true;
 		},
 		async disconnect(): Promise<void> {
+			// After a switch to another file, the slot already names the incoming one.
+			const stored = await kv.get<string>(PATH_KEY);
+			if (stored !== undefined && stored !== current) return;
 			await kv.del(PATH_KEY);
 		}
 	};

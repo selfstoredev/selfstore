@@ -136,6 +136,32 @@ describe('file target: presence is not capability', () => {
 		expect(file.isSupported()).toBe(true); // ask again, from a real click
 	});
 
+	it('a departing target leaves the handle of the file that replaced it', async () => {
+		const kv = memKv();
+		const first = { name: 'old.zip', requestPermission: vi.fn() };
+		const second = {
+			name: 'new.zip',
+			requestPermission: vi.fn(),
+			isSameEntry: vi.fn().mockResolvedValue(false)
+		};
+		const showSaveFilePicker = vi.fn().mockResolvedValueOnce(first).mockResolvedValueOnce(second);
+		const file = await freshModule({ showSaveFilePicker });
+		const old = await file.connect({ kv, fileName: 'backup.zip' });
+		await file.connect({ kv, fileName: 'backup.zip' });
+		await old?.disconnect();
+		expect((await file.fromSession({ kv }))?.label).toBe('new.zip');
+	});
+
+	it('disconnect forgets the handle of its own file', async () => {
+		const kv = memKv();
+		const handle = { name: 'own.zip', requestPermission: vi.fn() };
+		const file = await freshModule({ showSaveFilePicker: vi.fn().mockResolvedValue(handle) });
+		const target = await file.connect({ kv, fileName: 'backup.zip' });
+		await kv.set('fileHandle', { ...handle, isSameEntry: vi.fn().mockResolvedValue(true) });
+		await target?.disconnect();
+		expect(await kv.get('fileHandle')).toBeUndefined();
+	});
+
 	it('remembers the picked file for the next session', async () => {
 		const kv = memKv();
 		const handle = { name: 'cabinet.zip', requestPermission: vi.fn() };

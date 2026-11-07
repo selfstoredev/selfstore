@@ -26,6 +26,17 @@ version number is not asking you to trust.
   the merge dropped the migrated records: restored on a blank device, the
   backup came back without them and was then overwritten. A record with
   neither a clock nor a tombstone is now kept and stamped by the next save.
+- **Switching to another server or file of the same kind keeps the new
+  connection.** The new destination saves its config in the slot the old one
+  used, then the switch disconnected the old one, which deleted that slot: after
+  a reload, backups stopped. A WebDAV, S3, file or desktop target now forgets
+  its config only while the slot still holds its own.
+- **A `manual` conflict met on a first converge is reported.** With no shared
+  history, the conflict check had nothing to compare against and the conflicts
+  the merge found were dropped. Both are now read, each conflict once.
+- **A conflict the local side won reaches the journal.** The journal only
+  recorded a converge that changed local data, so a concurrent edit that lost to
+  the local version vanished without a word.
 
 ## [1.8.37] - 2026-11-05
 

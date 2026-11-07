@@ -76,6 +76,13 @@ async function loadConfig(kv: KV): Promise<S3Config | null> {
 	return JSON.parse(new TextDecoder().decode(bytes)) as S3Config;
 }
 
+/** Whether the persisted config is this one. An unreadable or absent one
+ *  counts as this one: disconnecting then clears it, as it always did. */
+async function holdsConfig(kv: KV, c: S3Config): Promise<boolean> {
+	const stored = await loadConfig(kv).catch(() => null);
+	return stored === null || JSON.stringify(stored) === JSON.stringify(c);
+}
+
 /** SigV4 puts the secret on the wire only as a derived signature, but the
  *  request still needs https: an http endpoint would expose the object bytes
  *  and headers. Allow http for loopback (a local MinIO in dev) only. */
@@ -202,6 +209,9 @@ function fromConfig(c: S3Config, kv: KV): BackupTarget {
 		isReady: ready,
 		reconnect: reconnectProbe,
 		async disconnect(): Promise<void> {
+			// After a switch to another server, the slot already holds the incoming
+			// config, sealed with the same key: deleting either would end it.
+			if (!(await holdsConfig(kv, c))) return;
 			await kv.del(CONFIG_KEY);
 			await kv.del(KEY_KEY);
 		}

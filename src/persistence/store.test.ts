@@ -693,6 +693,43 @@ describe('freshness (stat-based converge)', () => {
 		expect(JSON.stringify(persisted)).not.toContain('renamed-by');
 	});
 
+	it('records a manual conflict met on a first converge, with no shared history', async () => {
+		const manual = { strategies: { accounts: 'manual' as const } };
+		const a = makeStore({ accounts: [{ id: 'a1', name: 'from-A' }] }, manual);
+		const b = makeStore({ accounts: [{ id: 'a1', name: 'from-B' }] }, manual);
+		await a.store.init();
+		await b.store.init();
+		const shared = versionedTarget();
+		await a.store.attachTarget(shared.target, { strategy: 'replace-remote' });
+		await b.store.attachTarget(shared.target, { strategy: 'merge' });
+
+		const conflicts = b.store.state.journal.flatMap((e) => e.conflicts ?? []);
+		expect(conflicts).toHaveLength(1);
+		expect(conflicts[0]).toMatchObject({ collection: 'accounts', id: 'a1' });
+	});
+
+	it('records a concurrent edit the local side won, though nothing changed locally', async () => {
+		const a = makeStore({ accounts: [{ id: 'a1', name: 'A' }] });
+		const b = makeStore();
+		await a.store.init();
+		await b.store.init();
+		const shared = versionedTarget();
+		await a.store.attachTarget(shared.target, { strategy: 'replace-remote' });
+		await b.store.attachTarget(shared.target, { strategy: 'merge' });
+
+		a.app.collections.accounts = [{ id: 'a1', name: 'renamed-by-A' }];
+		await a.store.flush();
+		await sleep(5);
+		// B edits later, without saving yet: its version wins the converge below.
+		b.app.collections.accounts = [{ id: 'a1', name: 'renamed-by-B' }];
+		await b.store.syncIfStale('focus');
+
+		expect((b.app.collections.accounts as { name: string }[])[0].name).toBe('renamed-by-B');
+		expect(b.store.state.journal[0]?.conflicts).toMatchObject([
+			{ collection: 'accounts', id: 'a1', kept: 'local' }
+		]);
+	});
+
 	it('a stray flush before init never touches the cache (viewer-page safety)', async () => {
 		const a = makeStore({ accounts: [{ id: 'a1' }] });
 		await a.store.flush(); // e.g. a pagehide on a page that never initializes

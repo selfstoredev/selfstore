@@ -48,7 +48,8 @@ import {
 	type SyncMeta,
 	type SyncConfig,
 	type CollectionChanges,
-	type Conflict
+	type Conflict,
+	type ReplicaState as SyncState
 } from '../sync';
 import { deriveStatus, type StatusDescriptor } from './status';
 import { isReservedStoreMode, type BackupTarget, type PeerSource } from './target';
@@ -1427,8 +1428,23 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 		);
 	}
 
+	/**
+	 * The conflicts of one converge, each once. merge() reports the 'manual'
+	 * collections, including on a first converge with no shared history, where
+	 * detectConflicts has no base to compare against and reports nothing.
+	 */
+	function conflictsOf(merged: Conflict[], local: SyncState, remote: SyncState): Conflict[] {
+		const out = new Map<string, Conflict>();
+		for (const c of [...merged, ...detectConflicts(local, remote, sync, baseMeta ?? undefined)]) {
+			out.set(JSON.stringify([c.collection, c.id]), c);
+		}
+		return [...out.values()].filter((c) => !journalSilent.has(c.collection));
+	}
+
 	/** Append a converge to the journal - only when it changed something the user
-	 *  can see (derived collections are silent). Returns the entry, or null. */
+	 *  can see, or met a conflict there (derived collections are silent): a
+	 *  conflict the local side won changes nothing locally and still lost the
+	 *  other version. Returns the entry, or null. */
 	function recordJournal(
 		delta: Record<string, CollectionChanges>,
 		source: SyncSource,
@@ -1437,7 +1453,7 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 		const visible = Object.fromEntries(
 			Object.entries(delta).filter(([name]) => !journalSilent.has(name))
 		);
-		if (Object.keys(visible).length === 0) return null;
+		if (Object.keys(visible).length === 0 && conflicts.length === 0) return null;
 		const entry: SyncJournalEntry = { at: Date.now(), source, changes: visible };
 		if (conflicts.length > 0) entry.conflicts = conflicts;
 		journal = [entry, ...journal].slice(0, JOURNAL_MAX);
@@ -1719,11 +1735,11 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 		meta = stamp(meta, local.collections, sync);
 		const localState = { collections: local.collections, meta };
 		const remoteState = { collections: snapM.collections, meta: remoteMeta };
-		const result = merge(localState, remoteState, sync);
+		const result = merge(localState, remoteState, sync, baseMeta ?? undefined);
 		// Informational: same-record edits both sides made since the last converge.
 		// merge() already picked the latest; this reports what was overwritten, with
 		// both values, so the app can surface (or restore) the losing side.
-		const conflicts = detectConflicts(localState, remoteState, sync, baseMeta ?? undefined);
+		const conflicts = conflictsOf(result.conflicts, localState, remoteState);
 		const delta = changes(local.collections, result.collections, sync);
 		meta = result.meta;
 		baseMeta = meta;
@@ -1886,8 +1902,8 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 				meta = stamp(meta, local.collections, sync);
 				const localState = { collections: local.collections, meta };
 				const remoteState = { collections: snapM.collections, meta: peerMeta };
-				const result = merge(localState, remoteState, sync);
-				const conflicts = detectConflicts(localState, remoteState, sync, baseMeta ?? undefined);
+				const result = merge(localState, remoteState, sync, baseMeta ?? undefined);
+				const conflicts = conflictsOf(result.conflicts, localState, remoteState);
 				const delta = changes(local.collections, result.collections, sync);
 				meta = result.meta;
 				baseMeta = meta;
