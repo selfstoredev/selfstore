@@ -14,6 +14,8 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+## [1.8.38] - 2026-11-07
+
 ### Fixed
 
 - **A write is stamped whenever its content changes.** The change detector
