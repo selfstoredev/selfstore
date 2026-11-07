@@ -150,6 +150,16 @@ describe('webdav target', () => {
 		expect(await kv.get('webdavKey')).toBeUndefined();
 	});
 
+	it('a departing target leaves the config of the server that replaced it', async () => {
+		const kv = memKV();
+		vi.stubGlobal('fetch', fakeFetch({ HEAD: () => new Response(null, { status: 200 }) }));
+		const old = (await connect({ kv, config: CFG }))!;
+		const next: WebdavConfig = { ...CFG, url: 'https://other.example/backup.zip' };
+		await connect({ kv, config: next });
+		await old.disconnect();
+		expect((await fromSession({ kv }))?.label).toBe('other.example');
+	});
+
 	it('isReady throws AuthExpired when the stored credentials are rejected (401/403), so the store gates', async () => {
 		for (const status of [401, 403]) {
 			const kv = memKV();

@@ -336,6 +336,24 @@ describe('readiness', () => {
 		expect(await kv.get('desktopFilePath')).toBe('C:/old/app.zip');
 	});
 
+	it('a departing target leaves the path of the file that replaced it', async () => {
+		const { desktop } = await freshModules();
+		let asked = 0;
+		desktop.useDesktopFiles(
+			fakeShell({
+				async save() {
+					asked += 1;
+					return asked === 1 ? 'C:/old/app.zip' : 'C:/new/app.zip';
+				}
+			}).shell
+		);
+		const kv = memKv();
+		const old = await desktop.connect({ kv, fileName: 'app.zip' });
+		await desktop.connect({ kv, fileName: 'app.zip' });
+		await old?.disconnect();
+		expect(await kv.get('desktopFilePath')).toBe('C:/new/app.zip');
+	});
+
 	it('forgets the path on disconnect without touching the file', async () => {
 		const { desktop } = await freshModules();
 		const { shell, files } = fakeShell();

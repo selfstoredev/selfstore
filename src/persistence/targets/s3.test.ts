@@ -3,7 +3,7 @@
 // headers) and the error protocol (403 = genuine auth loss, 404 = no backup).
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { connect, type S3Config } from './s3';
+import { connect, fromSession, type S3Config } from './s3';
 import { memoryCache } from '../cache';
 import { isAuthExpired } from '../../selfstore';
 
@@ -70,6 +70,19 @@ describe('s3 target', () => {
 		expect(put.headers['x-amz-content-sha256']).toMatch(/^[0-9a-f]{64}$/);
 		expect(put.headers.host).toBeUndefined(); // the browser owns Host
 		expect(version).toBe('"v1"');
+	});
+
+	it('a departing target leaves the config of the bucket that replaced it', async () => {
+		const kv = memoryCache().kv;
+		stubFetch(() => ({ status: 200 }));
+		const old = (await connect({ kv, config: baseConfig }))!;
+		await connect({ kv, config: { ...baseConfig, key: 'other/app.selfstore' } });
+		await old.disconnect();
+		expect(await fromSession({ kv })).not.toBeNull();
+		const ownKv = memoryCache().kv;
+		const alone = (await connect({ kv: ownKv, config: baseConfig }))!;
+		await alone.disconnect();
+		expect(await fromSession({ kv: ownKv })).toBeNull();
 	});
 
 	it('load: 200 returns the bytes, 404 returns null, 403 is a genuine auth loss', async () => {
