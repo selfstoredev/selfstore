@@ -86,15 +86,47 @@ function stableStringify(v: unknown): string {
 	);
 }
 
-/** FNV-1a 32-bit hash, enough to detect that a record changed. */
-function hash(v: unknown): number {
-	const s = stableStringify(v);
+/** FNV-1a 32 bits: the stamp stored before 53 bits. Two contents can share it
+ *  (`{"id":"x","value":"12k17wj"}` and `{"id":"x","value":"102ue3k"}`), so it
+ *  is only ever READ, to recognise content an older replica already stamped. */
+function legacyHash(s: string): number {
 	let h = 0x811c9dc5;
 	for (let i = 0; i < s.length; i++) {
 		h ^= s.charCodeAt(i);
 		h = Math.imul(h, 0x01000193);
 	}
 	return h >>> 0;
+}
+
+/** 53-bit content hash (cyrb53): two independent 32-bit lanes, kept in the
+ *  range a JSON number holds exactly. Decides alone whether a write is stamped. */
+function hashText(s: string): number {
+	let h1 = 0xdeadbeef;
+	let h2 = 0x41c6ce57;
+	for (let i = 0; i < s.length; i++) {
+		const c = s.charCodeAt(i);
+		h1 = Math.imul(h1 ^ c, 2654435761);
+		h2 = Math.imul(h2 ^ c, 1597334677);
+	}
+	h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+	h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+	return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+}
+
+function hash(v: unknown): number {
+	return hashText(stableStringify(v));
+}
+
+/**
+ * Whether `stored` still describes `v`, and the hash to keep for it. A stamp in
+ * the 32-bit form of an older replica is accepted once and upgraded in place:
+ * re-stamping every record on the first save after an upgrade would hand stale
+ * copies fresh clocks that beat newer edits made elsewhere.
+ */
+function unchanged(stored: number | undefined, v: unknown): { same: boolean; h: number } {
+	const s = stableStringify(v);
+	const h = hashText(s);
+	return { same: stored === h || (stored !== undefined && stored === legacyHash(s)), h };
 }
 
 /**
@@ -223,13 +255,16 @@ function stampPresent(
 		const id = idOf(config, name, doc);
 		if (id === null) continue;
 		seen.add(id);
-		const h = hash(doc);
-		if (col.hashes[id] !== h) {
-			col.clocks[id] = tick();
+		const { same, h } = unchanged(col.hashes[id], doc);
+		if (same) {
 			col.hashes[id] = h;
-			delete col.deleted[id];
-			if (fieldLevel && isRecord(doc)) stampFields(col, id, doc, tick);
+			if (fieldLevel && isRecord(doc)) upgradeFieldHashes(col, id, doc);
+			continue;
 		}
+		col.clocks[id] = tick();
+		col.hashes[id] = h;
+		delete col.deleted[id];
+		if (fieldLevel && isRecord(doc)) stampFields(col, id, doc, tick);
 	}
 	return seen;
 }
@@ -240,10 +275,21 @@ function stampPresent(
 function stampFields(col: ColMeta, id: Id, doc: Record<string, unknown>, tick: Tick): void {
 	const rec = ((col.fields ??= dict())[id] ??= dict());
 	for (const key of Object.keys(doc)) {
-		const h = hash(doc[key]);
-		if (rec[key]?.[1] !== h) rec[key] = [tick(), h];
+		const prior = rec[key];
+		const { same, h } = unchanged(prior?.[1], doc[key]);
+		rec[key] = same && prior ? [prior[0], h] : [tick(), h];
 	}
 	for (const key of Object.keys(rec)) if (!Object.hasOwn(doc, key)) delete rec[key];
+}
+
+/** Rewrite an unchanged record's field stamps in the 53-bit form, clocks kept. */
+function upgradeFieldHashes(col: ColMeta, id: Id, doc: Record<string, unknown>): void {
+	const rec = col.fields?.[id];
+	if (!rec) return;
+	for (const key of Object.keys(rec)) {
+		const { same, h } = unchanged(rec[key][1], doc[key]);
+		if (same) rec[key] = [rec[key][0], h];
+	}
 }
 
 /** Tombstone every previously-tracked id that is no longer present. */
@@ -454,6 +500,23 @@ function manualConflict(
 	return { collection: name, id, local: aDocs.get(id), remote: bDocs.get(id), kept: winnerSide };
 }
 
+/**
+ * A record no side holds a live clock for. A tombstone stands. Otherwise the
+ * document is one a migration moved to a new collection or id while its
+ * metadata kept the old ones: dropped, the merged copy would replace the backup
+ * without it. Kept unstamped, the next local stamp gives it a clock.
+ */
+function settleUnclocked(
+	col: ColMeta,
+	docs: unknown[],
+	id: Id,
+	deadClk: Hlc | null,
+	doc: unknown
+): void {
+	if (deadClk) col.deleted[id] = deadClk;
+	else docs.push(doc);
+}
+
 /** Reconcile every id of one collection across the two replicas. */
 function mergeCollection(
 	name: string,
@@ -495,7 +558,7 @@ function mergeCollection(
 			continue;
 		}
 		if (!aliveClk) {
-			if (deadClk) col.deleted[id] = deadClk;
+			settleUnclocked(col, docs, id, deadClk, aDocs.get(id) ?? bDocs.get(id));
 			continue;
 		}
 
@@ -630,7 +693,7 @@ export function changes(
 		let removed = 0;
 		for (const [id, doc] of a) {
 			if (!b.has(id)) added++;
-			else if (hash(doc) !== hash(b.get(id))) updated++;
+			else if (stableStringify(doc) !== stableStringify(b.get(id))) updated++;
 		}
 		for (const id of b.keys()) if (!a.has(id)) removed++;
 		if (added || updated || removed) out[name] = { added, updated, removed };

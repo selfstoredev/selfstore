@@ -397,6 +397,35 @@ describe('schema migration', () => {
 		expect(accounts[0].label).toBe('Boursorama'); // existing data preserved
 	});
 
+	it('restores a backup whose migration renamed a collection on a blank device', async () => {
+		const older = makeStore({ accounts: [{ id: 'a1', name: 'Savings' }] });
+		const shared = fakeTarget('drive');
+		await older.store.attachTarget(shared.target, { strategy: 'replace-remote' });
+
+		let restored: Record<string, unknown[]> = {};
+		const blank = createLocalStore({
+			app: 'test',
+			schemaVersion: 2,
+			gather: () => ({ collections: structuredClone(restored), files: [] }),
+			apply: (snap: Snapshot) => {
+				restored = structuredClone(snap.collections ?? {});
+			},
+			migrate: (from, snap) => {
+				if (from < 2) {
+					snap.collections = { wallets: snap.collections.accounts ?? [] };
+				}
+				return snap;
+			},
+			cache: memCache()
+		});
+		await blank.init();
+		await blank.attachTarget(shared.target, { strategy: 'merge' });
+
+		expect(restored.wallets).toEqual([{ id: 'a1', name: 'Savings' }]);
+		const remote = await importSnapshot(shared.remote!);
+		expect(remote.collections.wallets).toEqual([{ id: 'a1', name: 'Savings' }]);
+	});
+
 	it('does not migrate a cache already at the current version', async () => {
 		const cache = memCache();
 		await cache.saveCollections({ accounts: [{ id: 'a1' }] });
