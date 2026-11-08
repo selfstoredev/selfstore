@@ -766,17 +766,35 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 	// A restore that threw or stalled at boot kept the destination's kind with no
 	// connection, so the profile still names it: reconnect rebuilds it here, or the
 	// destination would stay shown and unusable until a reload.
+	// Bounded like the boot wait it retries, and dropped when the user attached or
+	// detached meanwhile: a late answer must not reinstall a destination left behind.
 	async function restoreAgain(): Promise<boolean> {
-		if (!opts.restoreTarget || !durableKind()) return false;
-		const t = await opts.restoreTarget(targetKind);
-		if (!t) return false;
+		const restore = opts.restoreTarget;
+		if (!restore || !durableKind()) return false;
+		const kind = targetKind;
+		const t = await stalledAsFalse(
+			bootDeadline(Promise.resolve(restore(kind)), 'destination restore')
+		);
+		if (!t || durable || targetKind !== kind) return false;
 		durable = t;
 		label = t.label;
-		if (!(await t.isReady())) {
+		if (!(await stalledAsFalse(bootDeadline(t.isReady(), 'destination check')))) {
 			notify();
 			return false;
 		}
-		return settleReconnect();
+		return durable === t && settleReconnect();
+	}
+
+	/** A stall reads as "not yet" with a transient error; any other failure still throws. */
+	async function stalledAsFalse<T>(work: Promise<T>): Promise<T | false> {
+		try {
+			return await work;
+		} catch (e) {
+			if (!(e instanceof BootTimeout)) throw e;
+			lastError = transient('Destination is slow to answer; will retry.');
+			notify();
+			return false;
+		}
 	}
 
 	/** Access is back: clear the error unless the schema gate still holds, then converge. */

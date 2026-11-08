@@ -191,6 +191,27 @@ describe('replicaFlow', () => {
 		flow.dispose();
 	});
 
+	it('a stale connector keeps the session a retry of the same kind is writing', async () => {
+		const { store, host } = await makeHost({});
+		const stale = memTarget('stale');
+		const fresh = memTarget('fresh');
+		const answers: ((t: BackupTarget) => void)[] = [];
+		const flow = replicaFlow(host, {
+			file: () => new Promise<BackupTarget>((resolve) => answers.push(resolve))
+		});
+		flow.open();
+		flow.pick('file');
+		flow.cancel();
+		flow.pick('file');
+		answers[0]?.(stale.target);
+		await new Promise((r) => setTimeout(r, 0));
+		expect(stale.disconnected).toBe(0);
+		answers[1]?.(fresh.target);
+		await until(() => store.state.replicas.length === 1);
+		expect(fresh.disconnected).toBe(0);
+		flow.dispose();
+	});
+
 	it('a throwing connector surfaces a StoreError and attaches nothing', async () => {
 		const { store, kv, host } = await makeHost({});
 		const flow = replicaFlow(host, {

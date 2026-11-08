@@ -138,6 +138,18 @@ export function replicaFlow(
 	// Bumped by cancel() and remove(): a connector that answers after either one
 	// belongs to a choice the user walked away from, and must not attach.
 	let generation = 0;
+	// Connectors still waiting, per kind: a stale one must not disconnect while a
+	// retry of the same kind is writing the session keys they share.
+	const waiting = new Map<ConnectKind, number>();
+
+	async function answerOf(kind: ConnectKind, connector: Connector): Promise<BackupTarget | null> {
+		waiting.set(kind, (waiting.get(kind) ?? 0) + 1);
+		try {
+			return await connector();
+		} finally {
+			waiting.set(kind, (waiting.get(kind) ?? 1) - 1);
+		}
+	}
 
 	function connectorFor(kind: ConnectKind): Connector | null {
 		const spec = targets[kind];
@@ -162,10 +174,12 @@ export function replicaFlow(
 		m.set({ busy: true, error: null });
 		const started = generation;
 		try {
-			const target = await connector();
+			const target = await answerOf(kind, connector);
 			if (started !== generation) {
-				// Same kind: the kv session keys are shared with what is attached now.
-				if (target && kind !== attachedKind) await target.disconnect().catch(() => undefined);
+				// Same kind: the kv session keys are shared with what is attached now,
+				// or with a retry still connecting.
+				const shared = kind === attachedKind || (waiting.get(kind) ?? 0) > 0;
+				if (target && !shared) await target.disconnect().catch(() => undefined);
 				return;
 			}
 			if (!target) {

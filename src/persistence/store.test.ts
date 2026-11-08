@@ -1583,6 +1583,68 @@ describe('write-verified key operations and format refusals', () => {
 		expect(store.state.lastError).toBeNull();
 	});
 
+	function lateRestoreRig() {
+		const cache = memCache();
+		const target: BackupTarget = {
+			kind: 'drive',
+			label: 'Google Drive',
+			async save() {
+				return '1';
+			},
+			async load() {
+				return null;
+			},
+			async isReady() {
+				return true;
+			},
+			async reconnect() {
+				return true;
+			},
+			async disconnect() {}
+		};
+		let calls = 0;
+		let answer: ((t: BackupTarget) => void) | undefined;
+		const store = createLocalStore({
+			app: 'test',
+			schemaVersion: 1,
+			gather: () => ({ collections: {}, files: [] }),
+			apply: () => undefined,
+			cache,
+			restoreTarget: async () => {
+				calls++;
+				if (calls === 1) throw new Error('broker cold start');
+				return new Promise<BackupTarget>((resolve) => (answer = resolve));
+			}
+		});
+		return { cache, store, target, answer: (t: BackupTarget) => answer?.(t) };
+	}
+
+	it('a reconnect whose restore never answers gives up instead of hanging', async () => {
+		const rig = lateRestoreRig();
+		await rig.cache.kv.set('targetKind', 'drive');
+		await rig.store.init();
+		vi.useFakeTimers();
+		try {
+			const pending = rig.store.reconnect();
+			await vi.advanceTimersByTimeAsync(30_000);
+			expect(await pending).toBe(false);
+			expect(rig.store.state.lastError?.code).toBe('TARGET_UNAVAILABLE');
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('a restore answering after a detach does not reinstall the destination', async () => {
+		const rig = lateRestoreRig();
+		await rig.cache.kv.set('targetKind', 'drive');
+		await rig.store.init();
+		const pending = rig.store.reconnect();
+		await rig.store.detachTarget();
+		rig.answer(rig.target);
+		expect(await pending).toBe(false);
+		expect(rig.store.state.targetKind).toBe('device');
+	});
+
 	it('refuses a backup rewritten under an unsupported format id', async () => {
 		// A versioned target so a converge notices the swap and actually re-reads.
 		let remote: Blob | null = null;
