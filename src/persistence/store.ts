@@ -763,6 +763,30 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 	// A kind naming a real durable target (anything but the store modes).
 	const durableKind = (): boolean => !isReservedStoreMode(targetKind);
 
+	// A restore that threw or stalled at boot kept the destination's kind with no
+	// connection, so the profile still names it: reconnect rebuilds it here, or the
+	// destination would stay shown and unusable until a reload.
+	async function restoreAgain(): Promise<boolean> {
+		if (!opts.restoreTarget || !durableKind()) return false;
+		const t = await opts.restoreTarget(targetKind);
+		if (!t) return false;
+		durable = t;
+		label = t.label;
+		if (!(await t.isReady())) {
+			notify();
+			return false;
+		}
+		return settleReconnect();
+	}
+
+	/** Access is back: clear the error unless the schema gate still holds, then converge. */
+	async function settleReconnect(): Promise<boolean> {
+		needsAttention = schemaCeiling > version; // keep the schema ceiling gate (see unlock)
+		if (!needsAttention) lastError = null;
+		await pull('manual');
+		return !needsAttention;
+	}
+
 	const subs = new Set<() => void>();
 	// The state snapshot is rebuilt on notify and handed out by reference, so a
 	// framework adapter (useSyncExternalStore etc.) sees a stable object between
@@ -2530,14 +2554,9 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 		},
 
 		async reconnect() {
-			if (locked() || !durable) return false; // a lock needs unlock(), not reconnect()
-			if (await durable.reconnect()) {
-				needsAttention = schemaCeiling > version; // keep the schema ceiling gate (see unlock)
-				if (!needsAttention) lastError = null;
-				await pull('manual');
-				return !needsAttention;
-			}
-			return false;
+			if (locked()) return false; // a lock needs unlock(), not reconnect()
+			if (!durable) return restoreAgain();
+			return (await durable.reconnect()) ? settleReconnect() : false;
 		},
 
 		detachTarget(opts) {

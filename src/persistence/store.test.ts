@@ -1542,6 +1542,47 @@ describe('write-verified key operations and format refusals', () => {
 		expect(store.state.targetKind).toBe('drive'); // kept for a later reconnect, not demoted
 	});
 
+	it('reconnect rebuilds a destination whose restore threw at boot', async () => {
+		const cache = memCache();
+		await cache.kv.set('targetKind', 'drive');
+		let saved: Blob | null = null;
+		const target: BackupTarget = {
+			kind: 'drive',
+			label: 'Google Drive',
+			async save(b) {
+				saved = b;
+				return '1';
+			},
+			async load() {
+				return saved;
+			},
+			async isReady() {
+				return true;
+			},
+			async reconnect() {
+				return true;
+			},
+			async disconnect() {}
+		};
+		let calls = 0;
+		const store = createLocalStore({
+			app: 'test',
+			schemaVersion: 1,
+			gather: () => ({ collections: {}, files: [] }),
+			apply: () => undefined,
+			cache,
+			restoreTarget: async () => {
+				calls++;
+				if (calls === 1) throw new Error('broker cold start');
+				return target;
+			}
+		});
+		await store.init();
+		expect(await store.reconnect()).toBe(true);
+		expect(calls).toBe(2);
+		expect(store.state.lastError).toBeNull();
+	});
+
 	it('refuses a backup rewritten under an unsupported format id', async () => {
 		// A versioned target so a converge notices the swap and actually re-reads.
 		let remote: Blob | null = null;

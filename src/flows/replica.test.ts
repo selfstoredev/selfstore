@@ -173,6 +173,24 @@ describe('replicaFlow', () => {
 		flow.dispose();
 	});
 
+	it('a connector that answers after cancel attaches nothing and forgets its session', async () => {
+		const { store, kv, host } = await makeHost({});
+		const late = memTarget('late');
+		let answer: ((t: BackupTarget) => void) | undefined;
+		const flow = replicaFlow(host, {
+			file: () => new Promise<BackupTarget>((resolve) => (answer = resolve))
+		});
+		flow.open();
+		flow.pick('file');
+		flow.cancel();
+		answer?.(late.target);
+		await until(() => late.disconnected === 1);
+		expect(store.state.replicas).toEqual([]);
+		expect(await kv.get('replica:record')).toBeUndefined();
+		expect(flow.snapshot.step).toBe('idle');
+		flow.dispose();
+	});
+
 	it('a throwing connector surfaces a StoreError and attaches nothing', async () => {
 		const { store, kv, host } = await makeHost({});
 		const flow = replicaFlow(host, {

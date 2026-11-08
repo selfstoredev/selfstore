@@ -14,6 +14,19 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`reconnect()` retries a destination whose restore failed at boot.** A
+  `restoreTarget` that threw or timed out kept the destination's kind on screen
+  with no connection behind it, and `reconnect()` answered `false` until a
+  reload. It now calls `restoreTarget` again and converges when it answers.
+- **Joining another share from the same wallet keeps the old one until the new
+  copy exists.** A copy creation that failed used to leave the previous
+  membership already torn down and its copy deleted.
+- **A backup-copy connection that answers after `cancel()` or `remove()` attaches
+  nothing.** It used to attach the copy the user had walked away from; a
+  connection to another provider is also told to forget its session.
+
 ## [1.8.38] - 2026-11-07
 
 ### Fixed

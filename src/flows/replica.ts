@@ -135,6 +135,9 @@ export function replicaFlow(
 	// Its kind, so a swap can tell 'moved to another provider' from 'same
 	// provider, another file' - only the first may disconnect. See run().
 	let attachedKind: ConnectKind | null = null;
+	// Bumped by cancel() and remove(): a connector that answers after either one
+	// belongs to a choice the user walked away from, and must not attach.
+	let generation = 0;
 
 	function connectorFor(kind: ConnectKind): Connector | null {
 		const spec = targets[kind];
@@ -157,8 +160,14 @@ export function replicaFlow(
 
 	async function run(kind: ConnectKind, connector: Connector): Promise<void> {
 		m.set({ busy: true, error: null });
+		const started = generation;
 		try {
 			const target = await connector();
+			if (started !== generation) {
+				// Same kind: the kv session keys are shared with what is attached now.
+				if (target && kind !== attachedKind) await target.disconnect().catch(() => undefined);
+				return;
+			}
 			if (!target) {
 				// Cancelled picker/consent: stay where the user was, no error.
 				m.set({ busy: false });
@@ -180,7 +189,7 @@ export function replicaFlow(
 			await left?.disconnect().catch(() => undefined);
 			m.set({ step: 'idle', busy: false, error: null, replica: current() });
 		} catch (e) {
-			m.set({ busy: false, error: toStoreError(e) });
+			if (started === generation) m.set({ busy: false, error: toStoreError(e) });
 		}
 	}
 
@@ -207,6 +216,7 @@ export function replicaFlow(
 		},
 
 		cancel() {
+			generation++;
 			m.set({ step: 'idle', busy: false, error: null });
 		},
 
@@ -237,6 +247,7 @@ export function replicaFlow(
 		},
 
 		async remove() {
+			generation++;
 			const target = attached;
 			attached = null;
 			attachedKind = null;
