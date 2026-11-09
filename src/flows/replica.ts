@@ -201,6 +201,12 @@ export function replicaFlow(
 			// connect has just overwritten them, and only drive guards a late
 			// disconnect against orphaning what the new target now owns.
 			await left?.disconnect().catch(() => undefined);
+			// remove() ran while the record was written: its delete may have landed
+			// first, and the next boot would restore a copy the user removed.
+			if (attached !== target) {
+				if (!attached) await skv.del(RECORD_KEY);
+				return;
+			}
 			m.set({ step: 'idle', busy: false, error: null, replica: current() });
 		} catch (e) {
 			if (started === generation) m.set({ busy: false, error: toStoreError(e) });

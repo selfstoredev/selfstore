@@ -212,6 +212,30 @@ describe('replicaFlow', () => {
 		flow.dispose();
 	});
 
+	it('a remove while the record is being written leaves no record behind', async () => {
+		const { store, kv, host } = await makeHost({});
+		const t = memTarget('late');
+		let release: (() => void) | undefined;
+		const gate = new Promise<void>((resolve) => (release = resolve));
+		const slowKv = {
+			...kv,
+			async set(key: string, value: unknown) {
+				if (key.includes('record')) await gate;
+				return kv.set(key, value);
+			}
+		};
+		const flow = replicaFlow({ ...host, kv: slowKv }, { file: async () => t.target });
+		flow.open();
+		flow.pick('file');
+		await until(() => store.state.replicas.length === 1);
+		await flow.remove();
+		release?.();
+		await new Promise((r) => setTimeout(r, 30));
+		expect(store.state.replicas).toEqual([]);
+		expect(await kv.get('replica:record')).toBeUndefined();
+		flow.dispose();
+	});
+
 	it('a throwing connector surfaces a StoreError and attaches nothing', async () => {
 		const { store, kv, host } = await makeHost({});
 		const flow = replicaFlow(host, {

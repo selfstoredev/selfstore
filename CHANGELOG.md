@@ -29,6 +29,8 @@ version number is not asking you to trust.
   nothing.** It used to attach the copy the user had walked away from; a
   connection to another provider is also told to forget its session, unless a
   retry of the same provider is still connecting with those session keys.
+  A `remove()` that lands while the copy's record is being written no longer
+  lets that record survive, so the next boot does not restore a removed copy.
 
 ## [1.8.38] - 2026-11-07
 
