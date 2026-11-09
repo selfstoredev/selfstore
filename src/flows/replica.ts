@@ -142,6 +142,10 @@ export function replicaFlow(
 	// retry of the same kind is writing the session keys they share.
 	const waiting = new Map<ConnectKind, number>();
 
+	// Stale answers kept only because a retry of their kind was still waiting:
+	// once nothing waits, a kind left unattached disconnects them.
+	const kept = new Map<ConnectKind, BackupTarget[]>();
+
 	async function answerOf(kind: ConnectKind, connector: Connector): Promise<BackupTarget | null> {
 		waiting.set(kind, (waiting.get(kind) ?? 0) + 1);
 		try {
@@ -149,6 +153,29 @@ export function replicaFlow(
 		} finally {
 			waiting.set(kind, (waiting.get(kind) ?? 1) - 1);
 		}
+	}
+
+	async function releaseKept(kind: ConnectKind): Promise<void> {
+		if ((waiting.get(kind) ?? 0) > 0) return;
+		const stale = kept.get(kind) ?? [];
+		kept.delete(kind);
+		// Attached again under this kind: the session is the new copy's now.
+		if (kind === attachedKind) return;
+		for (const t of stale) await t.disconnect().catch(() => undefined);
+	}
+
+	// One record write at a time, each reading what is attached WHEN it runs:
+	// the last queued write is the one that lands, so a remove() followed by a
+	// late connect can never leave the record of a copy the user removed.
+	let recordWrites: Promise<unknown> = Promise.resolve();
+	function writeRecord(): Promise<void> {
+		const next = recordWrites.then(() =>
+			attachedKind
+				? skv.set(RECORD_KEY, { kind: attachedKind } satisfies ReplicaRecord)
+				: skv.del(RECORD_KEY)
+		);
+		recordWrites = next.catch(() => undefined);
+		return next;
 	}
 
 	function connectorFor(kind: ConnectKind): Connector | null {
@@ -179,7 +206,8 @@ export function replicaFlow(
 				// Same kind: the kv session keys are shared with what is attached now,
 				// or with a retry still connecting.
 				const shared = kind === attachedKind || (waiting.get(kind) ?? 0) > 0;
-				if (target && !shared) await target.disconnect().catch(() => undefined);
+				if (target && shared) kept.set(kind, [...(kept.get(kind) ?? []), target]);
+				else if (target) await target.disconnect().catch(() => undefined);
 				return;
 			}
 			if (!target) {
@@ -192,7 +220,7 @@ export function replicaFlow(
 			engine.attachReplica(target, { id: REPLICA_ID });
 			attached = target;
 			attachedKind = kind;
-			await skv.set(RECORD_KEY, { kind } satisfies ReplicaRecord);
+			await writeRecord();
 			// The destination the user just left forgets its own session.
 			// detachReplica only drops the engine entry, so without this a swap
 			// leaves the previous provider's credentials on the device for good -
@@ -201,17 +229,14 @@ export function replicaFlow(
 			// connect has just overwritten them, and only drive guards a late
 			// disconnect against orphaning what the new target now owns.
 			await left?.disconnect().catch(() => undefined);
-			// remove() ran while the record was written: its delete, or the record
-			// of the copy connected since, may have landed first, and the next boot
-			// would restore a copy the user removed. Write back what is attached now.
-			if (attached !== target) {
-				if (attachedKind) await skv.set(RECORD_KEY, { kind: attachedKind } satisfies ReplicaRecord);
-				else await skv.del(RECORD_KEY);
-				return;
-			}
+			// remove() or a later connect ran meanwhile: it queued its own record
+			// write, which lands after ours.
+			if (attached !== target) return;
 			m.set({ step: 'idle', busy: false, error: null, replica: current() });
 		} catch (e) {
 			if (started === generation) m.set({ busy: false, error: toStoreError(e) });
+		} finally {
+			await releaseKept(kind);
 		}
 	}
 
@@ -274,7 +299,7 @@ export function replicaFlow(
 			attached = null;
 			attachedKind = null;
 			if (current()) engine.detachReplica(REPLICA_ID);
-			await skv.del(RECORD_KEY);
+			await writeRecord();
 			// Forget locally only - a BackupTarget's disconnect never deletes
 			// remote data, so the copy stays where it is for a manual recovery.
 			await target?.disconnect().catch(() => undefined);

@@ -768,14 +768,20 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 	// destination would stay shown and unusable until a reload.
 	// Bounded like the boot wait it retries, and dropped when the user attached or
 	// detached meanwhile: a late answer must not reinstall a destination left behind.
+	// Bumped by each restoreAgain() and by a detach; see restoreAgain().
+	let restoreAttempt = 0;
+
 	async function restoreAgain(): Promise<boolean> {
 		const restore = opts.restoreTarget;
 		if (!restore || !durableKind()) return false;
 		const kind = targetKind;
+		const attempt = ++restoreAttempt;
 		const t = await stalledAsFalse(
 			bootDeadline(Promise.resolve(restore(kind)), 'destination restore')
 		);
-		if (!t || durable || targetKind !== kind) return false;
+		// The kind alone cannot tell this attempt from a newer one of the same
+		// provider after a detach: only the latest attempt may install its answer.
+		if (!t || durable || targetKind !== kind || attempt !== restoreAttempt) return false;
 		durable = t;
 		label = t.label;
 		if (!(await stalledAsFalse(bootDeadline(t.isReady(), 'destination check')))) {
@@ -2586,6 +2592,7 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 			durable?.abortInFlight?.();
 			// Serialized like setManualFile: a concurrent save/pull must not run
 			// against a target that is being dropped out from under it.
+			restoreAttempt++;
 			return serialize(async () => {
 				await dropDurable({ keepSession: opts?.keepSession });
 				targetKind = 'device';

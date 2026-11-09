@@ -31,7 +31,11 @@ version number is not asking you to trust.
   retry of the same provider is still connecting with those session keys.
   A `remove()` that lands while the copy's record is being written no longer
   lets that record survive, so the next boot does not restore a removed copy.
-  Nor does a copy connected right after that remove lose its own record to it.
+  Nor does a copy connected right after that remove lose its own record to it:
+  the record is written one write at a time, and `remove()` resolves once its
+  delete has landed. A late answer kept for such a retry is told to forget its
+  session when the retry gives up. Of two `reconnect()` calls rebuilding the
+  same destination, only the latest installs its answer.
 
 ## [1.8.38] - 2026-11-07
 

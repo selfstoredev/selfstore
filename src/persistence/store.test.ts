@@ -1645,6 +1645,51 @@ describe('write-verified key operations and format refusals', () => {
 		expect(rig.store.state.targetKind).toBe('device');
 	});
 
+	it('only the latest restore attempt installs its answer', async () => {
+		const cache = memCache();
+		await cache.kv.set('targetKind', 'drive');
+		const answers: ((t: BackupTarget) => void)[] = [];
+		const targetOf = (label: string): BackupTarget => ({
+			kind: 'drive',
+			label,
+			async save() {
+				return '1';
+			},
+			async load() {
+				return null;
+			},
+			async isReady() {
+				return true;
+			},
+			async reconnect() {
+				return true;
+			},
+			async disconnect() {}
+		});
+		let calls = 0;
+		const store = createLocalStore({
+			app: 'test',
+			schemaVersion: 1,
+			gather: () => ({ collections: {}, files: [] }),
+			apply: () => undefined,
+			cache,
+			restoreTarget: async () => {
+				calls++;
+				if (calls === 1) throw new Error('broker cold start');
+				return new Promise<BackupTarget>((resolve) => answers.push(resolve));
+			}
+		});
+		await store.init();
+		const older = store.reconnect();
+		const newer = store.reconnect();
+		await vi.waitFor(() => expect(answers).toHaveLength(2));
+		answers[0]?.(targetOf('older'));
+		expect(await older).toBe(false);
+		answers[1]?.(targetOf('newer'));
+		expect(await newer).toBe(true);
+		expect(store.state.label).toBe('newer');
+	});
+
 	it('refuses a backup rewritten under an unsupported format id', async () => {
 		// A versioned target so a converge notices the swap and actually re-reads.
 		let remote: Blob | null = null;

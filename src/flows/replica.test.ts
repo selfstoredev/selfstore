@@ -212,6 +212,26 @@ describe('replicaFlow', () => {
 		flow.dispose();
 	});
 
+	it('a stale answer kept for a retry is disconnected once the retry gives up', async () => {
+		const { store, host } = await makeHost({});
+		const stale = memTarget('stale');
+		const answers: ((t: BackupTarget | null) => void)[] = [];
+		const flow = replicaFlow(host, {
+			file: () => new Promise<BackupTarget | null>((resolve) => answers.push(resolve))
+		});
+		flow.open();
+		flow.pick('file');
+		flow.cancel();
+		flow.pick('file');
+		answers[0]?.(stale.target);
+		await new Promise((r) => setTimeout(r, 0));
+		expect(stale.disconnected).toBe(0);
+		answers[1]?.(null);
+		await until(() => stale.disconnected === 1);
+		expect(store.state.replicas).toEqual([]);
+		flow.dispose();
+	});
+
 	it('a remove while the record is being written leaves no record behind', async () => {
 		const { store, kv, host } = await makeHost({});
 		const t = memTarget('late');
@@ -228,9 +248,9 @@ describe('replicaFlow', () => {
 		flow.open();
 		flow.pick('file');
 		await until(() => store.state.replicas.length === 1);
-		await flow.remove();
+		const removed = flow.remove();
 		release?.();
-		await new Promise((r) => setTimeout(r, 30));
+		await removed;
 		expect(store.state.replicas).toEqual([]);
 		expect(await kv.get('replica:record')).toBeUndefined();
 		flow.dispose();
@@ -260,11 +280,12 @@ describe('replicaFlow', () => {
 		flow.open();
 		flow.pick('file');
 		await until(() => store.state.replicas.length === 1);
-		await flow.remove();
+		const removed = flow.remove();
+		release?.();
+		await removed;
 		flow.open();
 		flow.pick('webdav');
 		await until(() => flow.snapshot.replica !== null);
-		release?.();
 		await new Promise((r) => setTimeout(r, 30));
 		expect(await kv.get('replica:record')).toEqual({ kind: 'webdav' });
 		flow.dispose();
