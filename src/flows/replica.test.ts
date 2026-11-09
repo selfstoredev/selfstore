@@ -236,6 +236,40 @@ describe('replicaFlow', () => {
 		flow.dispose();
 	});
 
+	it('a remove then a new copy while the old record is written keeps the new record', async () => {
+		const { store, kv, host } = await makeHost({});
+		const old = memTarget('old');
+		const fresh = memTarget('fresh');
+		let release: (() => void) | undefined;
+		const gate = new Promise<void>((resolve) => (release = resolve));
+		let held = false;
+		const slowKv = {
+			...kv,
+			async set(key: string, value: unknown) {
+				if (key.includes('record') && !held) {
+					held = true;
+					await gate;
+				}
+				return kv.set(key, value);
+			}
+		};
+		const flow = replicaFlow(
+			{ ...host, kv: slowKv },
+			{ file: async () => old.target, webdav: async () => fresh.target }
+		);
+		flow.open();
+		flow.pick('file');
+		await until(() => store.state.replicas.length === 1);
+		await flow.remove();
+		flow.open();
+		flow.pick('webdav');
+		await until(() => flow.snapshot.replica !== null);
+		release?.();
+		await new Promise((r) => setTimeout(r, 30));
+		expect(await kv.get('replica:record')).toEqual({ kind: 'webdav' });
+		flow.dispose();
+	});
+
 	it('a throwing connector surfaces a StoreError and attaches nothing', async () => {
 		const { store, kv, host } = await makeHost({});
 		const flow = replicaFlow(host, {

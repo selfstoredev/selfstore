@@ -31,6 +31,7 @@ version number is not asking you to trust.
   retry of the same provider is still connecting with those session keys.
   A `remove()` that lands while the copy's record is being written no longer
   lets that record survive, so the next boot does not restore a removed copy.
+  Nor does a copy connected right after that remove lose its own record to it.
 
 ## [1.8.38] - 2026-11-07
 
