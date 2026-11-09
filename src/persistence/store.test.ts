@@ -1363,6 +1363,48 @@ describe('store save dedup (no redundant remote writes)', () => {
 		expect(saves).toBe(base + 1);
 	});
 
+	it('a renamed file or a re-cut file list is a real edit, never a byte-identical skip', async () => {
+		const enc = new TextEncoder();
+		let files = [
+			{ id: 'f1', name: 'a.txt', mime: 'text/plain', bytes: enc.encode('x') },
+			{ id: 'f2', name: 'b.txt', mime: 'text/plain', bytes: enc.encode('y') }
+		];
+		const store = createLocalStore({
+			app: 'test',
+			schemaVersion: 1,
+			gather: () => ({ collections: {}, files }),
+			apply: () => undefined,
+			cache: memCache()
+		});
+		await store.init();
+		const t = fakeTarget('drive');
+		let saves = 0;
+		const realSave = t.target.save.bind(t.target);
+		t.target.save = async (b) => {
+			saves++;
+			return realSave(b);
+		};
+		await store.attachTarget(t.target, { strategy: 'replace-remote' });
+		await store.flush();
+		const base = saves;
+
+		files = files.map((f) => (f.id === 'f1' ? { ...f, name: 'renamed.txt' } : f));
+		await store.flush();
+		expect(saves).toBe(base + 1);
+
+		// One file whose bytes spell out the old header of the second one.
+		const [first, second] = files;
+		const glued = new Uint8Array([
+			...first!.bytes,
+			...enc.encode(`\u001f${second!.id}\u001f${second!.mime}\u001f`),
+			...second!.bytes
+		]);
+		files = [{ ...first!, bytes: glued }];
+		await store.flush();
+		expect(saves).toBe(base + 2);
+		store.dispose();
+	});
+
 	// Seed a real .selfstore blob, then wrap it in a stat-capable target that
 	// counts load() calls, so a test can prove connect fetches the file once.
 	async function seededStatTarget(marker: () => string) {
