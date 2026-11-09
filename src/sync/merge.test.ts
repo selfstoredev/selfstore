@@ -431,6 +431,13 @@ describe('clock drift', () => {
 		expect(code).toBe('CLOCK_DRIFT');
 	});
 
+	it('refuses a clock that is not in the canonical shape', () => {
+		const local = replica('a', [{ rows: [{ id: '1', v: 1 }] }]);
+		const forged = replica('b', [{ rows: [{ id: '1', v: 2 }] }]);
+		forged.meta.cols.rows.clocks['1'] = 'zzzz|000000|x';
+		expect(() => merge(local, forged, cfg)).toThrow(/never writes/);
+	});
+
 	it('checks the tombstones and the field clocks too, not just the meta', () => {
 		const local = replica('a', [{ rows: [{ id: '1', v: 1 }] }]);
 		const ahead = replica('b', [{ rows: [{ id: '1', v: 2 }] }], aheadWall());

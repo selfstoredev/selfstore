@@ -14,6 +14,14 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A synced copy carrying a clock this library never writes is refused.** A
+  signed copy holding a clock such as `zzzz|000000|x` read its wall time as
+  `NaN`, slipped past the drift bound and won every later comparison, on every
+  device that merged it. `merge()` now refuses it with `CLOCK_DRIFT` before any
+  state changes.
+
 ## [1.8.38] - 2026-11-07
 
 ### Fixed
