@@ -38,6 +38,11 @@ version number is not asking you to trust.
   delete has landed. A late answer kept for such a retry is told to forget its
   session when the retry gives up. Of two `reconnect()` calls rebuilding the
   same destination, only the latest installs its answer.
+- **Renaming an attachment is saved.** The change detector hashed each file's
+  id, type and bytes but not its name, and ran the bytes of one file into the
+  header of the next, so a rename alone, or two files re-cut into one with the
+  same bytes, was skipped as unchanged. The first save after upgrading writes
+  once more, since every digest changes.
 
 ## [1.8.38] - 2026-11-07
 

@@ -1591,7 +1591,10 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 		const enc = new TextEncoder();
 		const parts: Uint8Array[] = [enc.encode(JSON.stringify(snap.collections))];
 		for (const f of [...snap.files].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
-			parts.push(enc.encode(`\u001f${f.id}\u001f${f.mime}\u001f`), f.bytes);
+			// JSON escapes every separator and the length closes the bytes: no two
+			// different file lists can produce the same stream.
+			const head = JSON.stringify([f.id, f.name, f.mime, f.bytes.length]);
+			parts.push(enc.encode(`\u001f${head}\u001f`), f.bytes);
 		}
 		let len = 0;
 		for (const p of parts) len += p.length;
