@@ -1363,6 +1363,48 @@ describe('store save dedup (no redundant remote writes)', () => {
 		expect(saves).toBe(base + 1);
 	});
 
+	it('a renamed file or a re-cut file list is a real edit, never a byte-identical skip', async () => {
+		const enc = new TextEncoder();
+		let files = [
+			{ id: 'f1', name: 'a.txt', mime: 'text/plain', bytes: enc.encode('x') },
+			{ id: 'f2', name: 'b.txt', mime: 'text/plain', bytes: enc.encode('y') }
+		];
+		const store = createLocalStore({
+			app: 'test',
+			schemaVersion: 1,
+			gather: () => ({ collections: {}, files }),
+			apply: () => undefined,
+			cache: memCache()
+		});
+		await store.init();
+		const t = fakeTarget('drive');
+		let saves = 0;
+		const realSave = t.target.save.bind(t.target);
+		t.target.save = async (b) => {
+			saves++;
+			return realSave(b);
+		};
+		await store.attachTarget(t.target, { strategy: 'replace-remote' });
+		await store.flush();
+		const base = saves;
+
+		files = files.map((f) => (f.id === 'f1' ? { ...f, name: 'renamed.txt' } : f));
+		await store.flush();
+		expect(saves).toBe(base + 1);
+
+		// One file whose bytes spell out the old header of the second one.
+		const [first, second] = files;
+		const glued = new Uint8Array([
+			...first!.bytes,
+			...enc.encode(`\u001f${second!.id}\u001f${second!.mime}\u001f`),
+			...second!.bytes
+		]);
+		files = [{ ...first!, bytes: glued }];
+		await store.flush();
+		expect(saves).toBe(base + 2);
+		store.dispose();
+	});
+
 	// Seed a real .selfstore blob, then wrap it in a stat-capable target that
 	// counts load() calls, so a test can prove connect fetches the file once.
 	async function seededStatTarget(marker: () => string) {
@@ -1540,6 +1582,154 @@ describe('write-verified key operations and format refusals', () => {
 		await store.init(); // must resolve, never reject
 		expect(store.state.ready).toBe(true);
 		expect(store.state.targetKind).toBe('drive'); // kept for a later reconnect, not demoted
+	});
+
+	it('reconnect rebuilds a destination whose restore threw at boot', async () => {
+		const cache = memCache();
+		await cache.kv.set('targetKind', 'drive');
+		let saved: Blob | null = null;
+		const target: BackupTarget = {
+			kind: 'drive',
+			label: 'Google Drive',
+			async save(b) {
+				saved = b;
+				return '1';
+			},
+			async load() {
+				return saved;
+			},
+			async isReady() {
+				return true;
+			},
+			async reconnect() {
+				return true;
+			},
+			async disconnect() {}
+		};
+		let calls = 0;
+		const store = createLocalStore({
+			app: 'test',
+			schemaVersion: 1,
+			gather: () => ({ collections: {}, files: [] }),
+			apply: () => undefined,
+			cache,
+			restoreTarget: async () => {
+				calls++;
+				if (calls === 1) throw new Error('broker cold start');
+				return target;
+			}
+		});
+		await store.init();
+		expect(await store.reconnect()).toBe(true);
+		expect(calls).toBe(2);
+		expect(store.state.lastError).toBeNull();
+	});
+
+	function lateRestoreRig() {
+		const cache = memCache();
+		const target: BackupTarget = {
+			kind: 'drive',
+			label: 'Google Drive',
+			async save() {
+				return '1';
+			},
+			async load() {
+				return null;
+			},
+			async isReady() {
+				return true;
+			},
+			async reconnect() {
+				return true;
+			},
+			async disconnect() {}
+		};
+		let calls = 0;
+		let answer: ((t: BackupTarget) => void) | undefined;
+		const store = createLocalStore({
+			app: 'test',
+			schemaVersion: 1,
+			gather: () => ({ collections: {}, files: [] }),
+			apply: () => undefined,
+			cache,
+			restoreTarget: async () => {
+				calls++;
+				if (calls === 1) throw new Error('broker cold start');
+				return new Promise<BackupTarget>((resolve) => (answer = resolve));
+			}
+		});
+		return { cache, store, target, answer: (t: BackupTarget) => answer?.(t) };
+	}
+
+	it('a reconnect whose restore never answers gives up instead of hanging', async () => {
+		const rig = lateRestoreRig();
+		await rig.cache.kv.set('targetKind', 'drive');
+		await rig.store.init();
+		vi.useFakeTimers();
+		try {
+			const pending = rig.store.reconnect();
+			await vi.advanceTimersByTimeAsync(30_000);
+			expect(await pending).toBe(false);
+			expect(rig.store.state.lastError?.code).toBe('TARGET_UNAVAILABLE');
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('a restore answering after a detach does not reinstall the destination', async () => {
+		const rig = lateRestoreRig();
+		await rig.cache.kv.set('targetKind', 'drive');
+		await rig.store.init();
+		const pending = rig.store.reconnect();
+		await rig.store.detachTarget();
+		rig.answer(rig.target);
+		expect(await pending).toBe(false);
+		expect(rig.store.state.targetKind).toBe('device');
+	});
+
+	it('only the latest restore attempt installs its answer', async () => {
+		const cache = memCache();
+		await cache.kv.set('targetKind', 'drive');
+		const answers: ((t: BackupTarget) => void)[] = [];
+		const targetOf = (label: string): BackupTarget => ({
+			kind: 'drive',
+			label,
+			async save() {
+				return '1';
+			},
+			async load() {
+				return null;
+			},
+			async isReady() {
+				return true;
+			},
+			async reconnect() {
+				return true;
+			},
+			async disconnect() {}
+		});
+		let calls = 0;
+		const store = createLocalStore({
+			app: 'test',
+			schemaVersion: 1,
+			gather: () => ({ collections: {}, files: [] }),
+			apply: () => undefined,
+			cache,
+			restoreTarget: async () => {
+				calls++;
+				if (calls === 1) throw new Error('broker cold start');
+				return new Promise<BackupTarget>((resolve) => answers.push(resolve));
+			}
+		});
+		await store.init();
+		const older = store.reconnect();
+		const newer = store.reconnect();
+		await vi.waitFor(() => expect(answers).toHaveLength(2));
+		answers[0]?.(targetOf('older'));
+		expect(await older).toBe(false);
+		answers[1]?.(targetOf('newer'));
+		expect(await newer).toBe(true);
+		expect(store.state.label).toBe('newer');
 	});
 
 	it('refuses a backup rewritten under an unsupported format id', async () => {

@@ -636,6 +636,36 @@ describe('capability-link household share (mirror model)', () => {
 		expect(re.store.state.peers.length).toBe(1);
 	});
 
+	it('a re-join whose new copy cannot be created leaves the old membership whole', async () => {
+		const world = new World();
+		const anne = await makeMember(world, 'anne@x.fr', 'hh-rj-anne', 'rj-anne-wallet');
+		const marc = await makeMember(world, 'marc@x.fr', 'hh-rj-marc', 'rj-marc-wallet');
+		const linkA = await anne.group.startShare();
+		const linkM = await marc.group.startShare();
+
+		const { store } = makeStore('hh-rj-bob');
+		await store.init();
+		await store.attachTarget(world.target('rj-bob-silo'), { strategy: 'replace-remote' });
+		const backend = makeBackend(world, 'bob@x.fr');
+		const group = createHouseholdGroup({
+			store,
+			kv: memKV(),
+			backend,
+			wallet: async () => 'rj-bob-silo'
+		});
+		await group.openIncoming(linkA.fileId, linkA.key);
+		expect(await group.join()).toBe('joined');
+		const before = group.state.memberships.map((m) => m.sharedBy);
+
+		backend.createCopy = async () => {
+			throw new Error('quota exceeded');
+		};
+		await group.openIncoming(linkM.fileId, linkM.key);
+		await expect(group.join()).rejects.toThrow('quota exceeded');
+		expect(group.state.memberships.map((m) => m.sharedBy)).toEqual(before);
+		expect(store.state.mirrors.some((m) => m.id.startsWith('household-copy'))).toBe(true);
+	});
+
 	it('a device holds TWO memberships, one per silo: each converges in its own scope, leave() takes one', async () => {
 		const world = new World();
 		const anne = await makeMember(world, 'anne@x.fr', 'hh-mm-anne', 'mm-anne-wallet');

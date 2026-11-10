@@ -16,6 +16,33 @@ version number is not asking you to trust.
 
 ### Fixed
 
+- **The backup-copy flow keeps a connect started around `remove()` or `cancel()` intact.** `remove()` holds `busy` while it deletes the record, so a `pick()` cannot start a connect whose session the removal would then wipe; a connect cancelled while its record is written no longer resets the screen of the connect that followed.
+- **`remove()` stays in charge until it is done, and a failed delete no longer locks the flow.** A `cancel()` during the removal used to lift `busy` and let a `pick()` of the same provider connect, whose session the removal then wiped. A record delete that failed left `busy` set for good and the session in place, so the next boot restored the removed copy; the session is now forgotten either way and the failure is reported in `error`.
+- **`reconnect()` retries a destination whose restore failed at boot.** A
+  `restoreTarget` that threw or timed out kept the destination's kind on screen
+  with no connection behind it, and `reconnect()` answered `false` until a
+  reload. It now calls `restoreTarget` again and converges when it answers,
+  gives up after the boot deadline instead of hanging, and drops an answer that
+  arrives after the destination was detached or replaced.
+- **Joining another share from the same wallet keeps the old one until the new
+  copy exists.** A copy creation that failed used to leave the previous
+  membership already torn down and its copy deleted.
+- **A backup-copy connection that answers after `cancel()` or `remove()` attaches
+  nothing.** It used to attach the copy the user had walked away from; a
+  connection to another provider is also told to forget its session, unless a
+  retry of the same provider is still connecting with those session keys.
+  A `remove()` that lands while the copy's record is being written no longer
+  lets that record survive, so the next boot does not restore a removed copy.
+  Nor does a copy connected right after that remove lose its own record to it:
+  the record is written one write at a time, and `remove()` resolves once its
+  delete has landed. A late answer kept for such a retry is told to forget its
+  session when the retry gives up. Of two `reconnect()` calls rebuilding the
+  same destination, only the latest installs its answer.
+- **Renaming an attachment is saved.** The change detector hashed each file's
+  id, type and bytes but not its name, and ran the bytes of one file into the
+  header of the next, so a rename alone, or two files re-cut into one with the
+  same bytes, was skipped as unchanged. The first save after upgrading writes
+  once more, since every digest changes.
 - **A synced copy carrying a clock this library never writes is refused.** A
   signed copy holding a clock such as `zzzz|000000|x` read its wall time as
   `NaN`, slipped past the drift bound and won every later comparison, on every
