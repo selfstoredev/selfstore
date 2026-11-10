@@ -173,6 +173,124 @@ describe('replicaFlow', () => {
 		flow.dispose();
 	});
 
+	it('a connector that answers after cancel attaches nothing and forgets its session', async () => {
+		const { store, kv, host } = await makeHost({});
+		const late = memTarget('late');
+		let answer: ((t: BackupTarget) => void) | undefined;
+		const flow = replicaFlow(host, {
+			file: () => new Promise<BackupTarget>((resolve) => (answer = resolve))
+		});
+		flow.open();
+		flow.pick('file');
+		flow.cancel();
+		answer?.(late.target);
+		await until(() => late.disconnected === 1);
+		expect(store.state.replicas).toEqual([]);
+		expect(await kv.get('replica:record')).toBeUndefined();
+		expect(flow.snapshot.step).toBe('idle');
+		flow.dispose();
+	});
+
+	it('a stale connector keeps the session a retry of the same kind is writing', async () => {
+		const { store, host } = await makeHost({});
+		const stale = memTarget('stale');
+		const fresh = memTarget('fresh');
+		const answers: ((t: BackupTarget) => void)[] = [];
+		const flow = replicaFlow(host, {
+			file: () => new Promise<BackupTarget>((resolve) => answers.push(resolve))
+		});
+		flow.open();
+		flow.pick('file');
+		flow.cancel();
+		flow.pick('file');
+		answers[0]?.(stale.target);
+		await new Promise((r) => setTimeout(r, 0));
+		expect(stale.disconnected).toBe(0);
+		answers[1]?.(fresh.target);
+		await until(() => store.state.replicas.length === 1);
+		expect(fresh.disconnected).toBe(0);
+		flow.dispose();
+	});
+
+	it('a stale answer kept for a retry is disconnected once the retry gives up', async () => {
+		const { store, host } = await makeHost({});
+		const stale = memTarget('stale');
+		const answers: ((t: BackupTarget | null) => void)[] = [];
+		const flow = replicaFlow(host, {
+			file: () => new Promise<BackupTarget | null>((resolve) => answers.push(resolve))
+		});
+		flow.open();
+		flow.pick('file');
+		flow.cancel();
+		flow.pick('file');
+		answers[0]?.(stale.target);
+		await new Promise((r) => setTimeout(r, 0));
+		expect(stale.disconnected).toBe(0);
+		answers[1]?.(null);
+		await until(() => stale.disconnected === 1);
+		expect(store.state.replicas).toEqual([]);
+		flow.dispose();
+	});
+
+	it('a remove while the record is being written leaves no record behind', async () => {
+		const { store, kv, host } = await makeHost({});
+		const t = memTarget('late');
+		let release: (() => void) | undefined;
+		const gate = new Promise<void>((resolve) => (release = resolve));
+		const slowKv = {
+			...kv,
+			async set(key: string, value: unknown) {
+				if (key.includes('record')) await gate;
+				return kv.set(key, value);
+			}
+		};
+		const flow = replicaFlow({ ...host, kv: slowKv }, { file: async () => t.target });
+		flow.open();
+		flow.pick('file');
+		await until(() => store.state.replicas.length === 1);
+		const removed = flow.remove();
+		release?.();
+		await removed;
+		expect(store.state.replicas).toEqual([]);
+		expect(await kv.get('replica:record')).toBeUndefined();
+		flow.dispose();
+	});
+
+	it('a remove then a new copy while the old record is written keeps the new record', async () => {
+		const { store, kv, host } = await makeHost({});
+		const old = memTarget('old');
+		const fresh = memTarget('fresh');
+		let release: (() => void) | undefined;
+		const gate = new Promise<void>((resolve) => (release = resolve));
+		let held = false;
+		const slowKv = {
+			...kv,
+			async set(key: string, value: unknown) {
+				if (key.includes('record') && !held) {
+					held = true;
+					await gate;
+				}
+				return kv.set(key, value);
+			}
+		};
+		const flow = replicaFlow(
+			{ ...host, kv: slowKv },
+			{ file: async () => old.target, webdav: async () => fresh.target }
+		);
+		flow.open();
+		flow.pick('file');
+		await until(() => store.state.replicas.length === 1);
+		const removed = flow.remove();
+		release?.();
+		await removed;
+		flow.open();
+		flow.pick('webdav');
+		await until(() => flow.snapshot.replica !== null);
+		await new Promise((r) => setTimeout(r, 30));
+		expect(await kv.get('replica:record')).toEqual({ kind: 'webdav' });
+		flow.dispose();
+	});
+
 	it('a throwing connector surfaces a StoreError and attaches nothing', async () => {
 		const { store, kv, host } = await makeHost({});
 		const flow = replicaFlow(host, {
@@ -217,6 +335,116 @@ describe('replicaFlow', () => {
 		expect(await kv.get('replica:record')).toBeUndefined();
 		expect(t.disconnected).toBe(1);
 		expect(flow.snapshot.replica).toBeNull();
+		flow.dispose();
+	});
+
+	/** A flow with a 'file' copy attached, whose record delete waits for `release`. */
+	async function removingFlow() {
+		const { store, kv, host } = await makeHost({});
+		const old = memTarget('old');
+		const gate: { release?: () => void } = {};
+		const gated = {
+			...kv,
+			del: async (k: string) => {
+				await new Promise<void>((r) => (gate.release = r));
+				return kv.del(k);
+			}
+		};
+		const asked = { count: 0 };
+		const flow = replicaFlow(
+			{ ...host, kv: gated },
+			{ file: async () => (++asked.count === 1 ? old.target : memTarget('new').target) }
+		);
+		flow.open();
+		flow.pick('file');
+		await until(() => store.state.replicas.length === 1);
+		return { store, old, gate, asked, flow };
+	}
+
+	it('a pick during remove() starts nothing whose session the removal would wipe', async () => {
+		const { store, gate, asked, flow } = await removingFlow();
+		const removing = flow.remove();
+		flow.open();
+		flow.pick('file');
+		await until(() => gate.release !== undefined);
+		gate.release?.();
+		await removing;
+		expect(asked.count).toBe(1);
+		expect(store.state.replicas).toEqual([]);
+		expect(flow.snapshot.busy).toBe(false);
+		flow.dispose();
+	});
+
+	it('a cancel() during remove() does not let a pick() start under the removal', async () => {
+		const { old, gate, asked, flow } = await removingFlow();
+		const removing = flow.remove();
+		await until(() => gate.release !== undefined);
+		flow.cancel();
+		expect(flow.snapshot.busy).toBe(true);
+		flow.open();
+		flow.pick('file');
+		gate.release?.();
+		await removing;
+		expect(asked.count).toBe(1);
+		expect(old.disconnected).toBe(1);
+		expect(flow.snapshot).toMatchObject({ step: 'idle', busy: false, replica: null });
+		flow.dispose();
+	});
+
+	it('a remove() whose record cannot be deleted still forgets the session and frees the flow', async () => {
+		const { store, kv, host } = await makeHost({});
+		const old = memTarget('old');
+		const failing = {
+			...kv,
+			del: async () => {
+				throw new Error('storage unavailable');
+			}
+		};
+		const flow = replicaFlow({ ...host, kv: failing }, { file: async () => old.target });
+		flow.open();
+		flow.pick('file');
+		await until(() => store.state.replicas.length === 1);
+
+		await flow.remove();
+		expect(old.disconnected).toBe(1);
+		expect(store.state.replicas).toEqual([]);
+		expect(flow.snapshot.busy).toBe(false);
+		expect(flow.snapshot.error).not.toBeNull();
+		flow.open();
+		expect(flow.snapshot.step).toBe('choose');
+		flow.dispose();
+	});
+
+	it('a connect cancelled during its record write leaves the next connect in charge', async () => {
+		const { store, kv, host } = await makeHost({});
+		let release: (() => void) | undefined;
+		const gated = {
+			...kv,
+			set: async (k: string, v: unknown) => {
+				if (k.endsWith('record')) await new Promise<void>((r) => (release = r));
+				return kv.set(k, v);
+			}
+		};
+		let asked = 0;
+		const flow = replicaFlow(
+			{ ...host, kv: gated },
+			{
+				file: () =>
+					++asked === 1
+						? Promise.resolve(memTarget().target)
+						: new Promise<BackupTarget>(() => undefined)
+			}
+		);
+		flow.open();
+		flow.pick('file');
+		await until(() => store.state.replicas.length === 1 && release !== undefined);
+		flow.cancel();
+		flow.open();
+		flow.pick('file');
+		release?.();
+		await new Promise((r) => setTimeout(r, 15));
+		expect(asked).toBe(2);
+		expect(flow.snapshot.busy).toBe(true);
 		flow.dispose();
 	});
 

@@ -1542,6 +1542,154 @@ describe('write-verified key operations and format refusals', () => {
 		expect(store.state.targetKind).toBe('drive'); // kept for a later reconnect, not demoted
 	});
 
+	it('reconnect rebuilds a destination whose restore threw at boot', async () => {
+		const cache = memCache();
+		await cache.kv.set('targetKind', 'drive');
+		let saved: Blob | null = null;
+		const target: BackupTarget = {
+			kind: 'drive',
+			label: 'Google Drive',
+			async save(b) {
+				saved = b;
+				return '1';
+			},
+			async load() {
+				return saved;
+			},
+			async isReady() {
+				return true;
+			},
+			async reconnect() {
+				return true;
+			},
+			async disconnect() {}
+		};
+		let calls = 0;
+		const store = createLocalStore({
+			app: 'test',
+			schemaVersion: 1,
+			gather: () => ({ collections: {}, files: [] }),
+			apply: () => undefined,
+			cache,
+			restoreTarget: async () => {
+				calls++;
+				if (calls === 1) throw new Error('broker cold start');
+				return target;
+			}
+		});
+		await store.init();
+		expect(await store.reconnect()).toBe(true);
+		expect(calls).toBe(2);
+		expect(store.state.lastError).toBeNull();
+	});
+
+	function lateRestoreRig() {
+		const cache = memCache();
+		const target: BackupTarget = {
+			kind: 'drive',
+			label: 'Google Drive',
+			async save() {
+				return '1';
+			},
+			async load() {
+				return null;
+			},
+			async isReady() {
+				return true;
+			},
+			async reconnect() {
+				return true;
+			},
+			async disconnect() {}
+		};
+		let calls = 0;
+		let answer: ((t: BackupTarget) => void) | undefined;
+		const store = createLocalStore({
+			app: 'test',
+			schemaVersion: 1,
+			gather: () => ({ collections: {}, files: [] }),
+			apply: () => undefined,
+			cache,
+			restoreTarget: async () => {
+				calls++;
+				if (calls === 1) throw new Error('broker cold start');
+				return new Promise<BackupTarget>((resolve) => (answer = resolve));
+			}
+		});
+		return { cache, store, target, answer: (t: BackupTarget) => answer?.(t) };
+	}
+
+	it('a reconnect whose restore never answers gives up instead of hanging', async () => {
+		const rig = lateRestoreRig();
+		await rig.cache.kv.set('targetKind', 'drive');
+		await rig.store.init();
+		vi.useFakeTimers();
+		try {
+			const pending = rig.store.reconnect();
+			await vi.advanceTimersByTimeAsync(30_000);
+			expect(await pending).toBe(false);
+			expect(rig.store.state.lastError?.code).toBe('TARGET_UNAVAILABLE');
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('a restore answering after a detach does not reinstall the destination', async () => {
+		const rig = lateRestoreRig();
+		await rig.cache.kv.set('targetKind', 'drive');
+		await rig.store.init();
+		const pending = rig.store.reconnect();
+		await rig.store.detachTarget();
+		rig.answer(rig.target);
+		expect(await pending).toBe(false);
+		expect(rig.store.state.targetKind).toBe('device');
+	});
+
+	it('only the latest restore attempt installs its answer', async () => {
+		const cache = memCache();
+		await cache.kv.set('targetKind', 'drive');
+		const answers: ((t: BackupTarget) => void)[] = [];
+		const targetOf = (label: string): BackupTarget => ({
+			kind: 'drive',
+			label,
+			async save() {
+				return '1';
+			},
+			async load() {
+				return null;
+			},
+			async isReady() {
+				return true;
+			},
+			async reconnect() {
+				return true;
+			},
+			async disconnect() {}
+		});
+		let calls = 0;
+		const store = createLocalStore({
+			app: 'test',
+			schemaVersion: 1,
+			gather: () => ({ collections: {}, files: [] }),
+			apply: () => undefined,
+			cache,
+			restoreTarget: async () => {
+				calls++;
+				if (calls === 1) throw new Error('broker cold start');
+				return new Promise<BackupTarget>((resolve) => answers.push(resolve));
+			}
+		});
+		await store.init();
+		const older = store.reconnect();
+		const newer = store.reconnect();
+		await vi.waitFor(() => expect(answers).toHaveLength(2));
+		answers[0]?.(targetOf('older'));
+		expect(await older).toBe(false);
+		answers[1]?.(targetOf('newer'));
+		expect(await newer).toBe(true);
+		expect(store.state.label).toBe('newer');
+	});
+
 	it('refuses a backup rewritten under an unsupported format id', async () => {
 		// A versioned target so a converge notices the swap and actually re-reads.
 		let remote: Blob | null = null;

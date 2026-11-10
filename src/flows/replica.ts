@@ -135,6 +135,51 @@ export function replicaFlow(
 	// Its kind, so a swap can tell 'moved to another provider' from 'same
 	// provider, another file' - only the first may disconnect. See run().
 	let attachedKind: ConnectKind | null = null;
+	// Bumped by cancel() and remove(): a connector that answers after either one
+	// belongs to a choice the user walked away from, and must not attach.
+	let generation = 0;
+	// Removals still writing or disconnecting: cancel() may not lift busy over
+	// one, or a pick() of the same kind would see its session wiped by it.
+	let removals = 0;
+	// Connectors still waiting, per kind: a stale one must not disconnect while a
+	// retry of the same kind is writing the session keys they share.
+	const waiting = new Map<ConnectKind, number>();
+
+	// Stale answers kept only because a retry of their kind was still waiting:
+	// once nothing waits, a kind left unattached disconnects them.
+	const kept = new Map<ConnectKind, BackupTarget[]>();
+
+	async function answerOf(kind: ConnectKind, connector: Connector): Promise<BackupTarget | null> {
+		waiting.set(kind, (waiting.get(kind) ?? 0) + 1);
+		try {
+			return await connector();
+		} finally {
+			waiting.set(kind, (waiting.get(kind) ?? 1) - 1);
+		}
+	}
+
+	async function releaseKept(kind: ConnectKind): Promise<void> {
+		if ((waiting.get(kind) ?? 0) > 0) return;
+		const stale = kept.get(kind) ?? [];
+		kept.delete(kind);
+		// Attached again under this kind: the session is the new copy's now.
+		if (kind === attachedKind) return;
+		for (const t of stale) await t.disconnect().catch(() => undefined);
+	}
+
+	// One record write at a time, each reading what is attached WHEN it runs:
+	// the last queued write is the one that lands, so a remove() followed by a
+	// late connect can never leave the record of a copy the user removed.
+	let recordWrites: Promise<unknown> = Promise.resolve();
+	function writeRecord(): Promise<void> {
+		const next = recordWrites.then(() =>
+			attachedKind
+				? skv.set(RECORD_KEY, { kind: attachedKind } satisfies ReplicaRecord)
+				: skv.del(RECORD_KEY)
+		);
+		recordWrites = next.catch(() => undefined);
+		return next;
+	}
 
 	function connectorFor(kind: ConnectKind): Connector | null {
 		const spec = targets[kind];
@@ -157,8 +202,17 @@ export function replicaFlow(
 
 	async function run(kind: ConnectKind, connector: Connector): Promise<void> {
 		m.set({ busy: true, error: null });
+		const started = generation;
 		try {
-			const target = await connector();
+			const target = await answerOf(kind, connector);
+			if (started !== generation) {
+				// Same kind: the kv session keys are shared with what is attached now,
+				// or with a retry still connecting.
+				const shared = kind === attachedKind || (waiting.get(kind) ?? 0) > 0;
+				if (target && shared) kept.set(kind, [...(kept.get(kind) ?? []), target]);
+				else if (target) await target.disconnect().catch(() => undefined);
+				return;
+			}
 			if (!target) {
 				// Cancelled picker/consent: stay where the user was, no error.
 				m.set({ busy: false });
@@ -169,7 +223,7 @@ export function replicaFlow(
 			engine.attachReplica(target, { id: REPLICA_ID });
 			attached = target;
 			attachedKind = kind;
-			await skv.set(RECORD_KEY, { kind } satisfies ReplicaRecord);
+			await writeRecord();
 			// The destination the user just left forgets its own session.
 			// detachReplica only drops the engine entry, so without this a swap
 			// leaves the previous provider's credentials on the device for good -
@@ -178,9 +232,16 @@ export function replicaFlow(
 			// connect has just overwritten them, and only drive guards a late
 			// disconnect against orphaning what the new target now owns.
 			await left?.disconnect().catch(() => undefined);
+			// remove() or a later connect ran meanwhile: it queued its own record
+			// write, which lands after ours.
+			// A cancel() during the write may have started another connect: that
+			// one owns the screen now.
+			if (attached !== target || started !== generation) return;
 			m.set({ step: 'idle', busy: false, error: null, replica: current() });
 		} catch (e) {
-			m.set({ busy: false, error: toStoreError(e) });
+			if (started === generation) m.set({ busy: false, error: toStoreError(e) });
+		} finally {
+			await releaseKept(kind);
 		}
 	}
 
@@ -207,7 +268,8 @@ export function replicaFlow(
 		},
 
 		cancel() {
-			m.set({ step: 'idle', busy: false, error: null });
+			generation++;
+			m.set({ step: 'idle', busy: removals > 0, error: null });
 		},
 
 		pick(kind) {
@@ -237,15 +299,35 @@ export function replicaFlow(
 		},
 
 		async remove() {
+			// busy blocks a pick() while the record is written: a connect landing
+			// in between would see its session wiped by the disconnect below.
+			m.set({ busy: true, error: null });
+			removals++;
+			++generation;
 			const target = attached;
 			attached = null;
 			attachedKind = null;
 			if (current()) engine.detachReplica(REPLICA_ID);
-			await skv.del(RECORD_KEY);
-			// Forget locally only - a BackupTarget's disconnect never deletes
-			// remote data, so the copy stays where it is for a manual recovery.
-			await target?.disconnect().catch(() => undefined);
-			m.set({ step: 'idle', busy: false, error: null, replica: current() });
+			let failure: unknown = null;
+			try {
+				await writeRecord();
+			} catch (e) {
+				failure = e;
+			} finally {
+				// Forget locally only - a BackupTarget's disconnect never deletes
+				// remote data, so the copy stays where it is for a manual recovery.
+				// Even when the record could not be deleted: without its session a
+				// record left behind restores nothing at the next boot.
+				await target?.disconnect().catch(() => undefined);
+				removals--;
+			}
+			if (removals === 0)
+				m.set({
+					step: 'idle',
+					busy: false,
+					error: failure === null ? null : toStoreError(failure),
+					replica: current()
+				});
 		},
 
 		async restore() {

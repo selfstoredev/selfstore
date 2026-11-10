@@ -763,6 +763,54 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 	// A kind naming a real durable target (anything but the store modes).
 	const durableKind = (): boolean => !isReservedStoreMode(targetKind);
 
+	// A restore that threw or stalled at boot kept the destination's kind with no
+	// connection, so the profile still names it: reconnect rebuilds it here, or the
+	// destination would stay shown and unusable until a reload.
+	// Bounded like the boot wait it retries, and dropped when the user attached or
+	// detached meanwhile: a late answer must not reinstall a destination left behind.
+	// Bumped by each restoreAgain() and by a detach; see restoreAgain().
+	let restoreAttempt = 0;
+
+	async function restoreAgain(): Promise<boolean> {
+		const restore = opts.restoreTarget;
+		if (!restore || !durableKind()) return false;
+		const kind = targetKind;
+		const attempt = ++restoreAttempt;
+		const t = await stalledAsFalse(
+			bootDeadline(Promise.resolve(restore(kind)), 'destination restore')
+		);
+		// The kind alone cannot tell this attempt from a newer one of the same
+		// provider after a detach: only the latest attempt may install its answer.
+		if (!t || durable || targetKind !== kind || attempt !== restoreAttempt) return false;
+		durable = t;
+		label = t.label;
+		if (!(await stalledAsFalse(bootDeadline(t.isReady(), 'destination check')))) {
+			notify();
+			return false;
+		}
+		return durable === t && settleReconnect();
+	}
+
+	/** A stall reads as "not yet" with a transient error; any other failure still throws. */
+	async function stalledAsFalse<T>(work: Promise<T>): Promise<T | false> {
+		try {
+			return await work;
+		} catch (e) {
+			if (!(e instanceof BootTimeout)) throw e;
+			lastError = transient('Destination is slow to answer; will retry.');
+			notify();
+			return false;
+		}
+	}
+
+	/** Access is back: clear the error unless the schema gate still holds, then converge. */
+	async function settleReconnect(): Promise<boolean> {
+		needsAttention = schemaCeiling > version; // keep the schema ceiling gate (see unlock)
+		if (!needsAttention) lastError = null;
+		await pull('manual');
+		return !needsAttention;
+	}
+
 	const subs = new Set<() => void>();
 	// The state snapshot is rebuilt on notify and handed out by reference, so a
 	// framework adapter (useSyncExternalStore etc.) sees a stable object between
@@ -2530,14 +2578,9 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 		},
 
 		async reconnect() {
-			if (locked() || !durable) return false; // a lock needs unlock(), not reconnect()
-			if (await durable.reconnect()) {
-				needsAttention = schemaCeiling > version; // keep the schema ceiling gate (see unlock)
-				if (!needsAttention) lastError = null;
-				await pull('manual');
-				return !needsAttention;
-			}
-			return false;
+			if (locked()) return false; // a lock needs unlock(), not reconnect()
+			if (!durable) return restoreAgain();
+			return (await durable.reconnect()) ? settleReconnect() : false;
 		},
 
 		detachTarget(opts) {
@@ -2549,6 +2592,7 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 			durable?.abortInFlight?.();
 			// Serialized like setManualFile: a concurrent save/pull must not run
 			// against a target that is being dropped out from under it.
+			restoreAttempt++;
 			return serialize(async () => {
 				await dropDurable({ keepSession: opts?.keepSession });
 				targetKind = 'device';
