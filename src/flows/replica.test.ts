@@ -372,6 +372,64 @@ describe('replicaFlow', () => {
 		flow.dispose();
 	});
 
+	it('a cancel() during remove() does not let a pick() start under the removal', async () => {
+		const { store, kv, host } = await makeHost({});
+		const old = memTarget('old');
+		let release: (() => void) | undefined;
+		const gated = {
+			...kv,
+			del: async (k: string) => {
+				await new Promise<void>((r) => (release = r));
+				return kv.del(k);
+			}
+		};
+		let asked = 0;
+		const flow = replicaFlow(
+			{ ...host, kv: gated },
+			{ file: async () => (++asked === 1 ? old.target : memTarget('new').target) }
+		);
+		flow.open();
+		flow.pick('file');
+		await until(() => store.state.replicas.length === 1);
+
+		const removing = flow.remove();
+		await until(() => release !== undefined);
+		flow.cancel();
+		expect(flow.snapshot.busy).toBe(true);
+		flow.open();
+		flow.pick('file');
+		release?.();
+		await removing;
+		expect(asked).toBe(1);
+		expect(old.disconnected).toBe(1);
+		expect(flow.snapshot).toMatchObject({ step: 'idle', busy: false, replica: null });
+		flow.dispose();
+	});
+
+	it('a remove() whose record cannot be deleted still forgets the session and frees the flow', async () => {
+		const { store, kv, host } = await makeHost({});
+		const old = memTarget('old');
+		const failing = {
+			...kv,
+			del: async () => {
+				throw new Error('storage unavailable');
+			}
+		};
+		const flow = replicaFlow({ ...host, kv: failing }, { file: async () => old.target });
+		flow.open();
+		flow.pick('file');
+		await until(() => store.state.replicas.length === 1);
+
+		await flow.remove();
+		expect(old.disconnected).toBe(1);
+		expect(store.state.replicas).toEqual([]);
+		expect(flow.snapshot.busy).toBe(false);
+		expect(flow.snapshot.error).not.toBeNull();
+		flow.open();
+		expect(flow.snapshot.step).toBe('choose');
+		flow.dispose();
+	});
+
 	it('a connect cancelled during its record write leaves the next connect in charge', async () => {
 		const { store, kv, host } = await makeHost({});
 		let release: (() => void) | undefined;

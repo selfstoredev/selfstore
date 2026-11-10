@@ -17,6 +17,7 @@ version number is not asking you to trust.
 ### Fixed
 
 - **The backup-copy flow keeps a connect started around `remove()` or `cancel()` intact.** `remove()` holds `busy` while it deletes the record, so a `pick()` cannot start a connect whose session the removal would then wipe; a connect cancelled while its record is written no longer resets the screen of the connect that followed.
+- **`remove()` stays in charge until it is done, and a failed delete no longer locks the flow.** A `cancel()` during the removal used to lift `busy` and let a `pick()` of the same provider connect, whose session the removal then wiped. A record delete that failed left `busy` set for good and the session in place, so the next boot restored the removed copy; the session is now forgotten either way and the failure is reported in `error`.
 - **`reconnect()` retries a destination whose restore failed at boot.** A
   `restoreTarget` that threw or timed out kept the destination's kind on screen
   with no connection behind it, and `reconnect()` answered `false` until a

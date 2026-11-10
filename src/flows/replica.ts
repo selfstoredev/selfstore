@@ -138,6 +138,9 @@ export function replicaFlow(
 	// Bumped by cancel() and remove(): a connector that answers after either one
 	// belongs to a choice the user walked away from, and must not attach.
 	let generation = 0;
+	// Removals still writing or disconnecting: cancel() may not lift busy over
+	// one, or a pick() of the same kind would see its session wiped by it.
+	let removals = 0;
 	// Connectors still waiting, per kind: a stale one must not disconnect while a
 	// retry of the same kind is writing the session keys they share.
 	const waiting = new Map<ConnectKind, number>();
@@ -266,7 +269,7 @@ export function replicaFlow(
 
 		cancel() {
 			generation++;
-			m.set({ step: 'idle', busy: false, error: null });
+			m.set({ step: 'idle', busy: removals > 0, error: null });
 		},
 
 		pick(kind) {
@@ -299,17 +302,32 @@ export function replicaFlow(
 			// busy blocks a pick() while the record is written: a connect landing
 			// in between would see its session wiped by the disconnect below.
 			m.set({ busy: true, error: null });
-			const removing = ++generation;
+			removals++;
+			++generation;
 			const target = attached;
 			attached = null;
 			attachedKind = null;
 			if (current()) engine.detachReplica(REPLICA_ID);
-			await writeRecord();
-			// Forget locally only - a BackupTarget's disconnect never deletes
-			// remote data, so the copy stays where it is for a manual recovery.
-			await target?.disconnect().catch(() => undefined);
-			if (removing === generation)
-				m.set({ step: 'idle', busy: false, error: null, replica: current() });
+			let failure: unknown = null;
+			try {
+				await writeRecord();
+			} catch (e) {
+				failure = e;
+			} finally {
+				// Forget locally only - a BackupTarget's disconnect never deletes
+				// remote data, so the copy stays where it is for a manual recovery.
+				// Even when the record could not be deleted: without its session a
+				// record left behind restores nothing at the next boot.
+				await target?.disconnect().catch(() => undefined);
+				removals--;
+			}
+			if (removals === 0)
+				m.set({
+					step: 'idle',
+					busy: false,
+					error: failure === null ? null : toStoreError(failure),
+					replica: current()
+				});
 		},
 
 		async restore() {
