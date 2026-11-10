@@ -14,6 +14,8 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+## [1.8.39] - 2026-11-10
+
 ### Fixed
 
 - **The backup-copy flow keeps a connect started around `remove()` or `cancel()` intact.** `remove()` holds `busy` while it deletes the record, so a `pick()` cannot start a connect whose session the removal would then wipe; a connect cancelled while its record is written no longer resets the screen of the connect that followed.
