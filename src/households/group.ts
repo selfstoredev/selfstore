@@ -600,6 +600,12 @@ export function createHouseholdGroup(deps: {
 			if (!wallet && list.length > 0) return 'mismatch';
 			refuseProtected();
 			const walletFileId = (await wallet?.()) ?? undefined;
+			// My copy is a dedicated file; my own store stays mine. The shared
+			// data arrives by folding the others' copies into it on the next
+			// converge - one store per person, converging. Minted BEFORE the stale
+			// membership below is torn down: a creation that fails then leaves the
+			// old share whole instead of already broken.
+			const link = await backend.createCopy(undefined, content.share.roster[0]?.ownerEmail);
 			// A re-join over the same silo replaces its stale membership (a rotated
 			// link): two shares must never publish the same wallet.
 			if (walletFileId) {
@@ -610,10 +616,6 @@ export function createHouseholdGroup(deps: {
 					groups = list.filter((g) => g !== stale);
 				}
 			}
-			// My copy is a dedicated file; my own store stays mine. The shared
-			// data arrives by folding the others' copies into it on the next
-			// converge - one store per person, converging.
-			const link = await backend.createCopy(undefined, content.share.roster[0]?.ownerEmail);
 			const roster = mergeRoster(content.share.roster, [link], '');
 			const group: StoredGroup = {
 				role: 'member',
