@@ -338,69 +338,54 @@ describe('replicaFlow', () => {
 		flow.dispose();
 	});
 
-	it('a pick during remove() starts nothing whose session the removal would wipe', async () => {
+	/** A flow with a 'file' copy attached, whose record delete waits for `release`. */
+	async function removingFlow() {
 		const { store, kv, host } = await makeHost({});
 		const old = memTarget('old');
-		let release: (() => void) | undefined;
+		const gate: { release?: () => void } = {};
 		const gated = {
 			...kv,
 			del: async (k: string) => {
-				await new Promise<void>((r) => (release = r));
+				await new Promise<void>((r) => (gate.release = r));
 				return kv.del(k);
 			}
 		};
-		let asked = 0;
+		const asked = { count: 0 };
 		const flow = replicaFlow(
 			{ ...host, kv: gated },
-			{
-				file: async () => (++asked === 1 ? old.target : memTarget('new').target)
-			}
+			{ file: async () => (++asked.count === 1 ? old.target : memTarget('new').target) }
 		);
 		flow.open();
 		flow.pick('file');
 		await until(() => store.state.replicas.length === 1);
+		return { store, old, gate, asked, flow };
+	}
 
+	it('a pick during remove() starts nothing whose session the removal would wipe', async () => {
+		const { store, gate, asked, flow } = await removingFlow();
 		const removing = flow.remove();
 		flow.open();
 		flow.pick('file');
-		await until(() => release !== undefined);
-		release?.();
+		await until(() => gate.release !== undefined);
+		gate.release?.();
 		await removing;
-		expect(asked).toBe(1);
+		expect(asked.count).toBe(1);
 		expect(store.state.replicas).toEqual([]);
 		expect(flow.snapshot.busy).toBe(false);
 		flow.dispose();
 	});
 
 	it('a cancel() during remove() does not let a pick() start under the removal', async () => {
-		const { store, kv, host } = await makeHost({});
-		const old = memTarget('old');
-		let release: (() => void) | undefined;
-		const gated = {
-			...kv,
-			del: async (k: string) => {
-				await new Promise<void>((r) => (release = r));
-				return kv.del(k);
-			}
-		};
-		let asked = 0;
-		const flow = replicaFlow(
-			{ ...host, kv: gated },
-			{ file: async () => (++asked === 1 ? old.target : memTarget('new').target) }
-		);
-		flow.open();
-		flow.pick('file');
-		await until(() => store.state.replicas.length === 1);
-
+		const { old, gate, asked, flow } = await removingFlow();
 		const removing = flow.remove();
-		await until(() => release !== undefined);
+		await until(() => gate.release !== undefined);
 		flow.cancel();
 		expect(flow.snapshot.busy).toBe(true);
 		flow.open();
 		flow.pick('file');
-		release?.();
+		gate.release?.();
 		await removing;
-		expect(asked).toBe(1);
+		expect(asked.count).toBe(1);
 		expect(old.disconnected).toBe(1);
 		expect(flow.snapshot).toMatchObject({ step: 'idle', busy: false, replica: null });
 		flow.dispose();
