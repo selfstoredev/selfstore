@@ -231,7 +231,9 @@ export function replicaFlow(
 			await left?.disconnect().catch(() => undefined);
 			// remove() or a later connect ran meanwhile: it queued its own record
 			// write, which lands after ours.
-			if (attached !== target) return;
+			// A cancel() during the write may have started another connect: that
+			// one owns the screen now.
+			if (attached !== target || started !== generation) return;
 			m.set({ step: 'idle', busy: false, error: null, replica: current() });
 		} catch (e) {
 			if (started === generation) m.set({ busy: false, error: toStoreError(e) });
@@ -294,7 +296,10 @@ export function replicaFlow(
 		},
 
 		async remove() {
-			generation++;
+			// busy blocks a pick() while the record is written: a connect landing
+			// in between would see its session wiped by the disconnect below.
+			m.set({ busy: true, error: null });
+			const removing = ++generation;
 			const target = attached;
 			attached = null;
 			attachedKind = null;
@@ -303,7 +308,8 @@ export function replicaFlow(
 			// Forget locally only - a BackupTarget's disconnect never deletes
 			// remote data, so the copy stays where it is for a manual recovery.
 			await target?.disconnect().catch(() => undefined);
-			m.set({ step: 'idle', busy: false, error: null, replica: current() });
+			if (removing === generation)
+				m.set({ step: 'idle', busy: false, error: null, replica: current() });
 		},
 
 		async restore() {

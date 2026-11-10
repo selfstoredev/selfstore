@@ -338,6 +338,73 @@ describe('replicaFlow', () => {
 		flow.dispose();
 	});
 
+	it('a pick during remove() starts nothing whose session the removal would wipe', async () => {
+		const { store, kv, host } = await makeHost({});
+		const old = memTarget('old');
+		let release: (() => void) | undefined;
+		const gated = {
+			...kv,
+			del: async (k: string) => {
+				await new Promise<void>((r) => (release = r));
+				return kv.del(k);
+			}
+		};
+		let asked = 0;
+		const flow = replicaFlow(
+			{ ...host, kv: gated },
+			{
+				file: async () => (++asked === 1 ? old.target : memTarget('new').target)
+			}
+		);
+		flow.open();
+		flow.pick('file');
+		await until(() => store.state.replicas.length === 1);
+
+		const removing = flow.remove();
+		flow.open();
+		flow.pick('file');
+		await until(() => release !== undefined);
+		release?.();
+		await removing;
+		expect(asked).toBe(1);
+		expect(store.state.replicas).toEqual([]);
+		expect(flow.snapshot.busy).toBe(false);
+		flow.dispose();
+	});
+
+	it('a connect cancelled during its record write leaves the next connect in charge', async () => {
+		const { store, kv, host } = await makeHost({});
+		let release: (() => void) | undefined;
+		const gated = {
+			...kv,
+			set: async (k: string, v: unknown) => {
+				if (k.endsWith('record')) await new Promise<void>((r) => (release = r));
+				return kv.set(k, v);
+			}
+		};
+		let asked = 0;
+		const flow = replicaFlow(
+			{ ...host, kv: gated },
+			{
+				file: () =>
+					++asked === 1
+						? Promise.resolve(memTarget().target)
+						: new Promise<BackupTarget>(() => undefined)
+			}
+		);
+		flow.open();
+		flow.pick('file');
+		await until(() => store.state.replicas.length === 1 && release !== undefined);
+		flow.cancel();
+		flow.open();
+		flow.pick('file');
+		release?.();
+		await new Promise((r) => setTimeout(r, 15));
+		expect(asked).toBe(2);
+		expect(flow.snapshot.busy).toBe(true);
+		flow.dispose();
+	});
+
 	it('restore() rebuilds a custom kind only through the restoreTarget hook', async () => {
 		const { store, kv, host } = await makeHost({ notes: [{ id: 'n1' }] });
 		await kv.set('replica:record', { kind: 'file' });
