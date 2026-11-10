@@ -17,7 +17,16 @@
  * in the snapshot instead; this engine stops short of sequence CRDTs.
  */
 
-import { type Hlc, issue, max, compare, createNode, hlcWall, driftedAhead } from './hlc';
+import {
+	type Hlc,
+	issue,
+	max,
+	compare,
+	createNode,
+	hlcWall,
+	driftedAhead,
+	wellFormed
+} from './hlc';
 import { SelfstoreError } from '../selfstore/errors';
 import { byCodePoint } from '../ordering';
 
@@ -362,6 +371,13 @@ function* allClocks(meta: SyncMeta): Generator<Hlc> {
  */
 function assertNoDrift(meta: SyncMeta, wallNow: number): void {
 	for (const clock of allClocks(meta)) {
+		if (!wellFormed(clock)) {
+			throw new SelfstoreError(
+				'CLOCK_DRIFT',
+				'This copy carries a clock this library never writes. Merging it would let its ' +
+					'writes win every future conflict, on every device.'
+			);
+		}
 		if (driftedAhead(clock, wallNow)) {
 			throw new SelfstoreError(
 				'CLOCK_DRIFT',

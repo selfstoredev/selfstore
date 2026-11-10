@@ -58,6 +58,15 @@ export function createNode(): string {
  */
 export const MAX_DRIFT_MS = 5 * 60_000;
 
+const CANONICAL = /^\d{15}\|\d{6}\|[^|]+$/;
+
+/** Whether `h` has the exact shape `encode` writes: fifteen digits, six, a node.
+ *  Anything else compares as a string against real clocks, and `zzz...` beats
+ *  every one of them while its wall reads as NaN to the drift bound. */
+export function wellFormed(h: unknown): h is Hlc {
+	return typeof h === 'string' && CANONICAL.test(h);
+}
+
 /** Whether `h` claims a wall time further ahead than the drift bound allows. */
 export function driftedAhead(
 	h: Hlc,

@@ -1,5 +1,14 @@
 import { describe, it, expect, vi } from 'vitest';
-import { issue, receive, compare, max, createNode, driftedAhead, MAX_DRIFT_MS } from './hlc';
+import {
+	issue,
+	receive,
+	compare,
+	max,
+	createNode,
+	driftedAhead,
+	MAX_DRIFT_MS,
+	wellFormed
+} from './hlc';
 
 describe('drift bound', () => {
 	const now = 1_700_000_000_000;
@@ -78,5 +87,14 @@ describe('hlc', () => {
 
 	it('createNode never contains the encoding separator', () => {
 		for (let i = 0; i < 20; i++) expect(createNode()).not.toContain('|');
+	});
+});
+
+describe('wellFormed', () => {
+	it('accepts what issue writes and nothing else', () => {
+		expect(wellFormed(issue(null, 'n', 1_700_000_000_000))).toBe(true);
+		for (const h of ['zzzz|000000|x', '1|0|n', '000000000000001|000000|', 7, null]) {
+			expect(wellFormed(h)).toBe(false);
+		}
 	});
 });
