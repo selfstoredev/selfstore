@@ -3,20 +3,14 @@ import { adopt, FILE_ID_KEY } from './drive';
 import type { DriveOptions, DriveAuth } from './drive';
 import type { KV } from '../cache';
 
-function memKV(seed: Record<string, unknown> = {}): KV {
-	const m = new Map<string, unknown>(Object.entries(seed));
+const memKV = (): KV => {
+	const m = new Map<string, unknown>();
 	return {
-		async get<T = unknown>(k: string) {
-			return m.get(k) as T | undefined;
-		},
-		async set(k, v) {
-			m.set(k, v);
-		},
-		async del(k) {
-			m.delete(k);
-		}
+		get: async <T = unknown>(k: string) => m.get(k) as T | undefined,
+		set: async (k, v) => void m.set(k, v),
+		del: async (k) => void m.delete(k)
 	};
-}
+};
 
 function mockAuth(): DriveAuth {
 	return {
