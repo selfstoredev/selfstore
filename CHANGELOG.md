@@ -14,6 +14,10 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A household `leave()` that fails to revoke the bulletin or drop the copy keeps the share.** Both failures were swallowed and the membership deleted, so a network error left the invitation or the copy reachable while the share looked ended, with nothing left to retry from. The error is now rethrown and the membership kept: calling `leave()` again finishes it.
+
 ## [1.8.39] - 2026-11-10
 
 ### Fixed
