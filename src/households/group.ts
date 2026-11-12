@@ -677,17 +677,15 @@ export function createHouseholdGroup(deps: {
 			if (!group) return;
 			// Detach the plumbing first: nothing publishes or folds anymore.
 			disarm(group);
-			if (group.role === 'admin') {
-				try {
-					await backend.revokeBulletin();
-				} catch {
-					/* tolerable: the bulletin only ever holds K-encrypted data */
-				}
-			}
+			// The revocation and my copy file go before the membership does. Either
+			// failing (a network error) leaves the invitation or the copy reachable,
+			// so the membership and its ids are KEPT and the error rethrown: leave()
+			// can be called again, instead of reporting a share ended that is not.
+			if (group.role === 'admin') await backend.revokeBulletin();
 			// My copy file dies with the membership (private first, then gone).
 			// The member's own file is untouched: it never carried the share key, and the
 			// data already converged into it stays - local-first honesty.
-			await backend.dropCopy(group.myCopy.fileId).catch(() => undefined);
+			await backend.dropCopy(group.myCopy.fileId);
 			groups = list.filter((g) => g !== group);
 			for (const k of [...rosterMisses.keys()]) {
 				if (k.startsWith(`${group.mailboxId}:`)) rosterMisses.delete(k);

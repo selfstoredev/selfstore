@@ -35,6 +35,8 @@ class World {
 	/** fileId -> the bulletin's control record (null = revoked). */
 	bulletins = new Map<string, SharePayload | null>();
 	mailbox = new Map<string, string[]>();
+	/** Makes the next dropCopy / revokeBulletin reject, as a network error would. */
+	failLeave = false;
 	private seq = 0;
 	newId(prefix: string): string {
 		return `${prefix}-${++this.seq}`;
@@ -102,6 +104,7 @@ function makeBackend(world: World, email: string): ShareBackend {
 			return world.target(fileId);
 		},
 		async dropCopy(fileId) {
+			if (world.failLeave) throw new Error('network');
 			world.files.delete(fileId);
 		},
 		async publishBulletin(key, payload) {
@@ -110,6 +113,7 @@ function makeBackend(world: World, email: string): ShareBackend {
 			return { fileId: myBulletinId, key };
 		},
 		async revokeBulletin() {
+			if (world.failLeave) throw new Error('network');
 			if (myBulletinId) world.bulletins.set(myBulletinId, null);
 		},
 		async openIncoming(fileId, key) {
@@ -344,6 +348,24 @@ describe('capability-link household share (mirror model)', () => {
 		expect(world.files.has(adminCopy)).toBe(false); // own copy dropped
 
 		const late = await makeMember(world, 'late@x.fr', 'hh-rv-late', 'late-wallet');
+		expect(await late.group.openIncoming(link.fileId, link.key)).toBeNull();
+	});
+
+	it('a leave() whose revocation fails keeps the share, and a retry ends it', async () => {
+		const world = new World();
+		const admin = await makeMember(world, 'admin@x.fr', 'hh-lf-admin', 'lf-wallet');
+		const link = await admin.group.startShare();
+		const adminCopy = admin.group.state.selfFileId!;
+		world.failLeave = true;
+		await expect(admin.group.leave()).rejects.toThrow('network');
+		// Nothing claims the share is over while the link still opens.
+		expect(await admin.kv.get(HOUSEHOLD_GROUP_KEY)).toBeDefined();
+		expect(world.files.has(adminCopy)).toBe(true);
+		world.failLeave = false;
+		await admin.group.leave();
+		expect(await admin.kv.get(HOUSEHOLD_GROUP_KEY)).toBeUndefined();
+		expect(world.files.has(adminCopy)).toBe(false);
+		const late = await makeMember(world, 'late@x.fr', 'hh-lf-late', 'lf-late-wallet');
 		expect(await late.group.openIncoming(link.fileId, link.key)).toBeNull();
 	});
 
