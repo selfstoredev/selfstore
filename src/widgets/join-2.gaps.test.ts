@@ -53,14 +53,19 @@ describe('SelfstoreJoinElement.flow getter', () => {
 		expect(first).toBe(second);
 	});
 
-	it('reflects the flow created by joinFlow with given options', async () => {
+	it('hands its options to the flow it creates', async () => {
 		const el = document.createElement('selfstore-join') as SelfstoreJoinElement;
 		document.body.append(el);
-		el.engine = fakeEngine();
+		// A preview that never settles: the step cannot move on its own, so the
+		// only way out of 'previewing' is the deadline the element was given.
+		el.engine = {
+			preview: () => new Promise<never>(() => undefined),
+			join: () => Promise.resolve('joined')
+		};
 		el.link = 'https://x.test/join#k=abc';
-		el.options = { deadlineMs: 1234 };
+		el.options = { deadlineMs: 20 };
 		await vi.waitFor(() => expect(el.flow).not.toBeNull());
-		const snap = el.flow!.snapshot;
-		expect(snap.step).toBe('previewing');
+		expect(el.flow!.snapshot.step).toBe('previewing');
+		await vi.waitFor(() => expect(el.flow!.snapshot.step).toBe('error'), { timeout: 2000 });
 	});
 });
