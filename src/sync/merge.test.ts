@@ -207,6 +207,28 @@ describe('merge:lww-map (field-level)', () => {
 		expect(merge(A, B, cfgMap).collections.rows).toEqual([]);
 	});
 
+	it('a removed field stays removed against a copy that still holds it', () => {
+		const A = fork('a', { rows: [{ id: '1', name: 'Livret' }] }, 5000); // balance removed
+		const B = fork('b', { rows: [{ id: '1', name: 'Livret', balance: 10 }] }, 3000);
+		expect(merge(A, B, cfgMap).collections.rows).toEqual([{ id: '1', name: 'Livret' }]);
+		expect(merge(B, A, cfgMap).collections.rows).toEqual([{ id: '1', name: 'Livret' }]);
+		// The merged copy carries the removal on to a third one.
+		const ab = merge(A, B, cfgMap);
+		const C = { collections: seed, meta: base };
+		expect(
+			merge(C, { collections: ab.collections, meta: ab.meta }, cfgMap).collections.rows
+		).toEqual([{ id: '1', name: 'Livret' }]);
+	});
+
+	it('a field written again after its removal comes back', () => {
+		const removed = { rows: [{ id: '1', name: 'Livret' }] };
+		const A1 = stamp({ node: 'a', clock: base.clock, cols: base.cols }, removed, cfgMap, 3000);
+		const back = { rows: [{ id: '1', name: 'Livret', balance: 7 }] };
+		const A2 = stamp(A1, back, cfgMap, 4000);
+		const B = fork('b', removed, 3500);
+		expect(merge({ collections: back, meta: A2 }, B, cfgMap).collections.rows).toEqual(back.rows);
+	});
+
 	it('detectConflicts flags only same-field concurrent edits', () => {
 		const differentFields = detectConflicts(
 			fork('a', { rows: [{ id: '1', name: 'A', balance: 10 }] }, 3000),
