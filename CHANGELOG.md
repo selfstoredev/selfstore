@@ -16,6 +16,7 @@ version number is not asking you to trust.
 
 ### Fixed
 
+- **A field removed from an `lww-map` record stays removed.** Removing it dropped its clock, so a merge with a copy that still held the field under an older clock brought the value back, with no concurrent edit at all. A removed field now keeps its clock, marked as removed, and the merge carries that removal on to the next copy. Metadata written before still reads, and an earlier version reading the new metadata already lets the removal win.
 - **A household `leave()` that fails to revoke the bulletin or drop the copy keeps the share.** Both failures were swallowed and the membership deleted, so a network error left the invitation or the copy reachable while the share looked ended, with nothing left to retry from. The error is now rethrown and the membership kept: calling `leave()` again finishes it.
 
 ## [1.8.39] - 2026-11-10

@@ -281,6 +281,11 @@ function stampPresent(
 /** Stamp each added/changed field of one record ('lww-map'): a field keeps its
  *  clock until its own content changes, so field clocks stay independent and a
  *  merge can tell which side last touched which field. */
+/** The content hash of a removed field: its clock stays, so a copy that still
+ *  holds the field under an older clock cannot bring it back. hashText is never
+ *  negative. */
+const REMOVED = -1;
+
 function stampFields(col: ColMeta, id: Id, doc: Record<string, unknown>, tick: Tick): void {
 	const rec = ((col.fields ??= dict())[id] ??= dict());
 	for (const key of Object.keys(doc)) {
@@ -288,7 +293,9 @@ function stampFields(col: ColMeta, id: Id, doc: Record<string, unknown>, tick: T
 		const { same, h } = unchanged(prior?.[1], doc[key]);
 		rec[key] = same && prior ? [prior[0], h] : [tick(), h];
 	}
-	for (const key of Object.keys(rec)) if (!Object.hasOwn(doc, key)) delete rec[key];
+	for (const key of Object.keys(rec)) {
+		if (!Object.hasOwn(doc, key) && rec[key][1] !== REMOVED) rec[key] = [tick(), REMOVED];
+	}
 }
 
 /** Rewrite an unchanged record's field stamps in the 53-bit form, clocks kept. */
@@ -296,6 +303,7 @@ function upgradeFieldHashes(col: ColMeta, id: Id, doc: Record<string, unknown>):
 	const rec = col.fields?.[id];
 	if (!rec) return;
 	for (const key of Object.keys(rec)) {
+		if (rec[key][1] === REMOVED) continue;
 		const { same, h } = unchanged(rec[key][1], doc[key]);
 		if (same) rec[key] = [rec[key][0], h];
 	}
@@ -628,12 +636,18 @@ function mergeFields(
 	const bF = bMeta.fields?.[id] ?? dict();
 	const doc: Record<string, unknown> = {};
 	const fields = dict<[Hlc, number]>();
-	for (const key of new Set([...Object.keys(aDoc), ...Object.keys(bDoc)])) {
+	const keys = [aDoc, bDoc, aF, bF].flatMap((o) => Object.keys(o));
+	for (const key of new Set(keys)) {
 		const a = aF[key] ?? null;
 		const b = bF[key] ?? null;
 		const side = pickFieldSide(a, b, winnerSide);
 		const src = side === 'local' ? aDoc : bDoc;
-		if (!Object.hasOwn(src, key)) continue; // the winning side removed the field: drop it
+		const stamped = side === 'local' ? a : b;
+		if (!Object.hasOwn(src, key)) {
+			// The winning side removed the field: drop it, and keep its removal.
+			if (stamped?.[1] === REMOVED) fields[key] = stamped;
+			continue;
+		}
 		// Defined, never assigned: `doc.__proto__ = v` would swap the prototype.
 		Object.defineProperty(doc, key, {
 			value: src[key],
@@ -641,7 +655,6 @@ function mergeFields(
 			writable: true,
 			configurable: true
 		});
-		const stamped = side === 'local' ? a : b;
 		if (stamped) fields[key] = stamped;
 	}
 	return { doc, fields };
