@@ -25,8 +25,11 @@ describe('decodeFile throws on bad envelope', () => {
 		db.close();
 
 		// Load should attempt to decode the corrupted entry and throw.
-		await expect(cache.load()).rejects.toThrow(
-			new SelfstoreError('BAD_FORMAT', 'Unrecognized cache record (not a sealed envelope).')
-		);
+		const error = await cache.load().catch((e: unknown) => e);
+		expect(error).toBeInstanceOf(SelfstoreError);
+		expect(error).toMatchObject({
+			code: 'BAD_FORMAT',
+			message: 'Unrecognized cache record (not a sealed envelope).'
+		});
 	});
 });
