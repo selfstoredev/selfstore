@@ -26,9 +26,12 @@ describe('openFileMeta validates decrypted metadata', () => {
 		await db.put('files', { ...raw, meta: badMeta }, 'f1');
 		db.close();
 
-		await expect(cache.load()).rejects.toThrowError(
-			new SelfstoreError('BAD_FORMAT', 'Unrecognized cache record (file name or type missing).')
-		);
+		const error = await cache.load().catch((e: unknown) => e);
+		expect(error).toBeInstanceOf(SelfstoreError);
+		expect(error).toMatchObject({
+			code: 'BAD_FORMAT',
+			message: 'Unrecognized cache record (file name or type missing).'
+		});
 	});
 
 	it('throws BAD_FORMAT when unsealed meta has non-string mime', async () => {
@@ -48,8 +51,11 @@ describe('openFileMeta validates decrypted metadata', () => {
 		await db.put('files', { ...raw, meta: badMeta }, 'f2');
 		db.close();
 
-		await expect(cache.load()).rejects.toThrowError(
-			new SelfstoreError('BAD_FORMAT', 'Unrecognized cache record (file name or type missing).')
-		);
+		const error = await cache.load().catch((e: unknown) => e);
+		expect(error).toBeInstanceOf(SelfstoreError);
+		expect(error).toMatchObject({
+			code: 'BAD_FORMAT',
+			message: 'Unrecognized cache record (file name or type missing).'
+		});
 	});
 });
