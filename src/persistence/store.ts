@@ -2464,7 +2464,10 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 				// NOT keep an edit across this switch - loading the new home replaces it -
 				// so a flush that fails with an unsaved edit refuses the switch before
 				// anything has changed.
-				if (strategy === 'replace-local' && durable && !locked() && !needsAttention) {
+				// A WIPE empties local just the same, whatever the strategy: a new empty
+				// backup (`replace-remote` with `wipe`) would otherwise drop the edit too.
+				const replacesLocal = strategy === 'replace-local' || attachOpts?.wipe === true;
+				if (replacesLocal && durable && !locked() && !needsAttention) {
 					await flushBeforeLeaving();
 				}
 				// A switch that LOADS the new home reads it next, while the old home is
