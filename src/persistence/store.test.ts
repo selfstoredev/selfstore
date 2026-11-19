@@ -352,6 +352,31 @@ describe('store.attachTarget: a switch that cannot read its new home', () => {
 		]);
 	});
 
+	it('a new empty backup refuses to wipe an edit the home being left never got', async () => {
+		const { store, app, personal } = await onPersonal();
+		app.collections.accounts = [
+			{ id: 'p1', name: 'Mine' },
+			{ id: 'p2', name: 'Pending' }
+		];
+		personal.target.save = async () => {
+			throw new Error('offline');
+		};
+		const blank = fakeTarget('drive');
+
+		await expect(
+			store.attachTarget(blank.target, {
+				strategy: 'replace-remote',
+				wipe: true,
+				keepSession: true
+			})
+		).rejects.toMatchObject({ code: 'TARGET_WRITE_FAILED' });
+		expect(app.collections.accounts).toEqual([
+			{ id: 'p1', name: 'Mine' },
+			{ id: 'p2', name: 'Pending' }
+		]);
+		expect(blank.remote).toBeNull();
+	});
+
 	it('refuses a file that is not a backup before changing anything', async () => {
 		const { store, app, shared } = await onPersonal();
 		await shared.target.save(new Blob([strToU8('not a backup')]));
