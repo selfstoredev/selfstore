@@ -180,8 +180,28 @@ export function indexedDbCache(name: string, opts?: { lock?: boolean }): LocalCa
 			upgrade(d) {
 				d.createObjectStore('kv');
 				d.createObjectStore('files');
+			},
+			terminated() {
+				_db = null;
 			}
 		}));
+
+	/** Run `op` on the connection, reopening it once when the browser dropped it.
+	 *  WebKit (every iOS browser) loses the connection while the page sits in the
+	 *  background and never says so: each later transaction throws "Connection to
+	 *  Indexed Database server lost. Refresh the page" until a reload. Kept, the
+	 *  dead connection turned every save into a failure for the whole session. */
+	async function withDb<T>(op: (d: IDBPDatabase) => Promise<T>): Promise<T> {
+		const current = db();
+		try {
+			return await op(await current);
+		} catch (e) {
+			if (!isLostConnection(e)) throw e;
+			if (_db === current) _db = null;
+			void current.then((d) => d.close()).catch(() => undefined);
+			return op(await db());
+		}
+	}
 
 	// Lock mode: the seal key is supplied per session (unlock) and kept in RAM
 	// only; no device key is ever written, so a copy of the profile carries no
@@ -203,19 +223,25 @@ export function indexedDbCache(name: string, opts?: { lock?: boolean }): LocalCa
 						)
 					);
 		}
-		return (_key ??= loadOrCreateKey());
+		// A failed read must not stick: cached, the rejection refused every later
+		// seal of the session.
+		return (_key ??= loadOrCreateKey().catch((e: unknown) => {
+			_key = null;
+			throw e;
+		}));
 	}
 	async function loadOrCreateKey(): Promise<CryptoKey> {
-		const d = await db();
-		const existing = (await d.get('kv', DEVICE_KEY)) as CryptoKey | undefined;
-		if (existing) return existing;
-		// Generate outside the write tx (a non-IDB await would auto-close it), then
-		// store only if still absent so a racing tab cannot clobber the key.
-		const fresh = await newDeviceKey();
-		const tx = d.transaction('kv', 'readwrite');
-		if (!(await tx.store.get(DEVICE_KEY))) await tx.store.put(fresh, DEVICE_KEY);
-		await tx.done;
-		return (await d.get('kv', DEVICE_KEY)) as CryptoKey;
+		return withDb(async (d) => {
+			const existing = (await d.get('kv', DEVICE_KEY)) as CryptoKey | undefined;
+			if (existing) return existing;
+			// Generate outside the write tx (a non-IDB await would auto-close it), then
+			// store only if still absent so a racing tab cannot clobber the key.
+			const fresh = await newDeviceKey();
+			const tx = d.transaction('kv', 'readwrite');
+			if (!(await tx.store.get(DEVICE_KEY))) await tx.store.put(fresh, DEVICE_KEY);
+			await tx.done;
+			return (await d.get('kv', DEVICE_KEY)) as CryptoKey;
+		});
 	}
 
 	async function decodeFile(v: EncFile): Promise<StoredFile> {
@@ -230,13 +256,13 @@ export function indexedDbCache(name: string, opts?: { lock?: boolean }): LocalCa
 
 	const kv: KV = {
 		async get<T = unknown>(key: string): Promise<T | undefined> {
-			return (await (await db()).get('kv', `m:${key}`)) as T | undefined;
+			return (await withDb((d) => d.get('kv', `m:${key}`))) as T | undefined;
 		},
 		async set(key: string, value: unknown): Promise<void> {
-			await (await db()).put('kv', value, `m:${key}`);
+			await withDb((d) => d.put('kv', value, `m:${key}`));
 		},
 		async del(key: string): Promise<void> {
-			await (await db()).delete('kv', `m:${key}`);
+			await withDb((d) => d.delete('kv', `m:${key}`));
 		}
 	};
 
@@ -245,7 +271,7 @@ export function indexedDbCache(name: string, opts?: { lock?: boolean }): LocalCa
 	// collections - and, in lock mode, unreadable until the session unlocks.
 	const sealedKv: KV = {
 		async get<T = unknown>(k: string): Promise<T | undefined> {
-			const raw = await (await db()).get('kv', `${SEALED_PREFIX}${k}`);
+			const raw = await withDb((d) => d.get('kv', `${SEALED_PREFIX}${k}`));
 			if (raw === undefined) return undefined;
 			if (!isEnvelope(raw)) {
 				throw new SelfstoreError(
@@ -257,10 +283,10 @@ export function indexedDbCache(name: string, opts?: { lock?: boolean }): LocalCa
 		},
 		async set(k: string, value: unknown): Promise<void> {
 			const env = await seal(await key(), new TextEncoder().encode(JSON.stringify(value)));
-			await (await db()).put('kv', env, `${SEALED_PREFIX}${k}`);
+			await withDb((d) => d.put('kv', env, `${SEALED_PREFIX}${k}`));
 		},
 		async del(k: string): Promise<void> {
-			await (await db()).delete('kv', `${SEALED_PREFIX}${k}`);
+			await withDb((d) => d.delete('kv', `${SEALED_PREFIX}${k}`));
 		}
 	};
 
@@ -275,67 +301,70 @@ export function indexedDbCache(name: string, opts?: { lock?: boolean }): LocalCa
 		sealedKv,
 
 		async load() {
-			const d = await db();
-			const rawCollections = await d.get('kv', COLLECTIONS_KEY);
-			if (rawCollections === undefined) return null;
-			// A decrypt (or shape) failure throws, never returns null: init then
-			// leaves the store not-ready, so auto-save cannot overwrite the bytes.
-			if (!isEnvelope(rawCollections)) {
-				throw new SelfstoreError(
-					'BAD_FORMAT',
-					'Unrecognized cache record (not a sealed envelope).'
-				);
-			}
-			const collections = JSON.parse(
-				new TextDecoder().decode(await unseal(await key(), rawCollections))
-			) as Record<string, unknown[]>;
-			const files: CachedFile[] = [];
-			for (const fileKey of await d.getAllKeys('files')) {
-				const v = (await d.get('files', fileKey)) as EncFile | undefined;
-				if (!v) continue;
-				const file = { id: String(fileKey), ...(await decodeFile(v)) };
-				written.set(file.id, file.blob);
-				files.push(file);
-			}
-			return { collections, files };
+			return withDb(async (d) => {
+				const rawCollections = await d.get('kv', COLLECTIONS_KEY);
+				if (rawCollections === undefined) return null;
+				// A decrypt (or shape) failure throws, never returns null: init then
+				// leaves the store not-ready, so auto-save cannot overwrite the bytes.
+				if (!isEnvelope(rawCollections)) {
+					throw new SelfstoreError(
+						'BAD_FORMAT',
+						'Unrecognized cache record (not a sealed envelope).'
+					);
+				}
+				const collections = JSON.parse(
+					new TextDecoder().decode(await unseal(await key(), rawCollections))
+				) as Record<string, unknown[]>;
+				const files: CachedFile[] = [];
+				for (const fileKey of await d.getAllKeys('files')) {
+					const v = (await d.get('files', fileKey)) as EncFile | undefined;
+					if (!v) continue;
+					const file = { id: String(fileKey), ...(await decodeFile(v)) };
+					written.set(file.id, file.blob);
+					files.push(file);
+				}
+				return { collections, files };
+			});
 		},
 
 		async saveCollections(collections) {
 			const bytes = new TextEncoder().encode(JSON.stringify(collections));
 			const env = await seal(await key(), bytes);
-			await (await db()).put('kv', env, COLLECTIONS_KEY);
+			await withDb((d) => d.put('kv', env, COLLECTIONS_KEY));
 		},
 
 		async saveFiles(files) {
-			const d = await db();
-			const have = new Set((await d.getAllKeys('files')).map(String));
-			const want = new Set(files.map((f) => f.id));
-			// Seal new blobs before opening the write tx: crypto is a non-IDB await and
-			// would otherwise auto-close the transaction.
-			const k = await key();
-			const fresh = await Promise.all(
-				files
-					.filter((f) => changed(f, have))
-					.map(async (f) => {
-						const bytes = new Uint8Array(await f.blob.arrayBuffer());
-						return { id: f.id, rec: await sealFile(k, { name: f.name, mime: f.mime }, bytes) };
-					})
-			);
-			const tx = d.transaction('files', 'readwrite');
-			for (const { id, rec } of fresh) tx.store.put(rec, id);
-			for (const id of have) if (!want.has(id)) tx.store.delete(id);
-			await tx.done;
-			written.clear();
-			for (const f of files) written.set(f.id, f.blob);
+			return withDb(async (d) => {
+				const have = new Set((await d.getAllKeys('files')).map(String));
+				const want = new Set(files.map((f) => f.id));
+				// Seal new blobs before opening the write tx: crypto is a non-IDB await and
+				// would otherwise auto-close the transaction.
+				const k = await key();
+				const fresh = await Promise.all(
+					files
+						.filter((f) => changed(f, have))
+						.map(async (f) => {
+							const bytes = new Uint8Array(await f.blob.arrayBuffer());
+							return { id: f.id, rec: await sealFile(k, { name: f.name, mime: f.mime }, bytes) };
+						})
+				);
+				const tx = d.transaction('files', 'readwrite');
+				for (const { id, rec } of fresh) tx.store.put(rec, id);
+				for (const id of have) if (!want.has(id)) tx.store.delete(id);
+				await tx.done;
+				written.clear();
+				for (const f of files) written.set(f.id, f.blob);
+			});
 		},
 
 		async clear() {
-			const d = await db();
-			await d.clear('kv');
-			await d.clear('files');
-			written.clear();
-			_key = null; // next save mints a fresh device key
-			sealKey = null; // lock mode: forget the session key (its kdf lived in kv, now gone)
+			return withDb(async (d) => {
+				await d.clear('kv');
+				await d.clear('files');
+				written.clear();
+				_key = null; // next save mints a fresh device key
+				sealKey = null; // lock mode: forget the session key (its kdf lived in kv, now gone)
+			});
 		},
 
 		async requestPersistent() {
@@ -368,77 +397,86 @@ export function indexedDbCache(name: string, opts?: { lock?: boolean }): LocalCa
 					'reseal(): the local cache is locked - unlock() it first.'
 				);
 			}
-			const d = await db();
-			// A password gets a fresh salt: reusing the old one would let a stolen
-			// derivation survive the change the user just made.
-			const kdf = typeof secret === 'string' ? freshCacheKdf() : null;
-			const next = kdf ? await keyFromPassword(secret as string, kdf) : (secret as CryptoKey);
+			return withDb(async (d) => {
+				// A password gets a fresh salt: reusing the old one would let a stolen
+				// derivation survive the change the user just made.
+				const kdf = typeof secret === 'string' ? freshCacheKdf() : null;
+				const next = kdf ? await keyFromPassword(secret as string, kdf) : (secret as CryptoKey);
 
-			// Re-encrypt everything BEFORE touching the database. Writing the new
-			// salt first and the payload after would, on a crash or a closed tab in
-			// between, leave records that no key opens - the cache would be lost
-			// with the very gesture meant to keep it.
-			const rawCollections = await d.get('kv', COLLECTIONS_KEY);
-			const collections = isEnvelope(rawCollections)
-				? await seal(next, await unseal(previous, rawCollections))
-				: null;
-			const files: { id: IDBValidKey; rec: EncFile }[] = [];
-			for (const fileKey of await d.getAllKeys('files')) {
-				const v = (await d.get('files', fileKey)) as EncFile | undefined;
-				if (!v) continue;
-				const meta = await openFileMeta(previous, v);
-				files.push({ id: fileKey, rec: await sealFile(next, meta, await unseal(previous, v)) });
-			}
-			// The sealed kv space follows the same key: a share key left under the
-			// old secret would survive the change the user just made.
-			const sealedRecords: { id: IDBValidKey; rec: EncEnvelope }[] = [];
-			for (const kvKey of await d.getAllKeys('kv')) {
-				if (typeof kvKey !== 'string' || !kvKey.startsWith(SEALED_PREFIX)) continue;
-				const v = await d.get('kv', kvKey);
-				if (!isEnvelope(v)) continue;
-				sealedRecords.push({ id: kvKey, rec: await seal(next, await unseal(previous, v)) });
-			}
+				// Re-encrypt everything BEFORE touching the database. Writing the new
+				// salt first and the payload after would, on a crash or a closed tab in
+				// between, leave records that no key opens - the cache would be lost
+				// with the very gesture meant to keep it.
+				const rawCollections = await d.get('kv', COLLECTIONS_KEY);
+				const collections = isEnvelope(rawCollections)
+					? await seal(next, await unseal(previous, rawCollections))
+					: null;
+				const files: { id: IDBValidKey; rec: EncFile }[] = [];
+				for (const fileKey of await d.getAllKeys('files')) {
+					const v = (await d.get('files', fileKey)) as EncFile | undefined;
+					if (!v) continue;
+					const meta = await openFileMeta(previous, v);
+					files.push({ id: fileKey, rec: await sealFile(next, meta, await unseal(previous, v)) });
+				}
+				// The sealed kv space follows the same key: a share key left under the
+				// old secret would survive the change the user just made.
+				const sealedRecords: { id: IDBValidKey; rec: EncEnvelope }[] = [];
+				for (const kvKey of await d.getAllKeys('kv')) {
+					if (typeof kvKey !== 'string' || !kvKey.startsWith(SEALED_PREFIX)) continue;
+					const v = await d.get('kv', kvKey);
+					if (!isEnvelope(v)) continue;
+					sealedRecords.push({ id: kvKey, rec: await seal(next, await unseal(previous, v)) });
+				}
 
-			// One transaction, so the salt and every record it governs land together.
-			const tx = d.transaction(['kv', 'files'], 'readwrite');
-			const store = tx.objectStore('kv');
-			if (kdf) store.put(kdf, CACHE_KDF);
-			else store.delete(CACHE_KDF); // an app-supplied key needs no salt
-			if (collections) store.put(collections, COLLECTIONS_KEY);
-			for (const { id, rec } of sealedRecords) store.put(rec, id);
-			const fileStore = tx.objectStore('files');
-			for (const { id, rec } of files) fileStore.put(rec, id);
-			await tx.done;
-			sealKey = next;
+				// One transaction, so the salt and every record it governs land together.
+				const tx = d.transaction(['kv', 'files'], 'readwrite');
+				const store = tx.objectStore('kv');
+				if (kdf) store.put(kdf, CACHE_KDF);
+				else store.delete(CACHE_KDF); // an app-supplied key needs no salt
+				if (collections) store.put(collections, COLLECTIONS_KEY);
+				for (const { id, rec } of sealedRecords) store.put(rec, id);
+				const fileStore = tx.objectStore('files');
+				for (const { id, rec } of files) fileStore.put(rec, id);
+				await tx.done;
+				sealKey = next;
+			});
 		},
 		async unlock(secret: string | CryptoKey): Promise<boolean> {
 			// cache-lock (and its Argon2id dependency) load only when lock mode is
 			// actually used, so the default cache path stays free of the KDF.
 			const { keyFromPassword, freshCacheKdf, opens } = await import('./cache-lock');
-			const d = await db();
-			let candidate: CryptoKey;
-			if (typeof secret === 'string') {
-				let kdf = (await d.get('kv', CACHE_KDF)) as CacheKdf | undefined;
-				if (!kdf) {
-					// Mint the salt once, race-safe against a second tab (same guard as
-					// the device key): store only if still absent.
-					const fresh = freshCacheKdf();
-					const tx = d.transaction('kv', 'readwrite');
-					if (!(await tx.store.get(CACHE_KDF))) await tx.store.put(fresh, CACHE_KDF);
-					await tx.done;
-					kdf = (await d.get('kv', CACHE_KDF)) as CacheKdf;
+			return withDb(async (d) => {
+				let candidate: CryptoKey;
+				if (typeof secret === 'string') {
+					let kdf = (await d.get('kv', CACHE_KDF)) as CacheKdf | undefined;
+					if (!kdf) {
+						// Mint the salt once, race-safe against a second tab (same guard as
+						// the device key): store only if still absent.
+						const fresh = freshCacheKdf();
+						const tx = d.transaction('kv', 'readwrite');
+						if (!(await tx.store.get(CACHE_KDF))) await tx.store.put(fresh, CACHE_KDF);
+						await tx.done;
+						kdf = (await d.get('kv', CACHE_KDF)) as CacheKdf;
+					}
+					candidate = await keyFromPassword(secret, kdf);
+				} else {
+					candidate = secret;
 				}
-				candidate = await keyFromPassword(secret, kdf);
-			} else {
-				candidate = secret;
-			}
-			// Trust the secret only once it opens existing data; an empty cache
-			// accepts the first secret, which sets the lock.
-			const raw = await d.get('kv', COLLECTIONS_KEY);
-			if (isEnvelope(raw) && !(await opens(candidate, raw))) return false;
-			sealKey = candidate;
-			return true;
+				// Trust the secret only once it opens existing data; an empty cache
+				// accepts the first secret, which sets the lock.
+				const raw = await d.get('kv', COLLECTIONS_KEY);
+				if (isEnvelope(raw) && !(await opens(candidate, raw))) return false;
+				sealKey = candidate;
+				return true;
+			});
 		}
 	};
 	return lockable;
+}
+
+/** The browser dropped the connection under us (WebKit: UnknownError "server
+ *  lost"; a forcibly closed connection: InvalidStateError). Reopening fixes it. */
+function isLostConnection(e: unknown): boolean {
+	const name = (e as { name?: unknown } | null)?.name;
+	return name === 'UnknownError' || name === 'InvalidStateError';
 }

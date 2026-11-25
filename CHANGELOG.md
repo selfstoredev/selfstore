@@ -16,6 +16,7 @@ version number is not asking you to trust.
 
 ### Fixed
 
+- **A dropped IndexedDB connection is reopened instead of failing every save until a reload.** WebKit (Safari, and every browser on iOS) drops the connection of a page left in the background without telling it, and every later transaction threw "Connection to Indexed Database server lost". The cache kept that dead connection, so the status stayed on "not yet saved, will retry" for the rest of the session: each retry reached the destination, then failed again on the local bookkeeping. The cache now reopens a lost connection and retries the operation once, and a failed bookkeeping write after an upload that landed no longer counts as an unsent edit.
 - **A field removed from an `lww-map` record stays removed.** Removing it dropped its clock, so a merge with a copy that still held the field under an older clock brought the value back, with no concurrent edit at all. A removed field now keeps its clock, marked as removed, and the merge carries that removal on to the next copy. Metadata written before still reads, and an earlier version reading the new metadata already lets the removal win.
 - **A household `leave()` that fails to revoke the bulletin or drop the copy keeps the share.** Both failures were swallowed and the membership deleted, so a network error left the invitation or the copy reachable while the share looked ended, with nothing left to retry from. The error is now rethrown and the membership kept: calling `leave()` again finishes it.
 

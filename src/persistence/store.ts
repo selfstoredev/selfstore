@@ -1552,7 +1552,13 @@ export function createLocalStore(opts: LocalStoreOptions): LocalStore {
 				return true;
 			}
 			const written = await durable.save(await buildBlob(snap));
-			await setRemoteVersion(typeof written === 'string' ? written : await statRemote());
+			// The upload landed: a local bookkeeping write that fails now must not
+			// read as an unsent edit (each retry would re-upload and fail the same
+			// way). The marker is kept in memory; a stale persisted one only costs
+			// the next session a converge.
+			await setRemoteVersion(typeof written === 'string' ? written : await statRemote()).catch(
+				(e: unknown) => logger.error('[selfstore] remote version write failed', e)
+			);
 			// Remember what reached the remote, so the next passive save (or a converge
 			// that changed nothing) skips a byte-identical upload.
 			lastSavedContentHash = digest;
