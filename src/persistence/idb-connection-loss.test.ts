@@ -74,28 +74,19 @@ describe('a dropped IndexedDB connection', () => {
 			debounceMs: 0
 		});
 		await store.init();
-		let remote: Blob | null = null;
-		let version = 0;
+		const remote = { blob: null as Blob | null, version: 0 };
 		const target: BackupTarget = {
 			kind: 'drive',
 			label: 'Google Drive',
-			async save(b) {
-				remote = b;
-				return String(++version);
+			save: async (blob) => {
+				remote.blob = blob;
+				return String(++remote.version);
 			},
-			async load() {
-				return remote;
-			},
-			async stat() {
-				return remote ? String(version) : null;
-			},
-			async isReady() {
-				return true;
-			},
-			async reconnect() {
-				return true;
-			},
-			async disconnect() {}
+			load: async () => remote.blob,
+			stat: async () => (remote.blob ? String(remote.version) : null),
+			isReady: async () => true,
+			reconnect: async () => true,
+			disconnect: async () => undefined
 		};
 		await store.attachTarget(target, { strategy: 'replace-remote' });
 		expect(store.state.status.labelKey).toBe('status.saved');
