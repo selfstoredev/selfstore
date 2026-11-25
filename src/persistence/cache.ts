@@ -225,10 +225,11 @@ export function indexedDbCache(name: string, opts?: { lock?: boolean }): LocalCa
 		}
 		// A failed read must not stick: cached, the rejection refused every later
 		// seal of the session.
-		return (_key ??= loadOrCreateKey().catch((e: unknown) => {
+		_key ??= loadOrCreateKey().catch((e: unknown) => {
 			_key = null;
 			throw e;
-		}));
+		});
+		return _key;
 	}
 	async function loadOrCreateKey(): Promise<CryptoKey> {
 		return withDb(async (d) => {
@@ -411,22 +412,10 @@ export function indexedDbCache(name: string, opts?: { lock?: boolean }): LocalCa
 				const collections = isEnvelope(rawCollections)
 					? await seal(next, await unseal(previous, rawCollections))
 					: null;
-				const files: { id: IDBValidKey; rec: EncFile }[] = [];
-				for (const fileKey of await d.getAllKeys('files')) {
-					const v = (await d.get('files', fileKey)) as EncFile | undefined;
-					if (!v) continue;
-					const meta = await openFileMeta(previous, v);
-					files.push({ id: fileKey, rec: await sealFile(next, meta, await unseal(previous, v)) });
-				}
+				const files = await resealFiles(d, previous, next);
 				// The sealed kv space follows the same key: a share key left under the
 				// old secret would survive the change the user just made.
-				const sealedRecords: { id: IDBValidKey; rec: EncEnvelope }[] = [];
-				for (const kvKey of await d.getAllKeys('kv')) {
-					if (typeof kvKey !== 'string' || !kvKey.startsWith(SEALED_PREFIX)) continue;
-					const v = await d.get('kv', kvKey);
-					if (!isEnvelope(v)) continue;
-					sealedRecords.push({ id: kvKey, rec: await seal(next, await unseal(previous, v)) });
-				}
+				const sealedRecords = await resealSealedKv(d, previous, next);
 
 				// One transaction, so the salt and every record it governs land together.
 				const tx = d.transaction(['kv', 'files'], 'readwrite');
@@ -479,4 +468,34 @@ export function indexedDbCache(name: string, opts?: { lock?: boolean }): LocalCa
 function isLostConnection(e: unknown): boolean {
 	const name = (e as { name?: unknown } | null)?.name;
 	return name === 'UnknownError' || name === 'InvalidStateError';
+}
+
+async function resealFiles(
+	d: IDBPDatabase,
+	previous: CryptoKey,
+	next: CryptoKey
+): Promise<{ id: IDBValidKey; rec: EncFile }[]> {
+	const files: { id: IDBValidKey; rec: EncFile }[] = [];
+	for (const fileKey of await d.getAllKeys('files')) {
+		const v = (await d.get('files', fileKey)) as EncFile | undefined;
+		if (!v) continue;
+		const meta = await openFileMeta(previous, v);
+		files.push({ id: fileKey, rec: await sealFile(next, meta, await unseal(previous, v)) });
+	}
+	return files;
+}
+
+async function resealSealedKv(
+	d: IDBPDatabase,
+	previous: CryptoKey,
+	next: CryptoKey
+): Promise<{ id: IDBValidKey; rec: EncEnvelope }[]> {
+	const records: { id: IDBValidKey; rec: EncEnvelope }[] = [];
+	for (const kvKey of await d.getAllKeys('kv')) {
+		if (typeof kvKey !== 'string' || !kvKey.startsWith(SEALED_PREFIX)) continue;
+		const v = await d.get('kv', kvKey);
+		if (!isEnvelope(v)) continue;
+		records.push({ id: kvKey, rec: await seal(next, await unseal(previous, v)) });
+	}
+	return records;
 }

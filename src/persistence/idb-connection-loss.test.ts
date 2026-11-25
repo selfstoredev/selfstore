@@ -19,8 +19,8 @@ const seen = new Set<IDBDatabase>();
 const dead = new WeakSet<IDBDatabase>();
 const transaction = IDBDatabase.prototype.transaction;
 
-/** Every connection opened so far dies the WebKit way; new ones work. */
-function loseConnections(): void {
+/** Record every connection; one marked dead throws the way WebKit's does. */
+function trackConnections(): void {
 	vi.spyOn(IDBDatabase.prototype, 'transaction').mockImplementation(function (
 		this: IDBDatabase,
 		...args: Parameters<IDBDatabase['transaction']>
@@ -34,17 +34,11 @@ function loseConnections(): void {
 		seen.add(this);
 		return transaction.apply(this, args);
 	});
-	for (const d of seen) dead.add(d);
 }
 
-function trackConnections(): void {
-	vi.spyOn(IDBDatabase.prototype, 'transaction').mockImplementation(function (
-		this: IDBDatabase,
-		...args: Parameters<IDBDatabase['transaction']>
-	) {
-		seen.add(this);
-		return transaction.apply(this, args);
-	});
+/** Every connection opened so far dies; new ones work. */
+function loseConnections(): void {
+	for (const d of seen) dead.add(d);
 }
 
 afterEach(() => {
