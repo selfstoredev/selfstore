@@ -14,6 +14,8 @@ version number is not asking you to trust.
 
 ## [Unreleased]
 
+## [1.8.40] - 2026-11-25
+
 ### Fixed
 
 - **A dropped IndexedDB connection is reopened instead of failing every save until a reload.** WebKit (Safari, and every browser on iOS) drops the connection of a page left in the background without telling it, and every later transaction threw "Connection to Indexed Database server lost". The cache kept that dead connection, so the status stayed on "not yet saved, will retry" for the rest of the session: each retry reached the destination, then failed again on the local bookkeeping. The cache now reopens a lost connection and retries the operation once, and a failed bookkeeping write after an upload that landed no longer counts as an unsent edit.
